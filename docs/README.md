@@ -9,10 +9,11 @@ This folder is the working plan for Skylight DIY.
 - [MVP Plan](mvp-plan.md)
 - [Architecture](architecture.md)
 - [Roadmap](roadmap.md)
+- [Implementation Plan](implementation-plan.md)
+- [v0.1 Implementation Plan](v0.1-implementation-plan.md)
 - [Open Source Strategy](open-source-strategy.md)
 - [Fire Tablet Setup](fire-tablet-setup.md)
-- [Risk Register](risk-register.md)
-- [Decision Log](adr/0001-project-direction.md)
+- [Architecture Decision Records](adr/README.md)
 
 ## Feature plans
 
