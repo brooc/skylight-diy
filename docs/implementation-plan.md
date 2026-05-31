@@ -10,9 +10,13 @@ This is the working implementation plan for Skylight DIY. It is intentionally ch
 - [ ] Use Docker Compose for local development and self-hosted setup.
 - [ ] Treat Google Calendar as an external source of truth, not as data we fully own.
 - [ ] Persist calendar account/source/preferences metadata, not canonical calendar events.
-- [ ] Allow only short-lived or replaceable calendar event caching if needed for performance.
+- [ ] Use a Postgres-backed, replaceable display cache for calendar event payloads.
+- [ ] Do not use Redis in v0.1.
+- [ ] Encrypt OAuth tokens with AES-256-GCM using a versioned ciphertext format.
+- [ ] Add first-run setup with a local admin PIN for settings and integrations.
 - [ ] Require review before any AI or import feature writes to a calendar.
-- [ ] Keep the tablet UI family-friendly, touch-first, and readable from a few feet away.
+- [ ] Keep remote telemetry disabled by default.
+- [ ] Keep the tablet UI family-friendly, touch-first, accessible, and readable from a few feet away.
 
 ## Target repository shape
 
@@ -23,6 +27,7 @@ This is the working implementation plan for Skylight DIY. It is intentionally ch
 - [ ] Create `packages/domain` for shared business rules and types.
 - [ ] Create `packages/config` for shared configuration helpers.
 - [ ] Consider `packages/ui` once shared UI components emerge naturally.
+- [ ] Consider `packages/types` if shared API/domain types grow beyond `packages/domain`.
 
 ## Proposed stack
 
@@ -32,6 +37,8 @@ This is the working implementation plan for Skylight DIY. It is intentionally ch
 - [ ] TypeScript.
 - [ ] Vite.
 - [ ] Tailwind CSS.
+- [ ] React Router.
+- [ ] TanStack Query.
 - [ ] PWA manifest.
 - [ ] Tablet-first responsive layout.
 
@@ -39,21 +46,23 @@ This is the working implementation plan for Skylight DIY. It is intentionally ch
 
 - [ ] Node.js.
 - [ ] TypeScript.
-- [ ] Fastify or Hono.
+- [ ] Fastify.
 - [ ] REST API first; GraphQL is not needed initially.
 - [ ] Zod or equivalent runtime validation for API boundaries.
+- [ ] HTTP-only cookie session for local admin PIN unlock state.
 
 ### Database
 
 - [ ] Postgres.
-- [ ] Drizzle ORM and migrations, or another migration-first Postgres-friendly tool.
+- [ ] Drizzle ORM and migrations.
 - [ ] Seed data for local development.
 - [ ] Dockerized local database.
+- [ ] Postgres-backed calendar display cache.
 
 ### Integrations
 
 - [ ] Google Calendar read-only integration.
-- [ ] Google OAuth token storage with encryption.
+- [ ] Google OAuth token storage with AES-256-GCM encryption.
 - [ ] Calendar source selection and display preferences.
 - [ ] Future: calendar write support.
 - [ ] Future: email/PDF/image import pipeline.
@@ -69,7 +78,9 @@ Goal: Build a real app foundation and prove the Fire Tablet can display househol
 - [ ] Add Docker Compose for local development.
 - [ ] Add Postgres database.
 - [ ] Add database schema and migrations.
-- [ ] Add seed data for one household.
+- [ ] Add first-run setup wizard.
+- [ ] Add local admin PIN.
+- [ ] Add seed data for local/demo development.
 - [ ] Add backend API skeleton.
 - [ ] Add frontend PWA skeleton.
 - [ ] Add tablet-first dashboard layout.
@@ -80,10 +91,14 @@ Goal: Build a real app foundation and prove the Fire Tablet can display househol
 - [ ] Add read-only Google Calendar OAuth spike.
 - [ ] Fetch Google Calendar events directly from Google for a requested date range.
 - [ ] Map Google events into a display-only event model.
+- [ ] Add Postgres-backed replaceable calendar event display cache.
 - [ ] Render Google events in Today and Week views.
 - [ ] Store calendar account, calendar source, and display preference metadata in Postgres.
 - [ ] Do not persist canonical Google Calendar events in Postgres.
-- [ ] Add sync/error status UI for calendar reads.
+- [ ] Add sync/stale/error status UI for calendar reads.
+- [ ] Add degraded state behavior for Google/network/auth failures.
+- [ ] Add Fire Tablet smoke and soak test criteria.
+- [ ] Add backup/restore basics for local self-hosted data.
 - [ ] Document Fire Tablet testing notes.
 
 ## v0.2: Production-quality read-only calendar and household workflows
@@ -103,8 +118,14 @@ Goal: Make the app useful for daily household display.
 - [ ] Add overdue chore states.
 - [ ] Add reward redemption flow.
 - [ ] Add meal planning editing flow.
+- [ ] Add grocery list basics.
 - [ ] Add basic settings page.
 - [ ] Add Fire Tablet kiosk setup documentation.
+- [ ] Test and document Fully Kiosk Browser or equivalent if useful.
+- [ ] Add basic accessibility pass.
+- [ ] Add backup/restore guide.
+- [ ] Add self-hosted migration notes.
+- [ ] Keep telemetry opt-in only; no remote telemetry by default.
 
 ## v0.3: Calendar write support
 
@@ -161,6 +182,7 @@ Goal: Make the project installable, usable, and welcoming to contributors.
 - [ ] Add screenshots or demo video.
 - [ ] Add security and privacy documentation.
 - [ ] Add backup and restore documentation.
+- [ ] Add accessibility audit.
 - [ ] Add first tagged release.
 
 ## Calendar architecture details
@@ -172,6 +194,7 @@ Goal: Make the project installable, usable, and welcoming to contributors.
 - [ ] Calendar source IDs and display preferences.
 - [ ] Household member mappings.
 - [ ] Fetch status/log metadata.
+- [ ] Replaceable calendar display cache payloads.
 
 ### What we do not persist as canonical data
 
@@ -179,24 +202,35 @@ Goal: Make the project installable, usable, and welcoming to contributors.
 - [ ] Recurring event expansion state.
 - [ ] Event exception rules.
 - [ ] Deleted event reconciliation state.
+- [ ] Raw full provider payloads by default.
 
 ### Calendar read flow
 
 - [ ] UI requests events for a date range.
 - [ ] API loads enabled calendar sources for the household.
-- [ ] API fetches expanded events from Google Calendar for the requested range.
+- [ ] API checks for a fresh Postgres-backed display cache entry.
+- [ ] API returns fresh cache immediately when available.
+- [ ] If cache is missing or expired, API fetches expanded events from Google Calendar for the requested range.
 - [ ] API maps provider events into `DisplayCalendarEvent` objects.
-- [ ] UI renders those display events.
-- [ ] Optional later cache may be short-lived and replaceable.
+- [ ] API overwrites the cache on successful fetch.
+- [ ] API returns stale cache with warning if Google fetch fails and stale data is available.
+- [ ] UI renders display events with freshness/degraded-state metadata.
+
+## Security and privacy details
+
+- [ ] Store OAuth tokens encrypted with AES-256-GCM.
+- [ ] Use 32-byte base64 `TOKEN_ENCRYPTION_KEY`.
+- [ ] Use random 12-byte IV per encryption.
+- [ ] Store encrypted values as `v1:<base64_iv>:<base64_ciphertext>:<base64_auth_tag>`.
+- [ ] Never log OAuth tokens or full OAuth token responses.
+- [ ] Never send OAuth tokens to the frontend.
+- [ ] Protect settings and integrations with local admin PIN session.
+- [ ] Do not enable remote telemetry by default.
 
 ## Open implementation questions
 
-- [ ] Choose Fastify vs Hono for the API.
-- [ ] Choose Drizzle vs Prisma for schema and migrations.
-- [ ] Choose package manager: pnpm, npm workspaces, or yarn.
-- [ ] Choose monorepo tooling: plain workspaces, Turborepo, or Nx.
-- [ ] Choose authentication/session strategy for the app itself.
-- [ ] Decide whether v0.1 uses local-only household setup or real login.
-- [ ] Decide how to encrypt OAuth tokens in self-hosted installs.
-- [ ] Decide how much calendar event data, if any, can be temporarily cached.
+- [ ] Choose Argon2id vs bcrypt for admin PIN hashing.
+- [ ] Decide exact calendar cache TTL and stale window.
+- [ ] Decide whether v0.1 setup should create seed data automatically or offer demo data as an option.
 - [ ] Decide how the Fire Tablet enters fullscreen/kiosk mode.
+- [ ] Decide whether a first-run setup/local PIN ADR is needed separately.
