@@ -6,7 +6,7 @@ The goal is to build a practical, privacy-conscious, hackable alternative to ded
 
 ## Project status
 
-**v0.1 implementation in progress** (~40% complete)
+**v0.1 implementation in progress** (~45% complete)
 
 Completed:
 - ✅ Monorepo infrastructure (pnpm + Turborepo)
@@ -14,6 +14,7 @@ Completed:
 - ✅ API skeleton with Fastify + route scaffolding
 - ✅ Web skeleton with React Router + TanStack Query
 - ✅ Docker Compose development environment
+- ✅ Skylight-inspired tablet UI baseline for Today/Week/Tasks/Lists
 
 In progress:
 - 🚧 First-run setup wizard and admin PIN

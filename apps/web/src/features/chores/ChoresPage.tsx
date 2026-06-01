@@ -78,6 +78,14 @@ export function ChoresPage(): JSX.Element {
         }}
       />
       <RewardBalance balances={balances} />
+      <button
+        type="button"
+        aria-label="Add"
+        className="fixed bottom-6 right-6 z-30 flex h-14 w-14 items-center justify-center rounded-full bg-[#2b98db] text-white shadow-[0_6px_16px_rgba(30,64,175,0.22)] transition-colors hover:bg-[#2588c3]"
+        onClick={() => undefined}
+      >
+        <span className="relative -top-px text-4xl font-normal leading-none">+</span>
+      </button>
     </div>
   );
 }

@@ -29,77 +29,87 @@ export function ImportPlaceholder(): JSX.Element {
   const now = new Date();
 
   return (
-    <section className="grid gap-3 rounded-md border border-[#e7e7e5] bg-white p-3">
-      <header className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-[#ecebe8] bg-[#fbfbfa] px-3 py-2">
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-          <div className="font-display text-4xl leading-none text-slate-900 md:text-5xl">
-            {now.toLocaleDateString(undefined, {
-              weekday: "short",
-              month: "short",
-              day: "numeric"
-            })}
+    <>
+      <section className="grid gap-3 rounded-md border border-[#e7e7e5] bg-white p-3">
+        <header className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-[#ecebe8] bg-[#fbfbfa] px-3 py-2">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+            <div className="font-display text-4xl leading-none text-slate-900 md:text-5xl">
+              {now.toLocaleDateString(undefined, {
+                weekday: "short",
+                month: "short",
+                day: "numeric"
+              })}
+            </div>
+            <div className="font-display text-4xl leading-none text-slate-900 md:text-5xl">
+              {now.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}
+            </div>
+            <div className="text-[32px] leading-none text-slate-500 md:text-[44px]">☀ 80°</div>
           </div>
-          <div className="font-display text-4xl leading-none text-slate-900 md:text-5xl">
-            {now.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}
-          </div>
-          <div className="text-[32px] leading-none text-slate-500 md:text-[44px]">☀ 80°</div>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            className="min-h-[40px] rounded-full bg-[#f0f2f5] px-4 text-sm font-semibold text-slate-700"
-          >
-            Filter
-          </button>
-          <button
-            type="button"
-            className="flex h-10 w-10 items-center justify-center rounded-full bg-[#f0f2f5] text-xl text-slate-700"
-          >
-            ‹
-          </button>
-          <button
-            type="button"
-            className="min-h-[40px] rounded-full bg-[#f0f2f5] px-4 text-sm font-semibold text-slate-700"
-          >
-            Today
-          </button>
-          <button
-            type="button"
-            className="flex h-10 w-10 items-center justify-center rounded-full bg-[#f0f2f5] text-xl text-slate-700"
-          >
-            ›
-          </button>
-        </div>
-      </header>
-      <div className="overflow-x-auto">
-        <div className="grid min-w-[1200px] grid-cols-4 gap-3">
-          {demoLists.map((list) => (
-            <article
-              key={list.title}
-              className="rounded-[22px] border border-[#ecebe8] p-3"
-              style={{ backgroundColor: list.tint }}
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              className="min-h-[40px] rounded-full bg-[#f0f2f5] px-4 text-sm font-semibold text-slate-700"
             >
-              <div className="mb-2 flex items-center justify-between">
-                <h2 className="font-display text-3xl text-slate-900">{list.title}</h2>
-                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-white/75 text-sm font-semibold text-slate-700">
-                  {list.count}
-                </div>
-              </div>
-              <div className="grid gap-2">
-                {list.items.map((item) => (
-                  <div
-                    key={item}
-                    className="flex min-h-[50px] items-center justify-between rounded-xl bg-white/65 px-3 text-lg text-slate-800"
-                  >
-                    <span>{item}</span>
-                    <span className="h-7 w-7 rounded-md border border-[#e3e1dc] bg-white" />
+              Filter
+            </button>
+            <button
+              type="button"
+              className="flex h-10 w-10 items-center justify-center rounded-full bg-[#f0f2f5] text-xl text-slate-700"
+            >
+              ‹
+            </button>
+            <button
+              type="button"
+              className="min-h-[40px] rounded-full bg-[#f0f2f5] px-4 text-sm font-semibold text-slate-700"
+            >
+              Today
+            </button>
+            <button
+              type="button"
+              className="flex h-10 w-10 items-center justify-center rounded-full bg-[#f0f2f5] text-xl text-slate-700"
+            >
+              ›
+            </button>
+          </div>
+        </header>
+        <div className="overflow-x-auto">
+          <div className="grid min-w-[1200px] grid-cols-4 gap-3">
+            {demoLists.map((list) => (
+              <article
+                key={list.title}
+                className="rounded-[22px] border border-[#ecebe8] p-3"
+                style={{ backgroundColor: list.tint }}
+              >
+                <div className="mb-2 flex items-center justify-between">
+                  <h2 className="font-display text-3xl text-slate-900">{list.title}</h2>
+                  <div className="flex h-9 w-9 items-center justify-center rounded-full bg-white/75 text-sm font-semibold text-slate-700">
+                    {list.count}
                   </div>
-                ))}
-              </div>
-            </article>
-          ))}
+                </div>
+                <div className="grid gap-2">
+                  {list.items.map((item) => (
+                    <div
+                      key={item}
+                      className="flex min-h-[50px] items-center justify-between rounded-xl bg-white/65 px-3 text-lg text-slate-800"
+                    >
+                      <span>{item}</span>
+                      <span className="h-7 w-7 rounded-md border border-[#e3e1dc] bg-white" />
+                    </div>
+                  ))}
+                </div>
+              </article>
+            ))}
+          </div>
         </div>
-      </div>
-    </section>
+      </section>
+      <button
+        type="button"
+        aria-label="Add"
+        className="fixed bottom-6 right-6 z-30 flex h-14 w-14 items-center justify-center rounded-full bg-[#2b98db] text-white shadow-[0_6px_16px_rgba(30,64,175,0.22)] transition-colors hover:bg-[#2588c3]"
+        onClick={() => undefined}
+      >
+        <span className="relative -top-px text-4xl font-normal leading-none">+</span>
+      </button>
+    </>
   );
 }

@@ -2,8 +2,8 @@
 
 This document tracks progress against the [v0.1 Implementation Plan](docs/v0.1-implementation-plan.md).
 
-**Last updated**: 2025-05-31  
-**Overall completion**: ~40%
+**Last updated**: 2026-05-31  
+**Overall completion**: ~45%
 
 ## Implementation Sequence
 
@@ -86,6 +86,10 @@ This document tracks progress against the [v0.1 Implementation Plan](docs/v0.1-i
   - [x] `ErrorState`
   - [x] `EmptyState`
   - [x] `DegradedStateBanner`
+- [x] Implement Skylight-inspired visual baseline for Today, Week, Tasks, and Lists pages
+- [x] Replace global header with page-specific top bars aligned to reference layout
+- [x] Add floating primary add action on all add-capable scaffold pages (Today/Tasks/Lists)
+- [x] Align person badge colors with calendar card palette for visual consistency
 - [ ] Implement component logic (in progress)
 
 ### 🚧 Step 6: Chores and rewards vertical slice (40%)

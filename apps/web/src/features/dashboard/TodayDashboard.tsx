@@ -25,6 +25,12 @@ type RewardsResponse = {
   }>;
 };
 
+type HouseholdResponse = {
+  household: {
+    name: string;
+  };
+};
+
 type MealsResponse = {
   days: Array<{
     date: string;
@@ -59,54 +65,6 @@ type RenderEvent = {
   color: string;
 };
 
-const demoEvents: RenderEvent[] = [
-  {
-    id: "demo-1",
-    dayIndex: 0,
-    startHour: 10,
-    durationHours: 1.5,
-    title: "Grocery Run",
-    timeLabel: "10:00 - 11:30 AM",
-    color: "#bee8ea"
-  },
-  {
-    id: "demo-2",
-    dayIndex: 1,
-    startHour: 9.75,
-    durationHours: 1.25,
-    title: "Coffee With Diane",
-    timeLabel: "9:45 - 11:00 AM",
-    color: "#f3cfd0"
-  },
-  {
-    id: "demo-3",
-    dayIndex: 2,
-    startHour: 9.5,
-    durationHours: 0.75,
-    title: "Pickup Dry Cleaning",
-    timeLabel: "9:30 - 10:15 AM",
-    color: "#bfe6e8"
-  },
-  {
-    id: "demo-4",
-    dayIndex: 2,
-    startHour: 10.5,
-    durationHours: 0.5,
-    title: "History Test",
-    timeLabel: "10:30 - 11:00 AM",
-    color: "#f8d9de"
-  },
-  {
-    id: "demo-5",
-    dayIndex: 3,
-    startHour: 10.5,
-    durationHours: 1.5,
-    title: "Birthday Party",
-    timeLabel: "10:30 - 12:00 PM",
-    color: "#e4daf0"
-  }
-];
-
 function formatHourLabel(hour: number): string {
   const isPm = hour >= 12;
   const normalized = hour > 12 ? hour - 12 : hour;
@@ -126,6 +84,10 @@ export function TodayDashboard(): JSX.Element {
   const choresQuery = useQuery({
     queryKey: queryKeys.todayChores,
     queryFn: () => apiFetch<ChoresResponse>("/chores/today")
+  });
+  const householdQuery = useQuery({
+    queryKey: queryKeys.household,
+    queryFn: () => apiFetch<HouseholdResponse>("/household/current")
   });
   const rewardsQuery = useQuery({
     queryKey: queryKeys.rewardBalances,
@@ -151,10 +113,17 @@ export function TodayDashboard(): JSX.Element {
       )
   });
 
-  if (choresQuery.isLoading || rewardsQuery.isLoading || mealsQuery.isLoading || calendarQuery.isLoading) {
+  if (
+    choresQuery.isLoading ||
+    householdQuery.isLoading ||
+    rewardsQuery.isLoading ||
+    mealsQuery.isLoading ||
+    calendarQuery.isLoading
+  ) {
     return <LoadingState label="Loading dashboard..." />;
   }
   if (choresQuery.isError) return <ErrorState message={choresQuery.error.message} />;
+  if (householdQuery.isError) return <ErrorState message={householdQuery.error.message} />;
   if (rewardsQuery.isError) return <ErrorState message={rewardsQuery.error.message} />;
   if (mealsQuery.isError) return <ErrorState message={mealsQuery.error.message} />;
   if (calendarQuery.isError) return <ErrorState message={calendarQuery.error.message} />;
@@ -223,7 +192,7 @@ export function TodayDashboard(): JSX.Element {
     })
     .filter((event) => event.dayIndex >= 0);
 
-  const scheduleEvents = mappedEvents.length > 0 ? mappedEvents : demoEvents;
+  const scheduleEvents = mappedEvents;
   const allDayEvents = (calendarQuery.data?.events ?? []).filter((event) => event.isAllDay);
   const startHour = 9;
   const endHour = 14;
@@ -236,7 +205,7 @@ export function TodayDashboard(): JSX.Element {
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex flex-wrap items-center gap-x-5 gap-y-1">
             <h1 className="font-display text-3xl leading-none text-slate-900 md:text-[48px]">
-              Miller Family
+              {householdQuery.data?.household.name ?? "Family"}
             </h1>
             <div className="font-display text-3xl leading-none text-slate-900 md:text-[48px]">
               {now.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}
@@ -362,6 +331,11 @@ export function TodayDashboard(): JSX.Element {
             ))}
           </div>
         </div>
+        {scheduleEvents.length === 0 ? (
+          <div className="mt-3 rounded-md border border-[#e5e3de] bg-[#faf9f7] px-3 py-2 text-sm text-slate-600">
+            No timed events in this range yet.
+          </div>
+        ) : null}
       </section>
 
       <ChoreList
@@ -381,6 +355,15 @@ export function TodayDashboard(): JSX.Element {
         }}
       />
       <RewardBalance balances={rewardsQuery.data?.balances ?? []} />
+
+      <button
+        type="button"
+        aria-label="Add"
+        className="fixed bottom-6 right-6 z-30 flex h-14 w-14 items-center justify-center rounded-full bg-[#2b98db] text-white shadow-[0_6px_16px_rgba(30,64,175,0.22)] transition-colors hover:bg-[#2588c3]"
+        onClick={() => undefined}
+      >
+        <span className="relative -top-px text-4xl font-normal leading-none">+</span>
+      </button>
     </section>
   );
 }
