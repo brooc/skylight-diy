@@ -100,9 +100,10 @@ This document tracks progress against the [v0.1 Implementation Plan](docs/v0.1-i
 - [x] Add rewards API routes
 - [x] Add ChoreList UI component
 - [x] Add RewardBalance UI component
+- [x] Split responsibilities between Today (task summary) and Tasks (full interaction)
+- [x] Wire Today dashboard to chores data (summary preview + deep link)
 - [ ] Implement chores service logic
 - [ ] Implement reward balance calculation
-- [ ] Wire Today dashboard to chores data
 - [ ] Test chore completion from browser
 - [ ] Test completion persistence after refresh
 - [ ] Test points update after completion

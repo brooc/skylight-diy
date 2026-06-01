@@ -1,11 +1,10 @@
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { Fragment } from "react";
+import { Link } from "react-router-dom";
 import { apiFetch } from "../../api/client";
 import { queryKeys } from "../../api/queryKeys";
 import { ErrorState } from "../../components/ErrorState";
 import { LoadingState } from "../../components/LoadingState";
-import { ChoreList } from "../chores/ChoreList";
-import { RewardBalance } from "../chores/RewardBalance";
 
 type ChoresResponse = {
   chores: Array<{
@@ -80,7 +79,6 @@ function formatEventTime(start: Date, end: Date): string {
 
 export function TodayDashboard(): JSX.Element {
   const now = new Date();
-  const queryClient = useQueryClient();
   const choresQuery = useQuery({
     queryKey: queryKeys.todayChores,
     queryFn: () => apiFetch<ChoresResponse>("/chores/today")
@@ -194,6 +192,10 @@ export function TodayDashboard(): JSX.Element {
 
   const scheduleEvents = mappedEvents;
   const allDayEvents = (calendarQuery.data?.events ?? []).filter((event) => event.isAllDay);
+  const chores = choresQuery.data?.chores ?? [];
+  const pendingChores = chores.filter((chore) => !chore.completed);
+  const completedCount = chores.length - pendingChores.length;
+  const previewChores = pendingChores.slice(0, 3);
   const startHour = 9;
   const endHour = 14;
   const hourSlots = Array.from({ length: endHour - startHour + 1 }, (_, i) => startHour + i);
@@ -338,23 +340,40 @@ export function TodayDashboard(): JSX.Element {
         ) : null}
       </section>
 
-      <ChoreList
-        chores={choresQuery.data?.chores ?? []}
-        onToggle={async (chore, nextCompleted) => {
-          if (nextCompleted) {
-            await apiFetch(`/chores/${chore.id}/complete`, { method: "POST" });
-          } else {
-            const date = new Date().toISOString().slice(0, 10);
-            await apiFetch(`/chores/${chore.id}/complete?date=${date}`, { method: "DELETE" });
-          }
-
-          await Promise.all([
-            queryClient.invalidateQueries({ queryKey: queryKeys.todayChores }),
-            queryClient.invalidateQueries({ queryKey: queryKeys.rewardBalances })
-          ]);
-        }}
-      />
-      <RewardBalance balances={rewardsQuery.data?.balances ?? []} />
+      <section className="rounded-md border border-[#e7e7e5] bg-white p-3">
+        <div className="mb-2 flex items-center justify-between gap-2">
+          <h3 className="font-display text-xl text-slate-900">Today's tasks</h3>
+          <Link
+            to="/chores"
+            className="rounded-full bg-[#f6f7f9] px-3 py-1 text-sm font-medium text-slate-700"
+          >
+            Open tasks
+          </Link>
+        </div>
+        <div className="mb-3 flex flex-wrap items-center gap-2 text-sm text-slate-700">
+          <span className="rounded-full bg-[#eef3f7] px-3 py-1">{pendingChores.length} left</span>
+          <span className="rounded-full bg-[#eef3f7] px-3 py-1">{completedCount} done</span>
+        </div>
+        {previewChores.length === 0 ? (
+          <div className="rounded-md border border-[#ecebe8] bg-[#fbfbfa] px-3 py-2 text-sm text-slate-600">
+            No remaining tasks today.
+          </div>
+        ) : (
+          <div className="grid gap-2 sm:grid-cols-3">
+            {previewChores.map((chore) => (
+              <article key={chore.id} className="rounded-2xl border border-[#ecebe8] bg-[#fbfbfa] p-3">
+                <div className="text-base font-semibold text-slate-900">{chore.title}</div>
+                <div className="mt-1 text-sm text-slate-600">
+                  {chore.assignedPersonName ?? "Unassigned"}
+                </div>
+                <div className="mt-2 inline-flex rounded-full bg-[#f2ece0] px-2 py-0.5 text-sm font-medium text-slate-700">
+                  {chore.points} pts
+                </div>
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
 
       <button
         type="button"
