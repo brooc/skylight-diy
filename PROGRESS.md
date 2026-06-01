@@ -3,7 +3,7 @@
 This document tracks progress against the [v0.1 Implementation Plan](docs/v0.1-implementation-plan.md).
 
 **Last updated**: 2026-05-31  
-**Overall completion**: ~72%
+**Overall completion**: ~75%
 
 ## Implementation Sequence
 
@@ -131,9 +131,9 @@ This document tracks progress against the [v0.1 Implementation Plan](docs/v0.1-i
 - [x] Add manual refresh control and warning banner visibility in Week view
 - [ ] Add calendar domain types
 - [ ] Add display event type
-- [ ] Add Google event mapper
-- [ ] Add calendar settings routes with no OAuth yet
-- [ ] Add CalendarDayView and CalendarWeekView using fixture/no-source state
+- [x] Add Google event mapper (provider response to display event shape)
+- [x] Add calendar settings routes with no OAuth yet
+- [x] Add CalendarDayView and CalendarWeekView using fixture/no-source state
 
 ### ⬜ Step 9: Calendar cache foundation (10%)
 
@@ -156,7 +156,9 @@ This document tracks progress against the [v0.1 Implementation Plan](docs/v0.1-i
 
 ### ⬜ Step 12: Google event read (0%)
 
-Not started
+- [x] Fetch Google events from enabled sources when valid access tokens are available
+- [x] Map provider events into display events with all-day/timed support
+- [x] Fall back to demo events with warnings when source fetch fails
 
 ### ⬜ Step 13: Tablet polish (0%)
 

@@ -371,19 +371,170 @@ export const calendarRoutes: FastifyPluginAsync = async (app) => {
     ].sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
 
     const [household] = await app.db.select().from(households).limit(1);
-    const sources = household
-      ? await app.db
-          .select({
-            id: calendarSources.id,
-            displayName: calendarSources.displayName,
-            color: calendarSources.color,
-            enabled: calendarSources.enabled,
-            personId: calendarSources.personId
-          })
-          .from(calendarSources)
-          .where(eq(calendarSources.householdId, household.id))
-          .orderBy(asc(calendarSources.sortOrder), asc(calendarSources.createdAt))
-      : [];
+    if (!household) {
+      return {
+        rangeStart: parsed.data.start,
+        rangeEnd: parsed.data.end,
+        timezone: parsed.data.timezone,
+        events: [],
+        sources: [],
+        cacheStatus: "miss",
+        degraded: true,
+        warnings: [
+          {
+            code: "SETUP_NOT_COMPLETED",
+            message: "Setup not completed yet."
+          }
+        ]
+      };
+    }
+
+    const sourceRows = await app.db
+      .select({
+        id: calendarSources.id,
+        connectedAccountId: calendarSources.connectedAccountId,
+        externalCalendarId: calendarSources.externalCalendarId,
+        displayName: calendarSources.displayName,
+        color: calendarSources.color,
+        enabled: calendarSources.enabled,
+        personId: calendarSources.personId,
+        personName: people.displayName,
+        encryptedAccessToken: connectedAccounts.encryptedAccessToken
+      })
+      .from(calendarSources)
+      .leftJoin(people, eq(calendarSources.personId, people.id))
+      .leftJoin(connectedAccounts, eq(calendarSources.connectedAccountId, connectedAccounts.id))
+      .where(eq(calendarSources.householdId, household.id))
+      .orderBy(asc(calendarSources.sortOrder), asc(calendarSources.createdAt));
+
+    const sources = sourceRows.map((source) => ({
+      id: source.id,
+      connectedAccountId: source.connectedAccountId,
+      externalCalendarId: source.externalCalendarId,
+      displayName: source.displayName,
+      color: source.color,
+      enabled: source.enabled,
+      personId: source.personId
+    }));
+
+    const enabledSources = sourceRows.filter((source) => source.enabled);
+    const warnings: Array<{ code: string; message: string; sourceId?: string }> = [];
+    const googleEvents: Array<{
+      id: string;
+      title: string;
+      start: string;
+      end: string;
+      isAllDay: boolean;
+      sourceName: string;
+      color: string | null;
+    }> = [];
+
+    for (const source of enabledSources) {
+      if (!source.encryptedAccessToken) {
+        warnings.push({
+          code: "SOURCE_MISSING_TOKEN",
+          message: `Source "${source.displayName}" is missing an access token.`,
+          sourceId: source.id
+        });
+        continue;
+      }
+
+      let accessToken = "";
+      try {
+        accessToken = decryptToken(source.encryptedAccessToken);
+      } catch {
+        warnings.push({
+          code: "SOURCE_TOKEN_DECRYPT_FAILED",
+          message: `Could not decrypt token for "${source.displayName}".`,
+          sourceId: source.id
+        });
+        continue;
+      }
+
+      try {
+        const eventsUrl = new URL(
+          `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(source.externalCalendarId)}/events`
+        );
+        eventsUrl.searchParams.set("singleEvents", "true");
+        eventsUrl.searchParams.set("orderBy", "startTime");
+        eventsUrl.searchParams.set("timeMin", parsed.data.start);
+        eventsUrl.searchParams.set("timeMax", parsed.data.end);
+
+        const providerResponse = await fetch(eventsUrl, {
+          headers: {
+            Authorization: `Bearer ${accessToken}`
+          }
+        });
+
+        if (!providerResponse.ok) {
+          warnings.push({
+            code: "SOURCE_FETCH_FAILED",
+            message: `Failed to fetch events for "${source.displayName}".`,
+            sourceId: source.id
+          });
+          continue;
+        }
+
+        const payload = (await providerResponse.json()) as {
+          items?: Array<{
+            id?: string;
+            summary?: string;
+            start?: { date?: string; dateTime?: string };
+            end?: { date?: string; dateTime?: string };
+          }>;
+        };
+
+        for (const item of payload.items ?? []) {
+          const start = item.start?.dateTime ?? item.start?.date;
+          const end = item.end?.dateTime ?? item.end?.date;
+          if (!start || !end) {
+            continue;
+          }
+          const isAllDay = Boolean(item.start?.date && !item.start?.dateTime);
+          googleEvents.push({
+            id: `${source.id}:${item.id ?? start}`,
+            title: item.summary || "Untitled event",
+            start,
+            end,
+            isAllDay,
+            sourceName: source.personName || source.displayName,
+            color: source.color
+          });
+        }
+      } catch {
+        warnings.push({
+          code: "SOURCE_REQUEST_ERROR",
+          message: `Unexpected error while fetching "${source.displayName}".`,
+          sourceId: source.id
+        });
+      }
+    }
+
+    if (googleEvents.length > 0) {
+      googleEvents.sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
+      return {
+        rangeStart: parsed.data.start,
+        rangeEnd: parsed.data.end,
+        timezone: parsed.data.timezone,
+        events: googleEvents,
+        sources,
+        cacheStatus: "refreshed",
+        degraded: warnings.length > 0,
+        warnings
+      };
+    }
+
+    if (enabledSources.length === 0) {
+      warnings.push({
+        code: "NO_ENABLED_SOURCES",
+        message: "No enabled calendar sources yet."
+      });
+    } else {
+      warnings.push({
+        code: "DEMO_CALENDAR_FALLBACK",
+        message: "Using demo calendar events while Google source fetch is unavailable."
+      });
+    }
 
     return {
       rangeStart: parsed.data.start,
@@ -391,14 +542,9 @@ export const calendarRoutes: FastifyPluginAsync = async (app) => {
       timezone: parsed.data.timezone,
       events: demoEvents,
       sources,
-      cacheStatus: "refreshed",
-      degraded: false,
-      warnings: [
-        {
-          code: "DEMO_CALENDAR_DATA",
-          message: "Showing demo calendar data until Google Calendar is connected."
-        }
-      ]
+      cacheStatus: "miss",
+      degraded: true,
+      warnings
     };
   });
 };
