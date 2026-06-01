@@ -1,10 +1,17 @@
 import { households, mealPlanEntries, meals } from "@skylight-diy/db";
 import { and, eq, gte, lte } from "drizzle-orm";
 import type { FastifyPluginAsync } from "fastify";
+import { z } from "zod";
 
 function toDateOnly(value: Date): string {
   return value.toISOString().slice(0, 10);
 }
+
+const createMealEntryBodySchema = z.object({
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  slot: z.enum(["breakfast", "lunch", "dinner"]).default("dinner"),
+  title: z.string().trim().min(1).max(120)
+});
 
 export const mealsRoutes: FastifyPluginAsync = async (app) => {
   app.get("/meals/week", async () => {
@@ -56,5 +63,37 @@ export const mealsRoutes: FastifyPluginAsync = async (app) => {
     });
 
     return { days };
+  });
+
+  app.post("/meals/week/entries", async (request, reply) => {
+    const parsed = createMealEntryBodySchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.status(400).send({
+        error: "invalid_body",
+        details: parsed.error.flatten()
+      });
+    }
+
+    const [household] = await app.db.select().from(households).limit(1);
+    if (!household) {
+      return reply.status(404).send({ error: "setup_not_completed" });
+    }
+
+    const [created] = await app.db
+      .insert(mealPlanEntries)
+      .values({
+        householdId: household.id,
+        plannedDate: parsed.data.date,
+        slot: parsed.data.slot,
+        customTitle: parsed.data.title
+      })
+      .returning({
+        id: mealPlanEntries.id,
+        plannedDate: mealPlanEntries.plannedDate,
+        slot: mealPlanEntries.slot,
+        customTitle: mealPlanEntries.customTitle
+      });
+
+    return reply.status(201).send({ entry: created });
   });
 };

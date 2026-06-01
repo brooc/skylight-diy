@@ -3,7 +3,7 @@
 This document tracks progress against the [v0.1 Implementation Plan](docs/v0.1-implementation-plan.md).
 
 **Last updated**: 2026-05-31  
-**Overall completion**: ~50%
+**Overall completion**: ~55%
 
 ## Implementation Sequence
 
@@ -116,8 +116,8 @@ This document tracks progress against the [v0.1 Implementation Plan](docs/v0.1-i
 - [x] Create meals service module
 - [x] Add meals API route
 - [x] Add MealPlanWeek UI component
+- [x] Add meal entry create route and wire Meals page add flow to persist entries
 - [ ] Implement meal service
-- [ ] Implement meals API route
 - [ ] Wire Today dashboard to tonight's meal
 - [ ] Test meals page shows current week
 - [ ] Test today dashboard shows tonight's meal
