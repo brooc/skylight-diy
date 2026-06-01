@@ -3,7 +3,7 @@
 This document tracks progress against the [v0.1 Implementation Plan](docs/v0.1-implementation-plan.md).
 
 **Last updated**: 2026-05-31  
-**Overall completion**: ~67%
+**Overall completion**: ~70%
 
 ## Implementation Sequence
 
@@ -145,7 +145,9 @@ This document tracks progress against the [v0.1 Implementation Plan](docs/v0.1-i
 
 ### ⬜ Step 10: Google OAuth spike (0%)
 
-Not started
+- [x] Add connect route with OAuth state cookie and Google auth URL generation
+- [x] Add callback route with state validation and token exchange
+- [x] Encrypt and persist access/refresh tokens on callback
 
 ### ⬜ Step 11: Google calendar source import (0%)
 

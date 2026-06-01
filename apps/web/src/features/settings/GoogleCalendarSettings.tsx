@@ -81,8 +81,14 @@ export function GoogleCalendarSettings(): JSX.Element {
           type="button"
           className="min-h-[44px] rounded-md bg-[#0f766e] px-3 py-2 text-sm font-semibold text-white hover:bg-[#0d5f59]"
           onClick={async () => {
-            const result = await apiFetch<{ message: string }>("/integrations/google/connect");
-            setStatus(result.message);
+            const result = await apiFetch<{ available: boolean; authUrl?: string; message?: string }>(
+              "/integrations/google/connect"
+            );
+            if (result.authUrl) {
+              window.location.assign(result.authUrl);
+              return;
+            }
+            setStatus(result.message ?? "Google OAuth is unavailable.");
           }}
         >
           Connect Google
