@@ -3,7 +3,7 @@
 This document tracks progress against the [v0.1 Implementation Plan](docs/v0.1-implementation-plan.md).
 
 **Last updated**: 2026-05-31  
-**Overall completion**: ~55%
+**Overall completion**: ~58%
 
 ## Implementation Sequence
 
@@ -93,6 +93,7 @@ This document tracks progress against the [v0.1 Implementation Plan](docs/v0.1-i
 - [x] Make Today schedule grid vertically scrollable with extended hour range
 - [x] Refine Today calendar layout to mirror Skylight-style top bar, person chips, and in-grid all-day row
 - [x] Replace static Lists page demo data with persisted lists/items from API
+- [x] Replace no-op Today add action with route to Tasks add flow
 - [ ] Implement component logic (in progress)
 
 ### 🚧 Step 6: Chores and rewards vertical slice (40%)
@@ -125,6 +126,7 @@ This document tracks progress against the [v0.1 Implementation Plan](docs/v0.1-i
 ### 🔜 Step 8: Calendar provider foundation (10%)
 
 - [x] Create calendar module directory
+- [x] Add fixture-backed calendar events response for Today/Week rendering
 - [ ] Add calendar domain types
 - [ ] Add display event type
 - [ ] Add Google event mapper

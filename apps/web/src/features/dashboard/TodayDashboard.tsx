@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { Fragment } from "react";
+import { useNavigate } from "react-router-dom";
 import { apiFetch } from "../../api/client";
 import { queryKeys } from "../../api/queryKeys";
 import { ErrorState } from "../../components/ErrorState";
@@ -59,6 +60,7 @@ function formatEventTime(start: Date, end: Date): string {
 
 export function TodayDashboard(): JSX.Element {
   const now = new Date();
+  const navigate = useNavigate();
   const householdQuery = useQuery({
     queryKey: queryKeys.household,
     queryFn: () => apiFetch<HouseholdResponse>("/household/current")
@@ -356,7 +358,7 @@ export function TodayDashboard(): JSX.Element {
           type="button"
           aria-label="Add"
           className="absolute bottom-5 right-5 z-30 flex h-14 w-14 items-center justify-center rounded-full bg-[#2b98db] text-white shadow-[0_6px_16px_rgba(30,64,175,0.22)] transition-colors hover:bg-[#2588c3]"
-          onClick={() => undefined}
+          onClick={() => navigate("/chores")}
         >
           <span className="relative -top-px text-4xl font-normal leading-none">+</span>
         </button>

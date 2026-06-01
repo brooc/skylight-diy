@@ -41,18 +41,103 @@ export const calendarRoutes: FastifyPluginAsync = async (app) => {
       });
     }
 
+    const rangeStart = new Date(parsed.data.start);
+    const startDay = new Date(rangeStart);
+    startDay.setHours(0, 0, 0, 0);
+    const toIsoAt = (dayOffset: number, hours = 0, minutes = 0): string => {
+      const value = new Date(startDay);
+      value.setDate(startDay.getDate() + dayOffset);
+      value.setHours(hours, minutes, 0, 0);
+      return value.toISOString();
+    };
+
+    const demoEvents = [
+      {
+        id: "evt-1",
+        title: "Coffee With Diane",
+        start: toIsoAt(1, 9, 45),
+        end: toIsoAt(1, 11, 0),
+        isAllDay: false,
+        sourceName: "Kiddo",
+        color: "#f3cfd0"
+      },
+      {
+        id: "evt-2",
+        title: "Pickup Dry Cleaning",
+        start: toIsoAt(2, 9, 30),
+        end: toIsoAt(2, 10, 15),
+        isAllDay: false,
+        sourceName: "Parent",
+        color: "#bee8ea"
+      },
+      {
+        id: "evt-3",
+        title: "History Test",
+        start: toIsoAt(2, 10, 30),
+        end: toIsoAt(2, 11, 0),
+        isAllDay: false,
+        sourceName: "Kiddo",
+        color: "#f7d8d4"
+      },
+      {
+        id: "evt-4",
+        title: "Birthday Party",
+        start: toIsoAt(3, 10, 30),
+        end: toIsoAt(3, 12, 0),
+        isAllDay: false,
+        sourceName: "Parent",
+        color: "#e4daf0"
+      },
+      {
+        id: "evt-5",
+        title: "Grocery Run",
+        start: toIsoAt(0, 10, 0),
+        end: toIsoAt(0, 11, 30),
+        isAllDay: false,
+        sourceName: "Parent",
+        color: "#bee8ea"
+      },
+      {
+        id: "evt-6",
+        title: "Dog's Big Bath Day!",
+        start: toIsoAt(1, 11, 0),
+        end: toIsoAt(1, 12, 0),
+        isAllDay: false,
+        sourceName: "Parent, Kiddo",
+        color: "#d6efd8"
+      },
+      {
+        id: "evt-7",
+        title: "Camping Trip",
+        start: toIsoAt(0, 0, 0),
+        end: toIsoAt(1, 0, 0),
+        isAllDay: true,
+        sourceName: "Family",
+        color: "#d6efd8"
+      },
+      {
+        id: "evt-8",
+        title: "Cousins Visit",
+        start: toIsoAt(5, 0, 0),
+        end: toIsoAt(7, 0, 0),
+        isAllDay: true,
+        sourceName: "Family",
+        color: "#e4daf0"
+      }
+    ].sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
+
     return {
       rangeStart: parsed.data.start,
       rangeEnd: parsed.data.end,
       timezone: parsed.data.timezone,
-      events: [],
+      events: demoEvents,
       sources: [],
-      cacheStatus: "miss",
-      degraded: true,
+      cacheStatus: "refreshed",
+      degraded: false,
       warnings: [
         {
-          code: "NO_ACCOUNT_CONNECTED",
-          message: "No calendar account connected yet."
+          code: "DEMO_CALENDAR_DATA",
+          message: "Showing demo calendar data until Google Calendar is connected."
         }
       ]
     };
