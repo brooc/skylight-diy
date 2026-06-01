@@ -3,7 +3,7 @@
 This document tracks progress against the [v0.1 Implementation Plan](docs/v0.1-implementation-plan.md).
 
 **Last updated**: 2026-05-31  
-**Overall completion**: ~78%
+**Overall completion**: ~80%
 
 ## Implementation Sequence
 
@@ -166,7 +166,7 @@ Not started
 
 ### ⬜ Step 14: Documentation and cleanup (0%)
 
-Not started
+- [x] Add v0.1 operational checklist (smoke tests, soak tests, backup/restore, limitations)
 
 ## Key Metrics
 

@@ -71,7 +71,7 @@ This is the working implementation plan for Skylight DIY. It is intentionally ch
 
 ## v0.1: Real foundation plus Google Calendar spike
 
-**Status**: In progress (~78% complete). See [PROGRESS.md](../PROGRESS.md) for detailed tracking.
+**Status**: In progress (~80% complete). See [PROGRESS.md](../PROGRESS.md) for detailed tracking.
 
 Goal: Build a real app foundation and prove the Fire Tablet can display household calendar data, chores, rewards, and meals from the backend.
 
