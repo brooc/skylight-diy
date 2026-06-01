@@ -3,7 +3,7 @@
 This document tracks progress against the [v0.1 Implementation Plan](docs/v0.1-implementation-plan.md).
 
 **Last updated**: 2026-05-31  
-**Overall completion**: ~75%
+**Overall completion**: ~78%
 
 ## Implementation Sequence
 
@@ -138,10 +138,10 @@ This document tracks progress against the [v0.1 Implementation Plan](docs/v0.1-i
 ### ⬜ Step 9: Calendar cache foundation (10%)
 
 - [x] Add `calendar_event_cache` table to schema
-- [ ] Add cache key helper
-- [ ] Add cache read/write service
-- [ ] Add stale/fresh metadata
-- [ ] Add degraded response shape
+- [x] Add cache key helper
+- [x] Add cache read/write service
+- [x] Add stale/fresh metadata
+- [x] Add degraded response shape
 
 ### ⬜ Step 10: Google OAuth spike (0%)
 

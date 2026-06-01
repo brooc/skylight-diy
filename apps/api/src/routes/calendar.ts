@@ -2,6 +2,13 @@ import { calendarSources, connectedAccounts, households, people } from "@skyligh
 import { and, asc, eq } from "drizzle-orm";
 import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
+import { env } from "../env";
+import {
+  buildCalendarCacheKey,
+  buildSourceFingerprint,
+  readCalendarCache,
+  writeCalendarCache
+} from "../modules/calendar/cache";
 import { decryptToken } from "../modules/integrations/token-crypto";
 
 const eventsQuerySchema = z.object({
@@ -418,7 +425,35 @@ export const calendarRoutes: FastifyPluginAsync = async (app) => {
     }));
 
     const enabledSources = sourceRows.filter((source) => source.enabled);
+    const sourceFingerprint = buildSourceFingerprint(
+      sourceRows.map((source) => ({
+        id: source.id,
+        enabled: source.enabled,
+        externalCalendarId: source.externalCalendarId
+      }))
+    );
+    const cacheKey = buildCalendarCacheKey({
+      rangeStart: parsed.data.start,
+      rangeEnd: parsed.data.end,
+      timezone: parsed.data.timezone,
+      sourceFingerprint
+    });
+    const cacheHit = await readCalendarCache(app.db, household.id, cacheKey);
+    if (cacheHit.status === "fresh") {
+      return {
+        rangeStart: parsed.data.start,
+        rangeEnd: parsed.data.end,
+        timezone: parsed.data.timezone,
+        events: cacheHit.payload.events,
+        sources: cacheHit.payload.sources,
+        cacheStatus: "fresh",
+        degraded: cacheHit.payload.warnings.length > 0,
+        warnings: cacheHit.payload.warnings
+      };
+    }
+
     const warnings: Array<{ code: string; message: string; sourceId?: string }> = [];
+    const staleCachePayload = cacheHit.status === "stale" ? cacheHit.payload : null;
     const googleEvents: Array<{
       id: string;
       title: string;
@@ -512,6 +547,25 @@ export const calendarRoutes: FastifyPluginAsync = async (app) => {
 
     if (googleEvents.length > 0) {
       googleEvents.sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
+      const payload = {
+        rangeStart: parsed.data.start,
+        rangeEnd: parsed.data.end,
+        timezone: parsed.data.timezone,
+        events: googleEvents,
+        sources,
+        warnings
+      };
+      await writeCalendarCache(app.db, {
+        householdId: household.id,
+        cacheKey,
+        rangeStart: parsed.data.start,
+        rangeEnd: parsed.data.end,
+        timezone: parsed.data.timezone,
+        sourceFingerprint,
+        payload,
+        freshTtlSeconds: env.CALENDAR_CACHE_FRESH_TTL_SECONDS,
+        staleTtlSeconds: env.CALENDAR_CACHE_STALE_TTL_SECONDS
+      });
       return {
         rangeStart: parsed.data.start,
         rangeEnd: parsed.data.end,
@@ -521,6 +575,19 @@ export const calendarRoutes: FastifyPluginAsync = async (app) => {
         cacheStatus: "refreshed",
         degraded: warnings.length > 0,
         warnings
+      };
+    }
+
+    if (staleCachePayload) {
+      return {
+        rangeStart: parsed.data.start,
+        rangeEnd: parsed.data.end,
+        timezone: parsed.data.timezone,
+        events: staleCachePayload.events,
+        sources: staleCachePayload.sources,
+        cacheStatus: "stale",
+        degraded: true,
+        warnings: [...staleCachePayload.warnings, ...warnings]
       };
     }
 
