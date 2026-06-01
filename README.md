@@ -6,7 +6,7 @@ The goal is to build a practical, privacy-conscious, hackable alternative to ded
 
 ## Project status
 
-**v0.1 implementation in progress** (~58% complete)
+**v0.1 implementation in progress** (~62% complete)
 
 Completed:
 - ✅ Monorepo infrastructure (pnpm + Turborepo)
