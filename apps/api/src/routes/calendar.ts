@@ -2,6 +2,7 @@ import { calendarSources, connectedAccounts, households, people } from "@skyligh
 import { and, asc, eq } from "drizzle-orm";
 import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
+import { decryptToken } from "../modules/integrations/token-crypto";
 
 const eventsQuerySchema = z.object({
   start: z.string().datetime(),
@@ -115,8 +116,49 @@ export const calendarRoutes: FastifyPluginAsync = async (app) => {
       }
     ];
 
+    const fetchedGoogleSources: Array<{
+      externalCalendarId: string;
+      displayName: string;
+      color: string;
+      sortOrder: number;
+    }> = [];
+    if (account.encryptedAccessToken) {
+      try {
+        const accessToken = decryptToken(account.encryptedAccessToken);
+        const response = await fetch("https://www.googleapis.com/calendar/v3/users/me/calendarList", {
+          headers: {
+            Authorization: `Bearer ${accessToken}`
+          }
+        });
+        if (response.ok) {
+          const payload = (await response.json()) as {
+            items?: Array<{
+              id?: string;
+              summary?: string;
+              backgroundColor?: string;
+            }>;
+          };
+          for (const [index, item] of (payload.items ?? []).entries()) {
+            if (!item.id || !item.summary) {
+              continue;
+            }
+            fetchedGoogleSources.push({
+              externalCalendarId: item.id,
+              displayName: item.summary,
+              color: item.backgroundColor ?? demoSources[index % demoSources.length].color,
+              sortOrder: index
+            });
+          }
+        }
+      } catch {
+        // Fall back to demo sources when token decryption/fetch fails.
+      }
+    }
+
+    const importCandidates = fetchedGoogleSources.length > 0 ? fetchedGoogleSources : demoSources;
+
     let imported = 0;
-    for (const source of demoSources) {
+    for (const source of importCandidates) {
       const [existing] = await app.db
         .select({ id: calendarSources.id })
         .from(calendarSources)

@@ -3,7 +3,7 @@
 This document tracks progress against the [v0.1 Implementation Plan](docs/v0.1-implementation-plan.md).
 
 **Last updated**: 2026-05-31  
-**Overall completion**: ~70%
+**Overall completion**: ~72%
 
 ## Implementation Sequence
 
@@ -151,7 +151,8 @@ This document tracks progress against the [v0.1 Implementation Plan](docs/v0.1-i
 
 ### ⬜ Step 11: Google calendar source import (0%)
 
-Not started
+- [x] Import calendars from Google Calendar List API when access token is available
+- [x] Fall back to demo source import when token/calendar list is unavailable
 
 ### ⬜ Step 12: Google event read (0%)
 
