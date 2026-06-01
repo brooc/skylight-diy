@@ -126,6 +126,33 @@ export const mealPlanEntries = pgTable("meal_plan_entries", {
   updatedAt: updatedAt()
 });
 
+export const lists = pgTable("lists", {
+  id: id(),
+  householdId: uuid("household_id")
+    .notNull()
+    .references(() => households.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  color: text("color"),
+  sortOrder: integer("sort_order").notNull().default(0),
+  createdAt: createdAt(),
+  updatedAt: updatedAt()
+});
+
+export const listItems = pgTable("list_items", {
+  id: id(),
+  householdId: uuid("household_id")
+    .notNull()
+    .references(() => households.id, { onDelete: "cascade" }),
+  listId: uuid("list_id")
+    .notNull()
+    .references(() => lists.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  completed: boolean("completed").notNull().default(false),
+  sortOrder: integer("sort_order").notNull().default(0),
+  createdAt: createdAt(),
+  updatedAt: updatedAt()
+});
+
 export const connectedAccounts = pgTable("connected_accounts", {
   id: id(),
   householdId: uuid("household_id")

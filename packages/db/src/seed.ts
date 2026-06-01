@@ -1,7 +1,15 @@
 import { and, eq } from "drizzle-orm";
 import { randomBytes, scryptSync } from "node:crypto";
 import { db, pool } from "./client";
-import { chores, households, mealPlanEntries, meals, people } from "./schema";
+import {
+  chores,
+  households,
+  listItems,
+  lists,
+  mealPlanEntries,
+  meals,
+  people
+} from "./schema";
 
 function hashAdminPin(pin: string): string {
   const salt = randomBytes(16);
@@ -100,6 +108,63 @@ async function run(): Promise<void> {
       plannedDate: toDateOnly(tomorrow),
       slot: "dinner"
     }
+  ]);
+
+  const [groceryList, packingList, todoList, travelList] = await db
+    .insert(lists)
+    .values([
+      {
+        householdId: household.id,
+        title: "Grocery List",
+        color: "#f6eee1",
+        sortOrder: 0
+      },
+      {
+        householdId: household.id,
+        title: "Packing List",
+        color: "#f7e5ea",
+        sortOrder: 1
+      },
+      {
+        householdId: household.id,
+        title: "To-Do",
+        color: "#eeecf5",
+        sortOrder: 2
+      },
+      {
+        householdId: household.id,
+        title: "Travel Bucket List",
+        color: "#d9eff0",
+        sortOrder: 3
+      }
+    ])
+    .returning({ id: lists.id, title: lists.title });
+
+  await db.insert(listItems).values([
+    { householdId: household.id, listId: groceryList.id, title: "Eggs", sortOrder: 0 },
+    { householdId: household.id, listId: groceryList.id, title: "Milk", sortOrder: 1 },
+    { householdId: household.id, listId: groceryList.id, title: "Bread", sortOrder: 2 },
+    { householdId: household.id, listId: groceryList.id, title: "Apples", sortOrder: 3 },
+    { householdId: household.id, listId: groceryList.id, title: "Lettuce", sortOrder: 4 },
+    { householdId: household.id, listId: groceryList.id, title: "Hot Sauce", sortOrder: 5 },
+    { householdId: household.id, listId: packingList.id, title: "Shirts x5", sortOrder: 0 },
+    { householdId: household.id, listId: packingList.id, title: "Jeans x2", sortOrder: 1 },
+    { householdId: household.id, listId: packingList.id, title: "Undies x7", sortOrder: 2 },
+    { householdId: household.id, listId: packingList.id, title: "Swimsuits x3", sortOrder: 3 },
+    { householdId: household.id, listId: packingList.id, title: "Towel x2", sortOrder: 4 },
+    { householdId: household.id, listId: packingList.id, title: "Sunscreen", sortOrder: 5 },
+    { householdId: household.id, listId: todoList.id, title: "Pack for trip", sortOrder: 0 },
+    { householdId: household.id, listId: todoList.id, title: "Pet sitter", sortOrder: 1 },
+    { householdId: household.id, listId: todoList.id, title: "Stop mail", sortOrder: 2 },
+    { householdId: household.id, listId: todoList.id, title: "Copy of keys", sortOrder: 3 },
+    { householdId: household.id, listId: todoList.id, title: "Set up sprinkler", sortOrder: 4 },
+    { householdId: household.id, listId: todoList.id, title: "Snacks!", sortOrder: 5 },
+    { householdId: household.id, listId: travelList.id, title: "Japan", sortOrder: 0 },
+    { householdId: household.id, listId: travelList.id, title: "Ireland", sortOrder: 1 },
+    { householdId: household.id, listId: travelList.id, title: "Croatia", sortOrder: 2 },
+    { householdId: household.id, listId: travelList.id, title: "Spain", sortOrder: 3 },
+    { householdId: household.id, listId: travelList.id, title: "Costa Rica", sortOrder: 4 },
+    { householdId: household.id, listId: travelList.id, title: "Greece", sortOrder: 5 }
   ]);
 
   const sanityCheck = await db

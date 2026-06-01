@@ -12,6 +12,7 @@ import { mealsRoutes } from "./routes/meals";
 import { rewardsRoutes } from "./routes/rewards";
 import { sessionRoutes } from "./routes/session";
 import { setupRoutes } from "./routes/setup";
+import { listsRoutes } from "./routes/lists";
 
 export function buildServer() {
   const app = Fastify({
@@ -35,6 +36,7 @@ export function buildServer() {
     api.register(choresRoutes, { prefix: "/api" });
     api.register(rewardsRoutes, { prefix: "/api" });
     api.register(mealsRoutes, { prefix: "/api" });
+    api.register(listsRoutes, { prefix: "/api" });
     api.register(calendarRoutes, { prefix: "/api" });
     api.register(googleOauthRoutes, { prefix: "/api" });
   });

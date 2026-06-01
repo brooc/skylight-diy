@@ -3,5 +3,6 @@ export const queryKeys = {
   household: ["household"] as const,
   todayChores: ["today-chores"] as const,
   rewardBalances: ["reward-balances"] as const,
-  weekMeals: ["week-meals"] as const
+  weekMeals: ["week-meals"] as const,
+  lists: ["lists"] as const
 };

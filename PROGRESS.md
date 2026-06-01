@@ -3,7 +3,7 @@
 This document tracks progress against the [v0.1 Implementation Plan](docs/v0.1-implementation-plan.md).
 
 **Last updated**: 2026-05-31  
-**Overall completion**: ~45%
+**Overall completion**: ~50%
 
 ## Implementation Sequence
 
@@ -92,6 +92,7 @@ This document tracks progress against the [v0.1 Implementation Plan](docs/v0.1-i
 - [x] Align person badge colors with calendar card palette for visual consistency
 - [x] Make Today schedule grid vertically scrollable with extended hour range
 - [x] Refine Today calendar layout to mirror Skylight-style top bar, person chips, and in-grid all-day row
+- [x] Replace static Lists page demo data with persisted lists/items from API
 - [ ] Implement component logic (in progress)
 
 ### 🚧 Step 6: Chores and rewards vertical slice (40%)
