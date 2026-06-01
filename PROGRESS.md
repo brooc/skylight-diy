@@ -91,6 +91,7 @@ This document tracks progress against the [v0.1 Implementation Plan](docs/v0.1-i
 - [x] Add floating primary add action on all add-capable scaffold pages (Today/Tasks/Lists)
 - [x] Align person badge colors with calendar card palette for visual consistency
 - [x] Make Today schedule grid vertically scrollable with extended hour range
+- [x] Refine Today calendar layout to mirror Skylight-style top bar, person chips, and in-grid all-day row
 - [ ] Implement component logic (in progress)
 
 ### 🚧 Step 6: Chores and rewards vertical slice (40%)

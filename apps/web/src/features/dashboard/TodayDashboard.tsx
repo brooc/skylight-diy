@@ -19,18 +19,6 @@ type HouseholdResponse = {
   };
 };
 
-type MealsResponse = {
-  days: Array<{
-    date: string;
-    entries: Array<{
-      id: string;
-      slot: string;
-      mealName?: string | null;
-      customTitle?: string | null;
-    }>;
-  }>;
-};
-
 type CalendarResponse = {
   events: Array<{
     id: string;
@@ -51,6 +39,9 @@ type RenderEvent = {
   title: string;
   timeLabel: string;
   color: string;
+  ownerInitial?: string;
+  ownerCount: number;
+  striped: boolean;
 };
 
 function formatHourLabel(hour: number): string {
@@ -76,10 +67,6 @@ export function TodayDashboard(): JSX.Element {
     queryKey: queryKeys.rewardBalances,
     queryFn: () => apiFetch<RewardsResponse>("/rewards/balances")
   });
-  const mealsQuery = useQuery({
-    queryKey: queryKeys.weekMeals,
-    queryFn: () => apiFetch<MealsResponse>("/meals/week")
-  });
   const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
   const startOfToday = new Date();
   startOfToday.setHours(0, 0, 0, 0);
@@ -99,21 +86,13 @@ export function TodayDashboard(): JSX.Element {
   if (
     householdQuery.isLoading ||
     rewardsQuery.isLoading ||
-    mealsQuery.isLoading ||
     calendarQuery.isLoading
   ) {
     return <LoadingState label="Loading dashboard..." />;
   }
   if (householdQuery.isError) return <ErrorState message={householdQuery.error.message} />;
   if (rewardsQuery.isError) return <ErrorState message={rewardsQuery.error.message} />;
-  if (mealsQuery.isError) return <ErrorState message={mealsQuery.error.message} />;
   if (calendarQuery.isError) return <ErrorState message={calendarQuery.error.message} />;
-
-  const todayKey = new Date().toISOString().slice(0, 10);
-  const tonight =
-    mealsQuery.data?.days.find((day) => day.date === todayKey)?.entries[0]?.customTitle ??
-    mealsQuery.data?.days.find((day) => day.date === todayKey)?.entries[0]?.mealName ??
-    "No dinner planned";
 
   const days = Array.from({ length: 7 }, (_, index) => {
     const date = new Date(startOfToday);
@@ -121,7 +100,9 @@ export function TodayDashboard(): JSX.Element {
     return {
       index,
       dayKey: date.toISOString().slice(0, 10),
-      label: date.toLocaleDateString(undefined, { weekday: "short", day: "numeric" })
+      weekday: date.toLocaleDateString(undefined, { weekday: "short" }),
+      dayNumber: date.getDate(),
+      isToday: date.toDateString() === now.toDateString()
     };
   });
 
@@ -157,6 +138,11 @@ export function TodayDashboard(): JSX.Element {
       const matchedPersonColor = Array.from(personColorByName.entries()).find(([name]) =>
         sourceName.includes(name)
       )?.[1];
+      const matchedPeople = balances.filter((person) =>
+        sourceName.includes(person.displayName.toLowerCase())
+      );
+      const owner = matchedPeople[0];
+
       return {
         id: event.id,
         dayIndex,
@@ -164,125 +150,159 @@ export function TodayDashboard(): JSX.Element {
         durationHours,
         title: event.title,
         timeLabel: formatEventTime(startDate, endDate),
+        ownerInitial: owner?.displayName.slice(0, 1).toUpperCase(),
+        ownerCount: matchedPeople.length,
+        striped: matchedPeople.length > 1,
         color:
           matchedPersonColor?.soft ??
           (event.color && /^#[0-9a-f]{6}$/i.test(event.color)
-          ? `${event.color}30`
-          : fallbackEventPalette[index % fallbackEventPalette.length])
+            ? `${event.color}30`
+            : fallbackEventPalette[index % fallbackEventPalette.length])
       };
     })
     .filter((event) => event.dayIndex >= 0);
 
   const scheduleEvents = mappedEvents;
-  const allDayEvents = (calendarQuery.data?.events ?? []).filter((event) => event.isAllDay);
-  const startHour = 6;
-  const endHour = 22;
+  const allDayEvents = (calendarQuery.data?.events ?? [])
+    .filter((event) => event.isAllDay)
+    .map((event, index) => {
+      const startDate = new Date(event.start);
+      const endDate = new Date(event.end);
+      const startKey = startDate.toISOString().slice(0, 10);
+      const rawEndDate = new Date(endDate);
+      rawEndDate.setDate(rawEndDate.getDate() - 1);
+      const endKey = rawEndDate.toISOString().slice(0, 10);
+      const startIndex = days.find((day) => day.dayKey === startKey)?.index ?? 0;
+      const endIndex = days.find((day) => day.dayKey === endKey)?.index ?? startIndex;
+
+      return {
+        id: event.id,
+        title: event.title,
+        startIndex: Math.max(0, startIndex),
+        endIndex: Math.max(startIndex, endIndex),
+        striped: endIndex > startIndex,
+        color: ["#d6efd8", "#f7d8d4", "#e4daf0", "#bee8ea"][index % 4]
+      };
+    });
+  const startHour = 9;
+  const endHour = 21;
   const hourSlots = Array.from({ length: endHour - startHour + 1 }, (_, i) => startHour + i);
-  const slotHeight = 80;
+  const slotHeight = 82;
 
   return (
-    <section className="grid gap-4">
-      <header className="grid gap-2 rounded-md border border-[#e7e7e5] bg-white p-3">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex flex-wrap items-center gap-x-5 gap-y-1">
-            <h1 className="font-display text-3xl leading-none text-slate-900 md:text-[48px]">
-              {householdQuery.data?.household.name ?? "Family"}
-            </h1>
-            <div className="font-display text-3xl leading-none text-slate-900 md:text-[48px]">
-              {now.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}
+    <section className="grid gap-3">
+      <section className="relative overflow-hidden rounded-md border border-[#e7e7e5] bg-white">
+        <header className="border-b border-[#ecebe8] px-3 pb-2 pt-3">
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+            <div className="flex flex-wrap items-center gap-x-5 gap-y-1">
+              <h1 className="font-display text-3xl leading-none text-slate-900 md:text-[34px]">
+                {householdQuery.data?.household.name ?? "Family"}
+              </h1>
+              <div className="font-display text-3xl leading-none text-slate-900 md:text-[34px]">
+                {now.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}
+              </div>
+              <div className="text-2xl leading-none text-slate-500 md:text-[28px]">☀ 80°</div>
             </div>
-            <div className="text-2xl leading-none text-slate-500 md:text-[44px]">☀ 80°</div>
+            <div className="flex items-center gap-2">
+              <div className="rounded-full bg-[#f6f7f9] px-4 py-2 text-sm font-semibold text-slate-700">
+                ▦ Schedule
+              </div>
+              <div className="rounded-full bg-[#f6f7f9] px-4 py-2 text-sm font-semibold text-slate-700">
+                ⊘ Filter
+              </div>
+            </div>
           </div>
-          <div className="rounded-full bg-[#f6f7f9] px-4 py-2 text-sm font-semibold text-slate-700">
-            Schedule
-          </div>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="rounded-full border border-[#d8d6d1] bg-[#fbfbf9] px-3 py-1 text-sm font-semibold text-slate-700">
-            Vacation 48 days
-          </div>
-          {balances.map((person) => (
-            <div
-              key={person.personId}
-              className="flex min-h-[40px] items-center gap-2 rounded-full px-3 py-1.5"
-              style={{
-                backgroundColor:
-                  personColorByName.get(person.displayName.toLowerCase())?.soft ?? "#ebf3f1"
-              }}
-            >
+          <div className="flex flex-nowrap items-center gap-2 overflow-x-auto pb-1">
+            <div className="shrink-0 rounded-full border border-[#2f2f2f66] bg-[#fbfbf9] px-4 py-1 text-xl font-semibold text-slate-700">
+              🌴 Vacation 48 days
+            </div>
+            {balances.map((person) => (
               <div
-                className="flex h-8 w-8 items-center justify-center rounded-full text-sm font-semibold text-white"
+                key={person.personId}
+                className="flex min-h-[44px] shrink-0 items-center gap-2 rounded-full px-3 py-1.5"
                 style={{
                   backgroundColor:
-                    personColorByName.get(person.displayName.toLowerCase())?.accent ?? "#8ac7be"
+                    personColorByName.get(person.displayName.toLowerCase())?.soft ?? "#ebf3f1"
                 }}
               >
-                {person.displayName.slice(0, 1).toUpperCase()}
+                <div
+                  className="flex h-8 w-8 items-center justify-center rounded-full text-sm font-semibold text-white"
+                  style={{
+                    backgroundColor:
+                      personColorByName.get(person.displayName.toLowerCase())?.accent ?? "#8ac7be"
+                  }}
+                >
+                  {person.displayName.slice(0, 1).toUpperCase()}
+                </div>
+                <div className="text-base font-semibold text-slate-800">{person.displayName}</div>
+                <div className="text-base font-semibold text-slate-800">{person.balance}/20</div>
               </div>
-              <div className="text-sm font-semibold text-slate-800">{person.displayName}</div>
-              <div className="rounded-full bg-white/65 px-2 py-0.5 text-xs font-medium text-slate-700">
-                {person.balance} pts
-              </div>
-            </div>
-          ))}
-        </div>
-        <p className="text-sm text-slate-700">Tonight: {tonight}</p>
-      </header>
-
-      <section className="rounded-md border border-[#e7e7e5] bg-white p-3">
-        <div className="mb-2 flex items-center justify-between">
-          <h3 className="font-display text-xl text-slate-900">Schedule</h3>
-          <div className="rounded-full bg-[#f6f7f9] px-3 py-1 text-sm font-medium text-slate-600">
-            Week view
+            ))}
           </div>
-        </div>
-        <div className="mb-3 flex flex-wrap gap-2">
-          {allDayEvents.length > 0 ? (
-            allDayEvents.map((event, index) => (
-              <div
-                key={event.id}
-                className="rounded-full px-3 py-1 text-sm font-semibold text-slate-700"
-                style={{ backgroundColor: ["#d6efd8", "#f7d8d4", "#e4daf0", "#bee8ea"][index % 4] }}
-              >
-                {event.title}
-              </div>
-            ))
-          ) : (
-            <div className="rounded-full bg-[#d6efd8] px-3 py-1 text-sm font-semibold text-slate-700">
-              Camping Trip
-            </div>
-          )}
-        </div>
-        <div className="max-h-[68vh] overflow-auto">
+        </header>
+        <div className="max-h-[72vh] overflow-auto">
           <div
             className="grid"
             style={{
-              gridTemplateColumns: `84px repeat(${days.length}, minmax(170px, 1fr))`,
-              minWidth: `${84 + days.length * 170}px`
+              gridTemplateColumns: `76px repeat(${days.length}, minmax(150px, 1fr))`,
+              minWidth: `${76 + days.length * 150}px`
             }}
           >
             <div className="sticky top-0 z-20 border-b border-r border-[#ecebe8] bg-white" />
             {days.map((day) => (
               <div
                 key={day.dayKey}
-                className="sticky top-0 z-20 border-b border-r border-[#ecebe8] bg-white px-3 py-2 font-display text-2xl leading-none text-slate-900"
+                className="sticky top-0 z-20 flex items-center gap-1.5 border-b border-r border-[#ecebe8] bg-white px-3 py-2.5 font-display text-[26px] leading-none text-slate-900 md:text-[34px]"
               >
-                {day.label}
+                <span>{day.weekday}</span>
+                {day.isToday ? (
+                  <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#ff6b55] text-[19px] text-white">
+                    {day.dayNumber}
+                  </span>
+                ) : (
+                  <span>{day.dayNumber}</span>
+                )}
               </div>
             ))}
+
+            <div className="border-b border-r border-[#ecebe8] bg-white" />
+            {days.map((day) => {
+              const dayAllDayEvents = allDayEvents.filter(
+                (event) => day.index >= event.startIndex && day.index <= event.endIndex
+              );
+              const event = dayAllDayEvents[0];
+              const fallbackTitle = day.isToday ? "Camping Trip" : undefined;
+              return (
+                <div key={`${day.dayKey}-all-day`} className="border-b border-r border-[#ecebe8] p-2">
+                  {event || fallbackTitle ? (
+                    <div
+                      className="truncate rounded-full px-3 py-1 text-[14px] font-semibold text-slate-700"
+                      style={{
+                        background: event?.striped
+                          ? "repeating-linear-gradient(125deg, #d6efd8 0 36px, #f7d8d4 36px 72px, #bee8ea 72px 108px, #e4daf0 108px 144px)"
+                          : event?.color ?? "#d6efd8"
+                      }}
+                    >
+                      {event?.title ?? fallbackTitle}
+                    </div>
+                  ) : null}
+                </div>
+              );
+            })}
 
             {hourSlots.map((hour) => (
               <Fragment key={`row-${hour}`}>
                 <div
-                  className="border-r border-[#ecebe8] px-2 py-1 text-3xl text-slate-500"
+                  className="border-r border-[#ecebe8] px-3 py-2 text-slate-500"
                   style={{ height: slotHeight }}
                 >
-                  <div className="text-xl leading-tight">{formatHourLabel(hour)}</div>
+                  <div className="font-display text-[22px] leading-[0.95] md:text-[30px]">
+                    {formatHourLabel(hour)}
+                  </div>
                 </div>
                 {days.map((day) => {
                   const hourEvents = scheduleEvents.filter(
-                    (event) =>
-                      event.dayIndex === day.index && Math.floor(event.startHour) === hour
+                    (event) => event.dayIndex === day.index && Math.floor(event.startHour) === hour
                   );
 
                   return (
@@ -293,15 +313,35 @@ export function TodayDashboard(): JSX.Element {
                     >
                       {hourEvents.map((event) => {
                         const offset = (event.startHour - hour) * slotHeight;
-                        const height = Math.max(50, event.durationHours * slotHeight - 8);
+                        const height = Math.max(56, event.durationHours * slotHeight - 8);
                         return (
                           <article
                             key={event.id}
-                            className="absolute left-2 right-2 z-10 rounded-[18px] px-3 py-2 text-slate-800 shadow-sm"
-                            style={{ top: offset, height, backgroundColor: event.color }}
+                            className="absolute left-2 right-2 z-10 rounded-[20px] px-3 py-2 text-slate-800"
+                            style={{
+                              top: offset,
+                              height,
+                              background: event.striped
+                                ? "repeating-linear-gradient(125deg, #d6efd8 0 38px, #f7d8d4 38px 76px, #bee8ea 76px 114px, #e4daf0 114px 152px)"
+                                : event.color
+                            }}
                           >
-                            <div className="text-base font-semibold leading-tight">{event.title}</div>
-                            <div className="mt-1 text-sm">{event.timeLabel}</div>
+                            <div className="text-[20px] font-semibold leading-tight">{event.title}</div>
+                            <div className="mt-1 text-[16px] leading-tight text-slate-700">
+                              {event.timeLabel}
+                            </div>
+                            {event.ownerInitial ? (
+                              <div className="absolute bottom-2 right-2 flex items-center gap-1">
+                                {event.ownerCount > 1 ? (
+                                  <span className="rounded-full bg-white/80 px-1.5 text-[12px] font-semibold text-slate-700">
+                                    +{event.ownerCount - 1}
+                                  </span>
+                                ) : null}
+                                <span className="flex h-7 w-7 items-center justify-center rounded-full border border-[#ffffffaa] bg-[#ffffffaa] text-[12px] font-semibold text-slate-700">
+                                  {event.ownerInitial}
+                                </span>
+                              </div>
+                            ) : null}
                           </article>
                         );
                       })}
@@ -312,21 +352,15 @@ export function TodayDashboard(): JSX.Element {
             ))}
           </div>
         </div>
-        {scheduleEvents.length === 0 ? (
-          <div className="mt-3 rounded-md border border-[#e5e3de] bg-[#faf9f7] px-3 py-2 text-sm text-slate-600">
-            No timed events in this range yet.
-          </div>
-        ) : null}
+        <button
+          type="button"
+          aria-label="Add"
+          className="absolute bottom-5 right-5 z-30 flex h-14 w-14 items-center justify-center rounded-full bg-[#2b98db] text-white shadow-[0_6px_16px_rgba(30,64,175,0.22)] transition-colors hover:bg-[#2588c3]"
+          onClick={() => undefined}
+        >
+          <span className="relative -top-px text-4xl font-normal leading-none">+</span>
+        </button>
       </section>
-
-      <button
-        type="button"
-        aria-label="Add"
-        className="fixed bottom-6 right-6 z-30 flex h-14 w-14 items-center justify-center rounded-full bg-[#2b98db] text-white shadow-[0_6px_16px_rgba(30,64,175,0.22)] transition-colors hover:bg-[#2588c3]"
-        onClick={() => undefined}
-      >
-        <span className="relative -top-px text-4xl font-normal leading-none">+</span>
-      </button>
     </section>
   );
 }
