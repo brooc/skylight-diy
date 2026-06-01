@@ -10,6 +10,12 @@ const completeQuerySchema = z.object({
     .optional()
 });
 
+const createChoreBodySchema = z.object({
+  title: z.string().trim().min(1).max(120),
+  points: z.number().int().min(1).max(100).default(1),
+  assignedPersonId: z.string().uuid().nullable().optional()
+});
+
 export const choresRoutes: FastifyPluginAsync = async (app) => {
   app.get("/chores/today", async () => {
     const [household] = await app.db.select().from(households).limit(1);
@@ -101,6 +107,52 @@ export const choresRoutes: FastifyPluginAsync = async (app) => {
     }
 
     return { completed: true, date: targetDate };
+  });
+
+  app.post("/chores", async (request, reply) => {
+    const parsed = createChoreBodySchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.status(400).send({
+        error: "invalid_body",
+        details: parsed.error.flatten()
+      });
+    }
+
+    const [household] = await app.db.select().from(households).limit(1);
+    if (!household) {
+      return reply.status(404).send({ error: "setup_not_completed" });
+    }
+
+    const assignedPersonId = parsed.data.assignedPersonId ?? null;
+    if (assignedPersonId) {
+      const [assignedPerson] = await app.db
+        .select({ id: people.id })
+        .from(people)
+        .where(and(eq(people.id, assignedPersonId), eq(people.householdId, household.id)))
+        .limit(1);
+      if (!assignedPerson) {
+        return reply.status(400).send({ error: "invalid_assigned_person" });
+      }
+    }
+
+    const [created] = await app.db
+      .insert(chores)
+      .values({
+        householdId: household.id,
+        assignedPersonId,
+        title: parsed.data.title,
+        points: parsed.data.points,
+        frequency: "daily",
+        active: true
+      })
+      .returning({
+        id: chores.id,
+        title: chores.title,
+        points: chores.points,
+        assignedPersonId: chores.assignedPersonId
+      });
+
+    return reply.status(201).send({ chore: created });
   });
 
   app.delete("/chores/:choreId/complete", async (request, reply) => {

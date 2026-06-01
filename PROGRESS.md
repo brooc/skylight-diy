@@ -103,6 +103,7 @@ This document tracks progress against the [v0.1 Implementation Plan](docs/v0.1-i
 - [x] Add ChoreList UI component
 - [x] Add RewardBalance UI component
 - [x] Keep chore interaction on Tasks page; keep Today focused on schedule display
+- [x] Add create chore API route and wire Tasks page add flow to persist new chores
 - [ ] Implement chores service logic
 - [ ] Implement reward balance calculation
 - [ ] Test chore completion from browser
