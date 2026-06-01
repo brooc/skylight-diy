@@ -3,7 +3,7 @@
 This document tracks progress against the [v0.1 Implementation Plan](docs/v0.1-implementation-plan.md).
 
 **Last updated**: 2026-05-31  
-**Overall completion**: ~62%
+**Overall completion**: ~64%
 
 ## Implementation Sequence
 
@@ -128,6 +128,7 @@ This document tracks progress against the [v0.1 Implementation Plan](docs/v0.1-i
 - [x] Create calendar module directory
 - [x] Add fixture-backed calendar events response for Today/Week rendering
 - [x] Wire calendar settings endpoints for accounts/sources import and source updates
+- [x] Add manual refresh control and warning banner visibility in Week view
 - [ ] Add calendar domain types
 - [ ] Add display event type
 - [ ] Add Google event mapper

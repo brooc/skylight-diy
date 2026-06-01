@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiFetch } from "../../api/client";
 import { DegradedStateBanner } from "../../components/DegradedStateBanner";
 import { ErrorState } from "../../components/ErrorState";
@@ -37,6 +37,7 @@ function toDayKey(value: string): string {
 }
 
 export function CalendarWeekView(): JSX.Element {
+  const queryClient = useQueryClient();
   const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
   const { start, end } = getWeekRange();
   const calendarQuery = useQuery({
@@ -85,10 +86,21 @@ export function CalendarWeekView(): JSX.Element {
     <section className="grid gap-4">
       <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-[#e7e7e5] bg-white p-4">
         <h1 className="font-display text-3xl text-slate-900">Week calendar</h1>
-        <CalendarStatusBadge cacheStatus={data.cacheStatus} />
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            className="min-h-[40px] rounded-md border border-[#d8cbb8] bg-[#fff7ea] px-3 py-2 text-sm font-semibold text-slate-800 hover:bg-[#fcedd8]"
+            onClick={async () => {
+              await queryClient.invalidateQueries({ queryKey: ["calendar-week"] });
+            }}
+          >
+            Refresh
+          </button>
+          <CalendarStatusBadge cacheStatus={data.cacheStatus} />
+        </div>
       </div>
 
-      {data.degraded && data.warnings.length > 0 ? (
+      {data.warnings.length > 0 ? (
         <DegradedStateBanner message={data.warnings.map((item) => item.message).join(" ")} />
       ) : null}
 
