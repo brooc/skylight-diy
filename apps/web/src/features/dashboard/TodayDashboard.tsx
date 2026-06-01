@@ -1,20 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
 import { Fragment } from "react";
-import { Link } from "react-router-dom";
 import { apiFetch } from "../../api/client";
 import { queryKeys } from "../../api/queryKeys";
 import { ErrorState } from "../../components/ErrorState";
 import { LoadingState } from "../../components/LoadingState";
-
-type ChoresResponse = {
-  chores: Array<{
-    id: string;
-    title: string;
-    points: number;
-    assignedPersonName?: string | null;
-    completed: boolean;
-  }>;
-};
 
 type RewardsResponse = {
   balances: Array<{
@@ -79,10 +68,6 @@ function formatEventTime(start: Date, end: Date): string {
 
 export function TodayDashboard(): JSX.Element {
   const now = new Date();
-  const choresQuery = useQuery({
-    queryKey: queryKeys.todayChores,
-    queryFn: () => apiFetch<ChoresResponse>("/chores/today")
-  });
   const householdQuery = useQuery({
     queryKey: queryKeys.household,
     queryFn: () => apiFetch<HouseholdResponse>("/household/current")
@@ -112,7 +97,6 @@ export function TodayDashboard(): JSX.Element {
   });
 
   if (
-    choresQuery.isLoading ||
     householdQuery.isLoading ||
     rewardsQuery.isLoading ||
     mealsQuery.isLoading ||
@@ -120,7 +104,6 @@ export function TodayDashboard(): JSX.Element {
   ) {
     return <LoadingState label="Loading dashboard..." />;
   }
-  if (choresQuery.isError) return <ErrorState message={choresQuery.error.message} />;
   if (householdQuery.isError) return <ErrorState message={householdQuery.error.message} />;
   if (rewardsQuery.isError) return <ErrorState message={rewardsQuery.error.message} />;
   if (mealsQuery.isError) return <ErrorState message={mealsQuery.error.message} />;
@@ -192,12 +175,8 @@ export function TodayDashboard(): JSX.Element {
 
   const scheduleEvents = mappedEvents;
   const allDayEvents = (calendarQuery.data?.events ?? []).filter((event) => event.isAllDay);
-  const chores = choresQuery.data?.chores ?? [];
-  const pendingChores = chores.filter((chore) => !chore.completed);
-  const completedCount = chores.length - pendingChores.length;
-  const previewChores = pendingChores.slice(0, 3);
-  const startHour = 9;
-  const endHour = 14;
+  const startHour = 6;
+  const endHour = 22;
   const hourSlots = Array.from({ length: endHour - startHour + 1 }, (_, i) => startHour + i);
   const slotHeight = 80;
 
@@ -274,7 +253,7 @@ export function TodayDashboard(): JSX.Element {
             </div>
           )}
         </div>
-        <div className="overflow-x-auto">
+        <div className="max-h-[68vh] overflow-auto">
           <div
             className="grid"
             style={{
@@ -282,11 +261,11 @@ export function TodayDashboard(): JSX.Element {
               minWidth: `${84 + days.length * 170}px`
             }}
           >
-            <div className="border-b border-r border-[#ecebe8]" />
+            <div className="sticky top-0 z-20 border-b border-r border-[#ecebe8] bg-white" />
             {days.map((day) => (
               <div
                 key={day.dayKey}
-                className="border-b border-r border-[#ecebe8] px-3 py-2 font-display text-2xl leading-none text-slate-900"
+                className="sticky top-0 z-20 border-b border-r border-[#ecebe8] bg-white px-3 py-2 font-display text-2xl leading-none text-slate-900"
               >
                 {day.label}
               </div>
@@ -338,41 +317,6 @@ export function TodayDashboard(): JSX.Element {
             No timed events in this range yet.
           </div>
         ) : null}
-      </section>
-
-      <section className="rounded-md border border-[#e7e7e5] bg-white p-3">
-        <div className="mb-2 flex items-center justify-between gap-2">
-          <h3 className="font-display text-xl text-slate-900">Today's tasks</h3>
-          <Link
-            to="/chores"
-            className="rounded-full bg-[#f6f7f9] px-3 py-1 text-sm font-medium text-slate-700"
-          >
-            Open tasks
-          </Link>
-        </div>
-        <div className="mb-3 flex flex-wrap items-center gap-2 text-sm text-slate-700">
-          <span className="rounded-full bg-[#eef3f7] px-3 py-1">{pendingChores.length} left</span>
-          <span className="rounded-full bg-[#eef3f7] px-3 py-1">{completedCount} done</span>
-        </div>
-        {previewChores.length === 0 ? (
-          <div className="rounded-md border border-[#ecebe8] bg-[#fbfbfa] px-3 py-2 text-sm text-slate-600">
-            No remaining tasks today.
-          </div>
-        ) : (
-          <div className="grid gap-2 sm:grid-cols-3">
-            {previewChores.map((chore) => (
-              <article key={chore.id} className="rounded-2xl border border-[#ecebe8] bg-[#fbfbfa] p-3">
-                <div className="text-base font-semibold text-slate-900">{chore.title}</div>
-                <div className="mt-1 text-sm text-slate-600">
-                  {chore.assignedPersonName ?? "Unassigned"}
-                </div>
-                <div className="mt-2 inline-flex rounded-full bg-[#f2ece0] px-2 py-0.5 text-sm font-medium text-slate-700">
-                  {chore.points} pts
-                </div>
-              </article>
-            ))}
-          </div>
-        )}
       </section>
 
       <button

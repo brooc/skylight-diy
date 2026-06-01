@@ -90,6 +90,7 @@ This document tracks progress against the [v0.1 Implementation Plan](docs/v0.1-i
 - [x] Replace global header with page-specific top bars aligned to reference layout
 - [x] Add floating primary add action on all add-capable scaffold pages (Today/Tasks/Lists)
 - [x] Align person badge colors with calendar card palette for visual consistency
+- [x] Make Today schedule grid vertically scrollable with extended hour range
 - [ ] Implement component logic (in progress)
 
 ### 🚧 Step 6: Chores and rewards vertical slice (40%)
@@ -100,8 +101,7 @@ This document tracks progress against the [v0.1 Implementation Plan](docs/v0.1-i
 - [x] Add rewards API routes
 - [x] Add ChoreList UI component
 - [x] Add RewardBalance UI component
-- [x] Split responsibilities between Today (task summary) and Tasks (full interaction)
-- [x] Wire Today dashboard to chores data (summary preview + deep link)
+- [x] Keep chore interaction on Tasks page; keep Today focused on schedule display
 - [ ] Implement chores service logic
 - [ ] Implement reward balance calculation
 - [ ] Test chore completion from browser
