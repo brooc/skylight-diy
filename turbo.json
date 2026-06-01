@@ -1,0 +1,43 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "globalEnv": [
+    "NODE_ENV",
+    "APP_BASE_URL",
+    "API_BASE_URL",
+    "DATABASE_URL",
+    "SESSION_COOKIE_NAME",
+    "SESSION_SECRET",
+    "TOKEN_ENCRYPTION_KEY",
+    "GOOGLE_CLIENT_ID",
+    "GOOGLE_CLIENT_SECRET",
+    "GOOGLE_REDIRECT_URI",
+    "CALENDAR_CACHE_FRESH_TTL_SECONDS",
+    "CALENDAR_CACHE_STALE_TTL_SECONDS",
+    "HOST",
+    "PORT"
+  ],
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": ["dist/**"]
+    },
+    "dev": {
+      "cache": false,
+      "persistent": true
+    },
+    "dev:docker": {
+      "cache": false,
+      "persistent": true
+    },
+    "lint": {
+      "dependsOn": ["^lint"]
+    },
+    "test": {
+      "dependsOn": ["^test"],
+      "outputs": []
+    },
+    "format": {
+      "outputs": []
+    }
+  }
+}

@@ -71,23 +71,25 @@ This is the working implementation plan for Skylight DIY. It is intentionally ch
 
 ## v0.1: Real foundation plus Google Calendar spike
 
+**Status**: In progress (~40% complete). See [PROGRESS.md](../PROGRESS.md) for detailed tracking.
+
 Goal: Build a real app foundation and prove the Fire Tablet can display household calendar data, chores, rewards, and meals from the backend.
 
-- [ ] Initialize monorepo structure.
-- [ ] Add app/package tooling.
-- [ ] Add Docker Compose for local development.
-- [ ] Add Postgres database.
-- [ ] Add database schema and migrations.
-- [ ] Add first-run setup wizard.
-- [ ] Add local admin PIN.
-- [ ] Add seed data for local/demo development.
-- [ ] Add backend API skeleton.
-- [ ] Add frontend PWA skeleton.
-- [ ] Add tablet-first dashboard layout.
-- [ ] Add household/person model.
-- [ ] Add chores model and basic completion flow.
-- [ ] Add reward points/stars model.
-- [ ] Add meal plan model.
+- [x] Initialize monorepo structure.
+- [x] Add app/package tooling.
+- [x] Add Docker Compose for local development.
+- [x] Add Postgres database.
+- [x] Add database schema and migrations.
+- [x] Add first-run setup wizard (scaffolded, needs implementation).
+- [x] Add local admin PIN (schema ready, middleware in progress).
+- [x] Add seed data for local/demo development.
+- [x] Add backend API skeleton.
+- [x] Add frontend PWA skeleton.
+- [x] Add tablet-first dashboard layout (structure ready, styling in progress).
+- [x] Add household/person model.
+- [ ] Add chores model and basic completion flow (in progress).
+- [ ] Add reward points/stars model (in progress).
+- [ ] Add meal plan model (scaffolded).
 - [ ] Add read-only Google Calendar OAuth spike.
 - [ ] Fetch Google Calendar events directly from Google for a requested date range.
 - [ ] Map Google events into a display-only event model.

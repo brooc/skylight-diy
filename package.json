@@ -1,0 +1,29 @@
+{
+  "name": "skylight-diy",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@10.12.1",
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev --parallel",
+    "dev:docker": "turbo run dev:docker --filter=@skylight-diy/api --filter=@skylight-diy/web",
+    "lint": "turbo run lint",
+    "format": "turbo run format",
+    "test": "turbo run test",
+    "db:up": "docker compose up -d postgres",
+    "db:down": "docker compose down",
+    "db:migrate": "pnpm --filter @skylight-diy/db db:migrate",
+    "db:seed": "pnpm --filter @skylight-diy/db db:seed",
+    "setup": "pnpm install && pnpm db:up && pnpm db:migrate && pnpm db:seed",
+    "docker:db:up": "docker compose up -d postgres",
+    "docker:db:down": "docker compose down",
+    "docker:db:migrate": "docker compose run --rm app sh -lc \"pnpm install --no-frozen-lockfile && pnpm --filter @skylight-diy/db db:migrate\"",
+    "docker:db:seed": "docker compose run --rm app sh -lc \"pnpm install --no-frozen-lockfile && pnpm --filter @skylight-diy/db db:seed\"",
+    "docker:setup": "docker compose up -d postgres && docker compose run --rm app sh -lc \"pnpm install --no-frozen-lockfile && pnpm --filter @skylight-diy/db db:migrate && pnpm --filter @skylight-diy/db db:seed\"",
+    "docker:dev": "docker compose up --build app"
+  },
+  "devDependencies": {
+    "turbo": "^2.0.12",
+    "typescript": "^5.6.3"
+  }
+}

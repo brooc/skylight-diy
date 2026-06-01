@@ -1,0 +1,9 @@
+{
+  "name": "Skylight DIY",
+  "short_name": "SkylightDIY",
+  "start_url": "/today",
+  "display": "standalone",
+  "background_color": "#020617",
+  "theme_color": "#0f172a",
+  "icons": []
+}

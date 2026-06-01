@@ -1,0 +1,57 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: skylight-diy-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: skylight
+      POSTGRES_PASSWORD: skylight
+      POSTGRES_DB: skylight_diy
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U skylight -d skylight_diy"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: skylight-diy-app
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: development
+      APP_BASE_URL: http://localhost:${WEB_PORT:-5173}
+      API_BASE_URL: http://localhost:3000
+      DATABASE_URL: postgres://skylight:skylight@postgres:5432/skylight_diy
+      SESSION_COOKIE_NAME: skylight_diy_session
+      SESSION_SECRET: local-dev-session-secret
+      TOKEN_ENCRYPTION_KEY: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
+      GOOGLE_CLIENT_ID: ""
+      GOOGLE_CLIENT_SECRET: ""
+      GOOGLE_REDIRECT_URI: http://localhost:3000/api/integrations/google/callback
+      CALENDAR_CACHE_FRESH_TTL_SECONDS: "300"
+      CALENDAR_CACHE_STALE_TTL_SECONDS: "86400"
+      CHOKIDAR_USEPOLLING: "true"
+      CHOKIDAR_INTERVAL: "150"
+      WATCHPACK_POLLING: "true"
+    working_dir: /workspace
+    command: sh -lc "pnpm install --no-frozen-lockfile && pnpm dev:docker"
+    ports:
+      - "${API_PORT:-3000}:3000"
+      - "${WEB_PORT:-5173}:5173"
+    volumes:
+      - .:/workspace
+      - node_modules:/workspace/node_modules
+      - pnpm_store:/pnpm/store
+
+volumes:
+  postgres_data:
+  node_modules:
+  pnpm_store:
