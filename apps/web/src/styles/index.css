@@ -10,6 +10,8 @@ body,
 
 body {
   margin: 0;
+  background: #f7f7f5;
+  color: #1e293b;
   font-family:
     Inter,
     system-ui,
@@ -19,4 +21,11 @@ body {
     Helvetica,
     Arial,
     sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.font-display {
+  font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+  letter-spacing: 0;
 }

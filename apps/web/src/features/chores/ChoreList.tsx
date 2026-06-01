@@ -17,7 +17,7 @@ export function ChoreList({
 }): JSX.Element {
   return (
     <section className="grid gap-3">
-      <h2 className="text-lg font-semibold">Today's chores</h2>
+      <h2 className="text-lg font-semibold text-slate-900">Today's chores</h2>
       <div className="grid gap-3 md:grid-cols-2">
         {chores.map((chore) => (
           <ChoreCard

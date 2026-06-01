@@ -18,8 +18,8 @@ export function CalendarDayView({
   events: CalendarEvent[];
 }): JSX.Element {
   return (
-    <section className="grid gap-3 rounded-md border border-slate-800 bg-slate-900 p-4">
-      <h2 className="text-sm font-semibold text-slate-200">{title}</h2>
+    <section className="grid gap-3 rounded-md border border-[#ecebe8] bg-[#fbfbfa] p-3">
+      <h2 className="font-display text-4xl leading-none text-slate-900">{title}</h2>
       {events.length > 0 ? (
         <div className="grid gap-2">
           {events.map((event) => (

@@ -83,8 +83,8 @@ export function CalendarWeekView(): JSX.Element {
 
   return (
     <section className="grid gap-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h1 className="text-xl font-semibold">Week calendar</h1>
+      <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-[#e7e7e5] bg-white p-4">
+        <h1 className="font-display text-3xl text-slate-900">Week calendar</h1>
         <CalendarStatusBadge cacheStatus={data.cacheStatus} />
       </div>
 
@@ -92,10 +92,12 @@ export function CalendarWeekView(): JSX.Element {
         <DegradedStateBanner message={data.warnings.map((item) => item.message).join(" ")} />
       ) : null}
 
-      <div className="grid gap-3 lg:grid-cols-2">
-        {days.map((day) => (
-          <CalendarDayView key={day.dayKey} title={day.label} events={day.events} />
-        ))}
+      <div className="overflow-x-auto rounded-md border border-[#e7e7e5] bg-white p-3">
+        <div className="grid min-w-[1120px] grid-flow-col auto-cols-[minmax(220px,1fr)] gap-3">
+          {days.map((day) => (
+            <CalendarDayView key={day.dayKey} title={day.label} events={day.events} />
+          ))}
+        </div>
       </div>
     </section>
   );

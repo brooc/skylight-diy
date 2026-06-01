@@ -43,15 +43,15 @@ export function MealPlanWeek(): JSX.Element {
 
   return (
     <section className="grid gap-3">
-      <h1 className="text-xl font-semibold">Meals this week</h1>
+      <h1 className="text-2xl font-semibold text-slate-900">Meals this week</h1>
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
         {days.map((day) => (
-          <article key={day.date} className="rounded-md border border-slate-800 bg-slate-900 p-4">
-            <h2 className="text-sm font-semibold">{day.date}</h2>
-            <ul className="mt-2 grid gap-2 text-sm text-slate-300">
+          <article key={day.date} className="rounded-md border border-[#e0d6c7] bg-white p-4">
+            <h2 className="text-base font-semibold text-slate-900">{day.date}</h2>
+            <ul className="mt-2 grid gap-2 text-sm text-slate-700">
               {day.entries.length > 0 ? (
                 day.entries.map((entry) => (
-                  <li key={entry.id} className="rounded-md bg-slate-800 px-2 py-2">
+                  <li key={entry.id} className="min-h-[44px] rounded-md bg-[#f8f2e8] px-2 py-2">
                     {(entry.customTitle || entry.mealName || "Meal") + ` (${entry.slot})`}
                   </li>
                 ))

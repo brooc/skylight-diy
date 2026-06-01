@@ -25,12 +25,12 @@ export function SettingsPage(): JSX.Element {
 
   if (!sessionQuery.data?.unlocked) {
     return (
-      <section className="grid gap-3 rounded-md border border-slate-800 bg-slate-900 p-4 md:max-w-md">
-        <h1 className="text-xl font-semibold">Settings locked</h1>
-        <p className="text-sm text-slate-300">Unlock with your local admin PIN to continue.</p>
+      <section className="grid gap-3 rounded-md border border-[#e0d6c7] bg-white p-4 md:max-w-md">
+        <h1 className="text-xl font-semibold text-slate-900">Settings locked</h1>
+        <p className="text-sm text-slate-600">Unlock with your local admin PIN to continue.</p>
         <Link
           to="/settings/unlock"
-          className="rounded-md bg-sky-500 px-4 py-3 text-center text-sm font-semibold text-white"
+          className="flex min-h-[44px] items-center justify-center rounded-md bg-[#0f766e] px-4 py-3 text-center text-sm font-semibold text-white"
         >
           Unlock settings
         </Link>
@@ -40,11 +40,11 @@ export function SettingsPage(): JSX.Element {
 
   return (
     <section className="grid gap-4">
-      <header className="flex items-center justify-between gap-2 rounded-md border border-slate-800 bg-slate-900 p-4">
-        <h1 className="text-xl font-semibold">Settings</h1>
+      <header className="flex items-center justify-between gap-2 rounded-md border border-[#e0d6c7] bg-white p-4">
+        <h1 className="text-xl font-semibold text-slate-900">Settings</h1>
         <button
           type="button"
-          className="rounded-md bg-slate-700 px-3 py-2 text-sm text-slate-100 hover:bg-slate-600"
+          className="min-h-[44px] rounded-md border border-[#d8cbb8] bg-[#fff7ea] px-3 py-2 text-sm font-semibold text-slate-800 hover:bg-[#fcedd8]"
           onClick={async () => {
             setLockError(null);
             try {

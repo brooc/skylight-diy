@@ -1,53 +1,70 @@
 import type { PropsWithChildren } from "react";
 import { NavLink } from "react-router-dom";
 
-const links = [
-  { to: "/today", label: "Today" },
-  { to: "/week", label: "Week" },
-  { to: "/chores", label: "Chores" },
-  { to: "/meals", label: "Meals" },
-  { to: "/import", label: "Import" },
-  { to: "/settings", label: "Settings" }
+const links: Array<{ to: string; label: string; icon: string }> = [
+  { to: "/today", label: "Calendar", icon: "□" },
+  { to: "/import", label: "Lists", icon: "▤" },
+  { to: "/chores", label: "Tasks", icon: "✓" },
+  { to: "/meals", label: "Meals", icon: "◫" },
+  { to: "/week", label: "Week", icon: "▦" },
+  { to: "/settings", label: "Settings", icon: "⚙" }
 ];
 
 export function AppShell({ children }: PropsWithChildren): JSX.Element {
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100">
-      <header className="border-b border-slate-800 px-4 py-3">
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-3">
-          <div className="text-lg font-semibold">Skylight DIY</div>
-          <div className="text-sm text-slate-400">
-            {new Date().toLocaleString(undefined, {
-              weekday: "short",
-              month: "short",
-              day: "numeric",
-              hour: "numeric",
-              minute: "2-digit"
-            })}
+    <div className="min-h-screen bg-[#f7f7f5] px-2 py-2 text-slate-900 md:px-3 md:py-3">
+      <div className="mx-auto flex w-full max-w-[1480px] gap-2 md:gap-3">
+        <aside className="hidden w-[92px] shrink-0 rounded-md border border-[#dde5ef] bg-[#eef3fa] md:flex md:flex-col md:items-center">
+          <div className="mb-2 mt-2 flex h-14 w-full items-center justify-center border-b border-[#dbe3ee]">
+            <span className="font-display text-3xl text-slate-500">S</span>
           </div>
+          <nav className="flex w-full flex-1 flex-col gap-1 px-1 py-1">
+            {links.map((link) => {
+              return (
+                <NavLink
+                  key={link.to}
+                  to={link.to}
+                  className={({ isActive }) =>
+                    `flex min-h-[66px] flex-col items-center justify-center rounded-md px-1 text-center ${
+                      isActive
+                        ? "bg-[#dce7f5] text-slate-900"
+                        : "text-slate-600 hover:bg-[#e5edf8]"
+                    }`
+                  }
+                >
+                  <span className="text-xl leading-none">{link.icon}</span>
+                  <span className="mt-1 text-[11px] font-medium">{link.label}</span>
+                </NavLink>
+              );
+            })}
+          </nav>
+        </aside>
+
+        <div className="min-w-0 flex-1">
+          <nav className="mb-2 grid grid-cols-3 gap-2 md:hidden">
+            {links.map((link) => {
+              return (
+                <NavLink
+                  key={link.to}
+                  to={link.to}
+                  className={({ isActive }) =>
+                    `flex min-h-[50px] items-center justify-center gap-1 rounded-md border text-xs font-semibold ${
+                      isActive
+                        ? "border-transparent bg-[#dce7f5] text-slate-900"
+                        : "border-[#d9e2ee] bg-[#eef3fa] text-slate-600"
+                    }`
+                  }
+                >
+                  <span className="text-sm leading-none">{link.icon}</span>
+                  {link.label}
+                </NavLink>
+              );
+            })}
+          </nav>
+
+          <main className="grid gap-3">{children}</main>
         </div>
-      </header>
-      <nav className="border-b border-slate-800 bg-slate-900/60 px-4 py-2">
-        <ul className="mx-auto flex max-w-7xl flex-wrap gap-2">
-          {links.map((link) => (
-            <li key={link.to}>
-              <NavLink
-                to={link.to}
-                className={({ isActive }) =>
-                  `rounded-md px-3 py-2 text-sm font-medium ${
-                    isActive
-                      ? "bg-sky-500 text-white"
-                      : "bg-slate-800 text-slate-200 hover:bg-slate-700"
-                  }`
-                }
-              >
-                {link.label}
-              </NavLink>
-            </li>
-          ))}
-        </ul>
-      </nav>
-      <main className="mx-auto grid w-full max-w-7xl gap-4 px-4 py-4">{children}</main>
+      </div>
     </div>
   );
 }

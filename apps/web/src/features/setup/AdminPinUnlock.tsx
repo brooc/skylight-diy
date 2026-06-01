@@ -10,8 +10,8 @@ export function AdminPinUnlock(): JSX.Element {
   const [error, setError] = useState<string | null>(null);
 
   return (
-    <section className="grid gap-4 rounded-md border border-slate-800 bg-slate-900 p-4 md:max-w-sm">
-      <h1 className="text-xl font-semibold">Unlock settings</h1>
+    <section className="grid gap-4 rounded-md border border-[#e0d6c7] bg-white p-4 md:max-w-sm">
+      <h1 className="text-xl font-semibold text-slate-900">Unlock settings</h1>
       {error ? <ErrorState message={error} /> : null}
       <form
         className="grid gap-3"
@@ -38,7 +38,7 @@ export function AdminPinUnlock(): JSX.Element {
           <input
             type="password"
             inputMode="numeric"
-            className="rounded-md border border-slate-700 bg-slate-950 px-3 py-2"
+            className="min-h-[44px] rounded-md border border-[#d7c8b3] bg-[#fffdf9] px-3 py-2 text-slate-900"
             value={pin}
             onChange={(event) => setPin(event.target.value)}
           />
@@ -46,7 +46,7 @@ export function AdminPinUnlock(): JSX.Element {
         <button
           type="submit"
           disabled={isSubmitting}
-          className="rounded-md bg-sky-500 px-4 py-3 text-sm font-semibold text-white disabled:opacity-60"
+          className="min-h-[44px] rounded-md bg-[#0f766e] px-4 py-3 text-sm font-semibold text-white disabled:opacity-60"
         >
           {isSubmitting ? "Unlocking..." : "Unlock"}
         </button>

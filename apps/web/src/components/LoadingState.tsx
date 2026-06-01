@@ -1,6 +1,6 @@
 export function LoadingState({ label = "Loading..." }: { label?: string }): JSX.Element {
   return (
-    <div className="rounded-md border border-slate-800 bg-slate-900 p-6 text-sm text-slate-300">
+    <div className="rounded-md border border-[#e0d6c7] bg-white p-6 text-base text-slate-700">
       {label}
     </div>
   );
