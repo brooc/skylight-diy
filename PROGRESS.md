@@ -3,7 +3,7 @@
 This document tracks progress against the [v0.1 Implementation Plan](docs/v0.1-implementation-plan.md).
 
 **Last updated**: 2026-05-31  
-**Overall completion**: ~64%
+**Overall completion**: ~67%
 
 ## Implementation Sequence
 
@@ -59,9 +59,9 @@ This document tracks progress against the [v0.1 Implementation Plan](docs/v0.1-i
 
 - [x] Add setup status route
 - [x] Add setup completion route
-- [ ] Add PIN hashing helper (scrypt in seed.ts suggests started)
-- [ ] Add admin unlock/lock routes
-- [ ] Add protected route middleware
+- [x] Add PIN hashing helper
+- [x] Add admin unlock/lock routes
+- [x] Add protected route middleware
 - [ ] Test setup flow end-to-end
 
 ### 🚧 Step 5: Add web skeleton (80%)
@@ -119,7 +119,7 @@ This document tracks progress against the [v0.1 Implementation Plan](docs/v0.1-i
 - [x] Add MealPlanWeek UI component
 - [x] Add meal entry create route and wire Meals page add flow to persist entries
 - [ ] Implement meal service
-- [ ] Wire Today dashboard to tonight's meal
+- [x] Wire Today dashboard to tonight's meal
 - [ ] Test meals page shows current week
 - [ ] Test today dashboard shows tonight's meal
 

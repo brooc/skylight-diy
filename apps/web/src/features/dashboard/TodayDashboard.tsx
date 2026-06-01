@@ -32,6 +32,18 @@ type CalendarResponse = {
   }>;
 };
 
+type MealsResponse = {
+  days: Array<{
+    date: string;
+    entries: Array<{
+      id: string;
+      slot: string;
+      mealName?: string | null;
+      customTitle?: string | null;
+    }>;
+  }>;
+};
+
 type RenderEvent = {
   id: string;
   dayIndex: number;
@@ -69,6 +81,10 @@ export function TodayDashboard(): JSX.Element {
     queryKey: queryKeys.rewardBalances,
     queryFn: () => apiFetch<RewardsResponse>("/rewards/balances")
   });
+  const mealsQuery = useQuery({
+    queryKey: queryKeys.weekMeals,
+    queryFn: () => apiFetch<MealsResponse>("/meals/week")
+  });
   const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
   const startOfToday = new Date();
   startOfToday.setHours(0, 0, 0, 0);
@@ -85,16 +101,20 @@ export function TodayDashboard(): JSX.Element {
       )
   });
 
-  if (
-    householdQuery.isLoading ||
-    rewardsQuery.isLoading ||
-    calendarQuery.isLoading
-  ) {
+  if (householdQuery.isLoading || rewardsQuery.isLoading || mealsQuery.isLoading || calendarQuery.isLoading) {
     return <LoadingState label="Loading dashboard..." />;
   }
   if (householdQuery.isError) return <ErrorState message={householdQuery.error.message} />;
   if (rewardsQuery.isError) return <ErrorState message={rewardsQuery.error.message} />;
+  if (mealsQuery.isError) return <ErrorState message={mealsQuery.error.message} />;
   if (calendarQuery.isError) return <ErrorState message={calendarQuery.error.message} />;
+
+  const todayKey = new Date().toISOString().slice(0, 10);
+  const todaysMeals = mealsQuery.data?.days.find((day) => day.date === todayKey)?.entries ?? [];
+  const tonightMeal =
+    todaysMeals.find((entry) => entry.slot === "dinner")?.customTitle ??
+    todaysMeals.find((entry) => entry.slot === "dinner")?.mealName ??
+    "No dinner planned";
 
   const days = Array.from({ length: 7 }, (_, index) => {
     const date = new Date(startOfToday);
@@ -217,6 +237,9 @@ export function TodayDashboard(): JSX.Element {
           <div className="flex flex-nowrap items-center gap-2 overflow-x-auto pb-1">
             <div className="shrink-0 rounded-full border border-[#2f2f2f66] bg-[#fbfbf9] px-4 py-1 text-xl font-semibold text-slate-700">
               🌴 Vacation 48 days
+            </div>
+            <div className="shrink-0 rounded-full border border-[#d8d6d1] bg-[#fbfbf9] px-4 py-1 text-sm font-semibold text-slate-700">
+              🍽 Tonight: {tonightMeal}
             </div>
             {balances.map((person) => (
               <div
