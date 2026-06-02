@@ -16,7 +16,7 @@ export function AppShell({ children }: PropsWithChildren): JSX.Element {
       <div className="mx-auto flex w-full max-w-[1480px] gap-2 md:gap-3">
         <aside className="hidden w-[92px] shrink-0 rounded-md border border-[#dde5ef] bg-[#eef3fa] md:flex md:flex-col md:items-center">
           <div className="mb-2 mt-2 flex h-14 w-full items-center justify-center border-b border-[#dbe3ee]">
-            <span className="font-display text-3xl text-slate-500">S</span>
+            <span className="font-display text-3xl text-slate-500">D</span>
           </div>
           <nav className="flex w-full flex-1 flex-col gap-1 px-1 py-1">
             {links.map((link) => {
