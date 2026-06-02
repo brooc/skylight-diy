@@ -173,6 +173,7 @@ Not started
 - [x] Add automated Vitest regression suite for API and web feature flows
 - [x] Add Vitest coverage reporting script
 - [x] Fix strict TypeScript lint baseline in db/domain/api/web packages
+- [x] Add Google Calendar setup guide and Docker env passthrough for OAuth credentials
 
 ## Key Metrics
 

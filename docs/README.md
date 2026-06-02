@@ -12,6 +12,7 @@ This folder is the working plan for Skylight DIY.
 - [Implementation Plan](implementation-plan.md)
 - [v0.1 Implementation Plan](v0.1-implementation-plan.md)
 - [v0.1 Operational Checklist](v0.1-operational-checklist.md)
+- [Google Calendar Setup](google-calendar-setup.md)
 - [Open Source Strategy](open-source-strategy.md)
 - [Fire Tablet Setup](fire-tablet-setup.md)
 - [Architecture Decision Records](adr/README.md)

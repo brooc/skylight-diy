@@ -48,6 +48,7 @@ Start here:
 - [MVP Plan](docs/mvp-plan.md)
 - [Architecture](docs/architecture.md)
 - [Roadmap](docs/roadmap.md)
+- [Google Calendar Setup](docs/google-calendar-setup.md)
 - [Open Source Strategy](docs/open-source-strategy.md)
 - [Fire Tablet Setup](docs/fire-tablet-setup.md)
 

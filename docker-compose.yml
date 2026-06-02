@@ -27,17 +27,17 @@ services:
         condition: service_healthy
     environment:
       NODE_ENV: development
-      APP_BASE_URL: http://localhost:${WEB_PORT:-5173}
-      API_BASE_URL: http://localhost:3000
-      DATABASE_URL: postgres://skylight:skylight@postgres:5432/skylight_diy
-      SESSION_COOKIE_NAME: skylight_diy_session
-      SESSION_SECRET: local-dev-session-secret
-      TOKEN_ENCRYPTION_KEY: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
-      GOOGLE_CLIENT_ID: ""
-      GOOGLE_CLIENT_SECRET: ""
-      GOOGLE_REDIRECT_URI: http://localhost:3000/api/integrations/google/callback
-      CALENDAR_CACHE_FRESH_TTL_SECONDS: "300"
-      CALENDAR_CACHE_STALE_TTL_SECONDS: "86400"
+      APP_BASE_URL: ${APP_BASE_URL:-http://localhost:${WEB_PORT:-5173}}
+      API_BASE_URL: ${API_BASE_URL:-http://localhost:${API_PORT:-3000}}
+      DATABASE_URL: ${DATABASE_URL:-postgres://skylight:skylight@postgres:5432/skylight_diy}
+      SESSION_COOKIE_NAME: ${SESSION_COOKIE_NAME:-skylight_diy_session}
+      SESSION_SECRET: ${SESSION_SECRET:-local-dev-session-secret}
+      TOKEN_ENCRYPTION_KEY: ${TOKEN_ENCRYPTION_KEY:-MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI:-http://localhost:${API_PORT:-3000}/api/integrations/google/callback}
+      CALENDAR_CACHE_FRESH_TTL_SECONDS: ${CALENDAR_CACHE_FRESH_TTL_SECONDS:-300}
+      CALENDAR_CACHE_STALE_TTL_SECONDS: ${CALENDAR_CACHE_STALE_TTL_SECONDS:-86400}
       CHOKIDAR_USEPOLLING: "true"
       CHOKIDAR_INTERVAL: "150"
       WATCHPACK_POLLING: "true"
