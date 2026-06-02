@@ -3,7 +3,7 @@
 This document tracks progress against the [v0.1 Implementation Plan](docs/v0.1-implementation-plan.md).
 
 **Last updated**: 2026-06-01  
-**Overall completion**: ~89%
+**Overall completion**: ~90%
 
 ## Implementation Sequence
 
@@ -179,8 +179,8 @@ Not started
 - **Frontend component lines**: ~842 lines
 - **Database tables**: 10/10 implemented
 - **Seed data**: Complete with demo household (PIN: 1234)
-- **Automated tests**: API integration tests (9) + web behavior tests (7)
-- **Coverage baseline**: API 70.55% statements; web 47.51% statements
+- **Automated tests**: API integration tests (15) + web behavior tests (19)
+- **Coverage baseline**: API 79.66% statements; web 75.45% statements
 
 ## Next Priorities
 

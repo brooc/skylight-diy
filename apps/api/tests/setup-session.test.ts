@@ -4,7 +4,8 @@ import {
   buildCookieHeader,
   createTestApp,
   resetTestDb,
-  setupHousehold
+  setupHousehold,
+  unlockAdmin
 } from "./helpers/test-app";
 
 describe("setup and session routes", () => {
@@ -91,5 +92,48 @@ describe("setup and session routes", () => {
     });
     expect(currentAfterLock.statusCode).toBe(200);
     expect(currentAfterLock.json()).toEqual({ unlocked: false });
+  });
+
+  it("requires an unlocked session to change the admin PIN", async () => {
+    await setupHousehold(app, { adminPin: "1234" });
+
+    const blocked = await app.inject({
+      method: "POST",
+      url: "/api/session/change-pin",
+      payload: { nextPin: "2468" }
+    });
+    expect(blocked.statusCode).toBe(401);
+
+    const { cookie } = await unlockAdmin(app, "1234");
+    const invalidPayload = await app.inject({
+      method: "POST",
+      url: "/api/session/change-pin",
+      headers: { cookie },
+      payload: { nextPin: "12" }
+    });
+    expect(invalidPayload.statusCode).toBe(400);
+
+    const changed = await app.inject({
+      method: "POST",
+      url: "/api/session/change-pin",
+      headers: { cookie },
+      payload: { nextPin: "2468" }
+    });
+    expect(changed.statusCode).toBe(200);
+    expect(changed.json()).toEqual({ updated: true });
+
+    const oldPin = await app.inject({
+      method: "POST",
+      url: "/api/session/unlock",
+      payload: { pin: "1234" }
+    });
+    expect(oldPin.statusCode).toBe(401);
+
+    const newPin = await app.inject({
+      method: "POST",
+      url: "/api/session/unlock",
+      payload: { pin: "2468" }
+    });
+    expect(newPin.statusCode).toBe(200);
   });
 });
