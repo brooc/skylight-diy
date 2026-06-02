@@ -9,9 +9,14 @@ export default defineConfig({
       exclude: ["tests/**", "src/main.tsx", "src/vite-env.d.ts"],
       include: ["src/**/*.{ts,tsx}"],
       reporter: ["text", "html", "json-summary"],
-      reportsDirectory: "coverage"
+      reportsDirectory: "coverage",
+      thresholds: {
+        lines: 90,
+        statements: 90
+      }
     },
     environment: "jsdom",
+    fileParallelism: false,
     setupFiles: ["./tests/setup.ts"],
     include: ["tests/**/*.test.ts", "tests/**/*.test.tsx"]
   },

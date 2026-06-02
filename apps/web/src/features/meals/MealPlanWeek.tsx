@@ -35,9 +35,9 @@ export function MealPlanWeek(): JSX.Element {
 
   const todayKey = useMemo(() => new Date().toISOString().slice(0, 10), []);
   const days = mealsQuery.data?.days ?? [];
-  const canSubmit = title.trim().length > 0 && date.length === 10 && !isSubmitting;
   const defaultDate = days[0]?.date ?? todayKey;
   const activeDate = date || defaultDate;
+  const canSubmit = title.trim().length > 0 && activeDate.length === 10 && !isSubmitting;
   const addRequested = searchParams.get("add") === "1";
 
   useEffect(() => {

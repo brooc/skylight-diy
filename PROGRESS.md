@@ -169,7 +169,7 @@ Not started
 
 - [x] Add v0.1 operational checklist (smoke tests, soak tests, backup/restore, limitations)
 - [x] Add automated Vitest regression suite for API and web feature flows
-- [x] Add Vitest coverage reporting script and baseline coverage reports
+- [x] Add Vitest coverage reporting script
 - [x] Fix strict TypeScript lint baseline in db/domain/api/web packages
 
 ## Key Metrics
@@ -180,7 +180,6 @@ Not started
 - **Database tables**: 10/10 implemented
 - **Seed data**: Complete with demo household (PIN: 1234)
 - **Automated tests**: API integration tests (15) + web behavior tests (19)
-- **Coverage baseline**: API 79.66% statements; web 75.45% statements
 
 ## Next Priorities
 

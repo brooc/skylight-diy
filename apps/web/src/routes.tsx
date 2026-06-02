@@ -12,7 +12,7 @@ import { SettingsPage } from "./features/settings/SettingsPage";
 import { AdminPinUnlock } from "./features/setup/AdminPinUnlock";
 import { SetupWizard } from "./features/setup/SetupWizard";
 
-function RootRedirect(): JSX.Element {
+export function RootRedirect(): JSX.Element {
   const setupQuery = useQuery({
     queryKey: ["setup-status"],
     queryFn: () => apiFetch<{ setupRequired: boolean }>("/setup/status")

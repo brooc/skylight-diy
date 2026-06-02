@@ -40,10 +40,10 @@ export function ImportPlaceholder(): JSX.Element {
   });
 
   const lists = listsQuery.data?.lists ?? [];
-  const canSubmit =
-    title.trim().length > 0 && (mode === "list" || selectedListId.length > 0) && !isSubmitting;
   const defaultListId = useMemo(() => lists[0]?.id ?? "", [lists]);
   const activeListId = selectedListId || defaultListId;
+  const canSubmit =
+    title.trim().length > 0 && (mode === "list" || activeListId.length > 0) && !isSubmitting;
   const addRequested = searchParams.get("add") === "1";
 
   useEffect(() => {

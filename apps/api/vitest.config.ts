@@ -7,7 +7,11 @@ export default defineConfig({
       exclude: ["tests/**", "src/index.ts"],
       include: ["src/**/*.ts"],
       reporter: ["text", "html", "json-summary"],
-      reportsDirectory: "coverage"
+      reportsDirectory: "coverage",
+      thresholds: {
+        lines: 90,
+        statements: 90
+      }
     },
     environment: "node",
     fileParallelism: false,
