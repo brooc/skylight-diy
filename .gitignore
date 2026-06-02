@@ -9,6 +9,7 @@ dist/
 build/
 .next/
 .turbo/
+coverage/
 
 # Local env
 .env

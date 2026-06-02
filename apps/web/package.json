@@ -10,7 +10,8 @@
     "lint": "tsc -p tsconfig.app.json --noEmit",
     "format": "prettier --check .",
     "preview": "vite preview",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.59.0",

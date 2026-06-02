@@ -4,6 +4,13 @@ import react from "@vitejs/plugin-react";
 export default defineConfig({
   plugins: [react()],
   test: {
+    coverage: {
+      all: true,
+      exclude: ["tests/**", "src/main.tsx", "src/vite-env.d.ts"],
+      include: ["src/**/*.{ts,tsx}"],
+      reporter: ["text", "html", "json-summary"],
+      reportsDirectory: "coverage"
+    },
     environment: "jsdom",
     setupFiles: ["./tests/setup.ts"],
     include: ["tests/**/*.test.ts", "tests/**/*.test.tsx"]

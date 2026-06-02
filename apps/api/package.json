@@ -9,7 +9,8 @@
     "dev:docker": "tsx watch --clear-screen=false src/index.ts",
     "lint": "tsc -p tsconfig.json --noEmit",
     "format": "prettier --check .",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
     "@fastify/cookie": "^9.4.0",

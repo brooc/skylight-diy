@@ -3,7 +3,7 @@
 This document tracks progress against the [v0.1 Implementation Plan](docs/v0.1-implementation-plan.md).
 
 **Last updated**: 2026-06-01  
-**Overall completion**: ~88%
+**Overall completion**: ~89%
 
 ## Implementation Sequence
 
@@ -169,6 +169,7 @@ Not started
 
 - [x] Add v0.1 operational checklist (smoke tests, soak tests, backup/restore, limitations)
 - [x] Add automated Vitest regression suite for API and web feature flows
+- [x] Add Vitest coverage reporting script and baseline coverage reports
 - [x] Fix strict TypeScript lint baseline in db/domain/api/web packages
 
 ## Key Metrics
@@ -179,6 +180,7 @@ Not started
 - **Database tables**: 10/10 implemented
 - **Seed data**: Complete with demo household (PIN: 1234)
 - **Automated tests**: API integration tests (9) + web behavior tests (7)
+- **Coverage baseline**: API 70.55% statements; web 47.51% statements
 
 ## Next Priorities
 
