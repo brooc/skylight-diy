@@ -1,6 +1,6 @@
 {
-  "name": "Skylight DIY",
-  "short_name": "SkylightDIY",
+  "name": "Daymark",
+  "short_name": "Daymark",
   "start_url": "/today",
   "display": "standalone",
   "background_color": "#020617",
