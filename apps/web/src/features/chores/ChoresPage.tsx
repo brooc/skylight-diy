@@ -1,5 +1,6 @@
 import { useQueryClient, useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { apiFetch } from "../../api/client";
 import { queryKeys } from "../../api/queryKeys";
 import { EmptyState } from "../../components/EmptyState";
@@ -28,6 +29,7 @@ type RewardsResponse = {
 
 export function ChoresPage(): JSX.Element {
   const queryClient = useQueryClient();
+  const [searchParams] = useSearchParams();
   const [isAdding, setIsAdding] = useState(false);
   const [title, setTitle] = useState("");
   const [points, setPoints] = useState(1);
@@ -42,6 +44,13 @@ export function ChoresPage(): JSX.Element {
     queryKey: queryKeys.rewardBalances,
     queryFn: () => apiFetch<RewardsResponse>("/rewards/balances")
   });
+  const addRequested = searchParams.get("add") === "1";
+
+  useEffect(() => {
+    if (addRequested) {
+      setIsAdding(true);
+    }
+  }, [addRequested]);
 
   if (choresQuery.isLoading || rewardsQuery.isLoading) {
     return <LoadingState />;

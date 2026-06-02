@@ -34,6 +34,18 @@ type HouseholdResponse = {
   }>;
 };
 
+function getErrorMessage(error: unknown, fallback: string): string {
+  if (!(error instanceof Error)) {
+    return fallback;
+  }
+  try {
+    const parsed = JSON.parse(error.message) as { message?: string; error?: string };
+    return parsed.message ?? parsed.error ?? fallback;
+  } catch {
+    return error.message || fallback;
+  }
+}
+
 export function GoogleCalendarSettings(): JSX.Element {
   const queryClient = useQueryClient();
   const [status, setStatus] = useState<string | null>(null);
@@ -51,8 +63,12 @@ export function GoogleCalendarSettings(): JSX.Element {
     queryKey: ["household-people-for-calendar"],
     queryFn: () => apiFetch<HouseholdResponse>("/household/current")
   });
+  const oauthStatusQuery = useQuery({
+    queryKey: ["google-oauth-status"],
+    queryFn: () => apiFetch<{ available: boolean; redirectUri: string | null }>("/integrations/google/status")
+  });
 
-  if (accountsQuery.isLoading || sourcesQuery.isLoading || peopleQuery.isLoading) {
+  if (accountsQuery.isLoading || sourcesQuery.isLoading || peopleQuery.isLoading || oauthStatusQuery.isLoading) {
     return <LoadingState label="Loading calendar settings..." />;
   }
   if (accountsQuery.isError) {
@@ -64,10 +80,14 @@ export function GoogleCalendarSettings(): JSX.Element {
   if (peopleQuery.isError) {
     return <ErrorState message={peopleQuery.error.message} />;
   }
+  if (oauthStatusQuery.isError) {
+    return <ErrorState message={oauthStatusQuery.error.message} />;
+  }
 
   const accounts = accountsQuery.data?.accounts ?? [];
   const sources = sourcesQuery.data?.sources ?? [];
   const people = peopleQuery.data?.people ?? [];
+  const oauthAvailable = oauthStatusQuery.data?.available ?? false;
 
   return (
     <section className="grid gap-3 rounded-md border border-[#e0d6c7] bg-white p-4">
@@ -79,16 +99,21 @@ export function GoogleCalendarSettings(): JSX.Element {
       <div className="flex flex-wrap gap-2">
         <button
           type="button"
+          disabled={!oauthAvailable}
           className="min-h-[44px] rounded-md bg-[#0f766e] px-3 py-2 text-sm font-semibold text-white hover:bg-[#0d5f59]"
           onClick={async () => {
-            const result = await apiFetch<{ available: boolean; authUrl?: string; message?: string }>(
-              "/integrations/google/connect"
-            );
-            if (result.authUrl) {
-              window.location.assign(result.authUrl);
-              return;
+            try {
+              const result = await apiFetch<{ available: boolean; authUrl?: string; message?: string }>(
+                "/integrations/google/connect"
+              );
+              if (result.authUrl) {
+                window.location.assign(result.authUrl);
+                return;
+              }
+              setStatus(result.message ?? "Google OAuth is unavailable.");
+            } catch (error) {
+              setStatus(getErrorMessage(error, "Google OAuth is unavailable."));
             }
-            setStatus(result.message ?? "Google OAuth is unavailable.");
           }}
         >
           Connect Google
@@ -97,19 +122,28 @@ export function GoogleCalendarSettings(): JSX.Element {
           type="button"
           className="min-h-[44px] rounded-md border border-[#c7b8a2] bg-[#fff7ea] px-3 py-2 text-sm font-semibold text-slate-800 hover:bg-[#fcedd8]"
           onClick={async () => {
-            const result = await apiFetch<{ imported: number }>("/calendar/sources/import-from-google", {
-              method: "POST"
-            });
-            setStatus(`Imported ${result.imported} sources.`);
-            await Promise.all([
-              queryClient.invalidateQueries({ queryKey: ["calendar-accounts"] }),
-              queryClient.invalidateQueries({ queryKey: ["calendar-sources"] })
-            ]);
+            try {
+              const result = await apiFetch<{ imported: number }>("/calendar/sources/import-from-google", {
+                method: "POST"
+              });
+              setStatus(`Imported ${result.imported} sources.`);
+              await Promise.all([
+                queryClient.invalidateQueries({ queryKey: ["calendar-accounts"] }),
+                queryClient.invalidateQueries({ queryKey: ["calendar-sources"] })
+              ]);
+            } catch (error) {
+              setStatus(getErrorMessage(error, "Failed to import calendars."));
+            }
           }}
         >
           Import calendars
         </button>
       </div>
+      {!oauthAvailable ? (
+        <p className="text-xs text-amber-700">
+          Google OAuth is not configured in environment variables yet.
+        </p>
+      ) : null}
 
       <div className="grid gap-2 rounded-md border border-[#ece6db] bg-[#fbf8f3] p-3">
         <h3 className="text-sm font-semibold text-slate-900">Connected accounts</h3>

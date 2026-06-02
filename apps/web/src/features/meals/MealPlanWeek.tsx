@@ -1,5 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { apiFetch } from "../../api/client";
 import { queryKeys } from "../../api/queryKeys";
 import { ErrorState } from "../../components/ErrorState";
@@ -19,6 +20,7 @@ type MealsResponse = {
 
 export function MealPlanWeek(): JSX.Element {
   const queryClient = useQueryClient();
+  const [searchParams] = useSearchParams();
   const [isAdding, setIsAdding] = useState(false);
   const [title, setTitle] = useState("");
   const [slot, setSlot] = useState<"breakfast" | "lunch" | "dinner">("dinner");
@@ -36,6 +38,13 @@ export function MealPlanWeek(): JSX.Element {
   const canSubmit = title.trim().length > 0 && date.length === 10 && !isSubmitting;
   const defaultDate = days[0]?.date ?? todayKey;
   const activeDate = date || defaultDate;
+  const addRequested = searchParams.get("add") === "1";
+
+  useEffect(() => {
+    if (addRequested) {
+      setIsAdding(true);
+    }
+  }, [addRequested]);
 
   if (mealsQuery.isLoading) {
     return <LoadingState label="Loading meal plan..." />;

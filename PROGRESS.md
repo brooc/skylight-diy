@@ -2,8 +2,8 @@
 
 This document tracks progress against the [v0.1 Implementation Plan](docs/v0.1-implementation-plan.md).
 
-**Last updated**: 2026-05-31  
-**Overall completion**: ~80%
+**Last updated**: 2026-06-01  
+**Overall completion**: ~88%
 
 ## Implementation Sequence
 
@@ -93,7 +93,8 @@ This document tracks progress against the [v0.1 Implementation Plan](docs/v0.1-i
 - [x] Make Today schedule grid vertically scrollable with extended hour range
 - [x] Refine Today calendar layout to mirror Skylight-style top bar, person chips, and in-grid all-day row
 - [x] Replace static Lists page demo data with persisted lists/items from API
-- [x] Replace no-op Today add action with route to Tasks add flow
+- [x] Replace Today add action with quick-add menu (Tasks/Lists/Meals) instead of forced route jump
+- [x] Surface degraded calendar warnings in Today view
 - [ ] Implement component logic (in progress)
 
 ### 🚧 Step 6: Chores and rewards vertical slice (40%)
@@ -106,11 +107,11 @@ This document tracks progress against the [v0.1 Implementation Plan](docs/v0.1-i
 - [x] Add RewardBalance UI component
 - [x] Keep chore interaction on Tasks page; keep Today focused on schedule display
 - [x] Add create chore API route and wire Tasks page add flow to persist new chores
-- [ ] Implement chores service logic
-- [ ] Implement reward balance calculation
-- [ ] Test chore completion from browser
-- [ ] Test completion persistence after refresh
-- [ ] Test points update after completion
+- [x] Implement chores service logic
+- [x] Implement reward balance calculation
+- [x] Add automated API tests for chore completion flow
+- [x] Add automated API tests for completion persistence semantics
+- [x] Add automated API tests for reward point updates
 
 ### 🔜 Step 7: Meals vertical slice (20%)
 
@@ -118,10 +119,10 @@ This document tracks progress against the [v0.1 Implementation Plan](docs/v0.1-i
 - [x] Add meals API route
 - [x] Add MealPlanWeek UI component
 - [x] Add meal entry create route and wire Meals page add flow to persist entries
-- [ ] Implement meal service
+- [x] Implement meal service
 - [x] Wire Today dashboard to tonight's meal
-- [ ] Test meals page shows current week
-- [ ] Test today dashboard shows tonight's meal
+- [x] Add automated API tests for current-week meals and entry creation
+- [x] Add automated web tests for quick-add meal flow visibility
 
 ### 🔜 Step 8: Calendar provider foundation (10%)
 
@@ -164,9 +165,11 @@ This document tracks progress against the [v0.1 Implementation Plan](docs/v0.1-i
 
 Not started
 
-### ⬜ Step 14: Documentation and cleanup (0%)
+### 🚧 Step 14: Documentation and cleanup (60%)
 
 - [x] Add v0.1 operational checklist (smoke tests, soak tests, backup/restore, limitations)
+- [x] Add automated Vitest regression suite for API and web feature flows
+- [x] Fix strict TypeScript lint baseline in db/domain/api/web packages
 
 ## Key Metrics
 
@@ -175,6 +178,7 @@ Not started
 - **Frontend component lines**: ~842 lines
 - **Database tables**: 10/10 implemented
 - **Seed data**: Complete with demo household (PIN: 1234)
+- **Automated tests**: API integration tests (9) + web behavior tests (7)
 
 ## Next Priorities
 

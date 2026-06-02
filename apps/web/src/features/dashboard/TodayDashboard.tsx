@@ -1,7 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
-import { Fragment } from "react";
+import { Fragment, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiFetch } from "../../api/client";
+import { DegradedStateBanner } from "../../components/DegradedStateBanner";
 import { queryKeys } from "../../api/queryKeys";
 import { ErrorState } from "../../components/ErrorState";
 import { LoadingState } from "../../components/LoadingState";
@@ -21,6 +22,9 @@ type HouseholdResponse = {
 };
 
 type CalendarResponse = {
+  cacheStatus: "fresh" | "refreshed" | "stale" | "miss";
+  degraded: boolean;
+  warnings: Array<{ code: string; message: string }>;
   events: Array<{
     id: string;
     title: string;
@@ -73,6 +77,7 @@ function formatEventTime(start: Date, end: Date): string {
 export function TodayDashboard(): JSX.Element {
   const now = new Date();
   const navigate = useNavigate();
+  const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
   const householdQuery = useQuery({
     queryKey: queryKeys.household,
     queryFn: () => apiFetch<HouseholdResponse>("/household/current")
@@ -134,15 +139,19 @@ export function TodayDashboard(): JSX.Element {
     { soft: "#e8dff4", accent: "#b69bd3" },
     { soft: "#ddf0db", accent: "#8bc58b" },
     { soft: "#f9e4df", accent: "#e7aa98" }
-  ];
+  ] as const;
+  const paletteAt = (index: number) =>
+    personPalette[index % personPalette.length] ?? personPalette[0]!;
   const balances = rewardsQuery.data?.balances ?? [];
   const personColorByName = new Map(
     balances.map((person, index) => [
       person.displayName.toLowerCase(),
-      personPalette[index % personPalette.length]
+      paletteAt(index)
     ])
   );
-  const fallbackEventPalette = ["#bee8ea", "#f3cfd0", "#e4daf0", "#d5edd7", "#f7d8d4"];
+  const fallbackEventPalette = ["#bee8ea", "#f3cfd0", "#e4daf0", "#d5edd7", "#f7d8d4"] as const;
+  const fallbackColorAt = (index: number) =>
+    fallbackEventPalette[index % fallbackEventPalette.length] ?? fallbackEventPalette[0]!;
 
   const mappedEvents: RenderEvent[] = (calendarQuery.data?.events ?? [])
     .filter((event) => !event.isAllDay)
@@ -179,7 +188,7 @@ export function TodayDashboard(): JSX.Element {
           matchedPersonColor?.soft ??
           (event.color && /^#[0-9a-f]{6}$/i.test(event.color)
             ? `${event.color}30`
-            : fallbackEventPalette[index % fallbackEventPalette.length])
+            : fallbackColorAt(index))
       };
     })
     .filter((event) => event.dayIndex >= 0);
@@ -265,6 +274,13 @@ export function TodayDashboard(): JSX.Element {
             ))}
           </div>
         </header>
+        {calendarQuery.data?.warnings.length ? (
+          <div className="border-b border-[#ecebe8] px-3 py-2">
+            <DegradedStateBanner
+              message={calendarQuery.data.warnings.map((warning) => warning.message).join(" ")}
+            />
+          </div>
+        ) : null}
         <div className="max-h-[72vh] overflow-auto">
           <div
             className="grid"
@@ -381,10 +397,38 @@ export function TodayDashboard(): JSX.Element {
           type="button"
           aria-label="Add"
           className="absolute bottom-5 right-5 z-30 flex h-14 w-14 items-center justify-center rounded-full bg-[#2b98db] text-white shadow-[0_6px_16px_rgba(30,64,175,0.22)] transition-colors hover:bg-[#2588c3]"
-          onClick={() => navigate("/chores")}
+          onClick={() => setIsAddMenuOpen((value) => !value)}
         >
           <span className="relative -top-px text-4xl font-normal leading-none">+</span>
         </button>
+        {isAddMenuOpen ? (
+          <div className="absolute bottom-20 right-5 z-30 grid min-w-[220px] gap-2 rounded-md border border-[#d9d8d4] bg-white p-2 shadow-lg">
+            <button
+              type="button"
+              className="min-h-[40px] rounded-md bg-[#f6f7f9] px-3 text-left text-sm font-semibold text-slate-800 hover:bg-[#ebedf0]"
+              onClick={() => navigate("/chores?add=1")}
+            >
+              Add task
+            </button>
+            <button
+              type="button"
+              className="min-h-[40px] rounded-md bg-[#f6f7f9] px-3 text-left text-sm font-semibold text-slate-800 hover:bg-[#ebedf0]"
+              onClick={() => navigate("/import?add=1")}
+            >
+              Add list item
+            </button>
+            <button
+              type="button"
+              className="min-h-[40px] rounded-md bg-[#f6f7f9] px-3 text-left text-sm font-semibold text-slate-800 hover:bg-[#ebedf0]"
+              onClick={() => navigate("/meals?add=1")}
+            >
+              Add meal
+            </button>
+            <div className="rounded-md border border-[#ecebe8] px-3 py-2 text-xs text-slate-500">
+              Event creation from calendar is coming in a later version.
+            </div>
+          </div>
+        ) : null}
       </section>
     </section>
   );

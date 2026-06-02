@@ -22,6 +22,13 @@ function hasGoogleOauthConfig(): boolean {
 }
 
 export const googleOauthRoutes: FastifyPluginAsync = async (app) => {
+  app.get("/integrations/google/status", async () => {
+    return {
+      available: hasGoogleOauthConfig(),
+      redirectUri: env.GOOGLE_REDIRECT_URI ?? null
+    };
+  });
+
   app.get("/integrations/google/connect", async (request, reply) => {
     if (!request.isAdminUnlocked()) {
       return reply.status(401).send({ error: "admin_unlock_required" });

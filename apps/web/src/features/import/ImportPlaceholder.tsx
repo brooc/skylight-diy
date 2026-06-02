@@ -1,5 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { apiFetch } from "../../api/client";
 import { queryKeys } from "../../api/queryKeys";
 import { ErrorState } from "../../components/ErrorState";
@@ -25,6 +26,7 @@ const fallbackTints = ["#f6eee1", "#f7e5ea", "#eeecf5", "#d9eff0", "#edf4de"];
 
 export function ImportPlaceholder(): JSX.Element {
   const queryClient = useQueryClient();
+  const [searchParams] = useSearchParams();
   const now = new Date();
   const [isAdding, setIsAdding] = useState(false);
   const [mode, setMode] = useState<"item" | "list">("item");
@@ -42,6 +44,13 @@ export function ImportPlaceholder(): JSX.Element {
     title.trim().length > 0 && (mode === "list" || selectedListId.length > 0) && !isSubmitting;
   const defaultListId = useMemo(() => lists[0]?.id ?? "", [lists]);
   const activeListId = selectedListId || defaultListId;
+  const addRequested = searchParams.get("add") === "1";
+
+  useEffect(() => {
+    if (addRequested) {
+      setIsAdding(true);
+    }
+  }, [addRequested]);
 
   if (listsQuery.isLoading) {
     return <LoadingState label="Loading lists..." />;
