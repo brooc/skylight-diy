@@ -1,5 +1,5 @@
 {
-  "name": "@skylight-diy/api",
+  "name": "@daymark/api",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -15,8 +15,8 @@
   "dependencies": {
     "@fastify/cookie": "^9.4.0",
     "@fastify/cors": "^9.0.1",
-    "@skylight-diy/config": "workspace:*",
-    "@skylight-diy/db": "workspace:*",
+    "@daymark/config": "workspace:*",
+    "@daymark/db": "workspace:*",
     "drizzle-orm": "^0.35.3",
     "fastify": "^4.28.1",
     "fastify-plugin": "^5.0.1",
