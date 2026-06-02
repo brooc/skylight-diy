@@ -1,8 +1,8 @@
-# Skylight DIY
+# Daymark
 
 An open-source family command center for inexpensive tablets and wall displays.
 
-The goal is to build a practical, privacy-conscious, hackable alternative to dedicated family calendar appliances: shared calendar display, chores, rewards, meal planning, grocery lists, and AI-assisted import of messy real-world schedules.
+Daymark helps families coordinate shared calendars, chores, rewards, meal planning, grocery lists, and import-assisted planning from hardware they already own.
 
 ## Project status
 
@@ -14,7 +14,7 @@ Completed:
 - ✅ API skeleton with Fastify + route scaffolding
 - ✅ Web skeleton with React Router + TanStack Query
 - ✅ Docker Compose development environment
-- ✅ Skylight-inspired tablet UI baseline for Today/Week/Tasks/Lists
+- ✅ Dedicated family-calendar appliance-inspired tablet UI baseline for Today/Week/Tasks/Lists
 
 In progress:
 - 🚧 First-run setup wizard and admin PIN
@@ -97,6 +97,6 @@ pnpm db:seed             # Seed demo data
 pnpm lint                # Check TypeScript
 ```
 
-## Working name
+## Naming
 
-Skylight DIY is a descriptive working name. Before public launch, we should choose a distinct project name and branding to avoid confusion with any existing commercial products.
+Daymark is the public product name. This project was originally bootstrapped under the working repository name `skylight-diy`; the repository itself may be renamed after the product rename is reviewed and merged.

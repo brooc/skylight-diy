@@ -1,4 +1,4 @@
-import { choreCompletions, chores, households, people } from "@skylight-diy/db";
+import { choreCompletions, chores, households, people } from "@daymark/db";
 import { and, eq } from "drizzle-orm";
 import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";

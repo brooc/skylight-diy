@@ -6,7 +6,7 @@ Accepted
 
 ## Context
 
-Google Calendar should remain the source of truth for calendar data. Skylight DIY should not become a calendar database, recurrence engine, or synchronization authority.
+Google Calendar should remain the source of truth for calendar data. Daymark should not become a calendar database, recurrence engine, or synchronization authority.
 
 At the same time, a wall-mounted family dashboard must degrade gracefully when Google Calendar is slow, unreachable, rate-limited, or temporarily unavailable. A pure live read-through model risks blank dashboards, slow tablet loads, and fragile daily use.
 

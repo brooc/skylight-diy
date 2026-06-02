@@ -1,18 +1,18 @@
 services:
   postgres:
     image: postgres:16
-    container_name: skylight-diy-postgres
+    container_name: daymark-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_USER: skylight
-      POSTGRES_PASSWORD: skylight
-      POSTGRES_DB: skylight_diy
+      POSTGRES_USER: daymark
+      POSTGRES_PASSWORD: daymark
+      POSTGRES_DB: daymark
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U skylight -d skylight_diy"]
+      test: ["CMD-SHELL", "pg_isready -U daymark -d daymark"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -21,7 +21,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.dev
-    container_name: skylight-diy-app
+    container_name: daymark-app
     depends_on:
       postgres:
         condition: service_healthy
@@ -29,8 +29,8 @@ services:
       NODE_ENV: development
       APP_BASE_URL: ${APP_BASE_URL:-http://localhost:${WEB_PORT:-5173}}
       API_BASE_URL: ${API_BASE_URL:-http://localhost:${API_PORT:-3000}}
-      DATABASE_URL: ${DATABASE_URL:-postgres://skylight:skylight@postgres:5432/skylight_diy}
-      SESSION_COOKIE_NAME: ${SESSION_COOKIE_NAME:-skylight_diy_session}
+      DATABASE_URL: ${DATABASE_URL:-postgres://daymark:daymark@postgres:5432/daymark}
+      SESSION_COOKIE_NAME: ${SESSION_COOKIE_NAME:-daymark_session}
       SESSION_SECRET: ${SESSION_SECRET:-local-dev-session-secret}
       TOKEN_ENCRYPTION_KEY: ${TOKEN_ENCRYPTION_KEY:-MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
@@ -42,7 +42,7 @@ services:
       CHOKIDAR_INTERVAL: "150"
       WATCHPACK_POLLING: "true"
     working_dir: /workspace
-    command: sh -lc "pnpm install --no-frozen-lockfile && pnpm dev:docker"
+    command: ["pnpm", "dev:docker"]
     ports:
       - "${API_PORT:-3000}:3000"
       - "${WEB_PORT:-5173}:5173"

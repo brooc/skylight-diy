@@ -2,7 +2,7 @@
 
 ## What we are building
 
-Skylight DIY is an open-source family command center that runs on hardware people already own.
+Daymark is an open-source family command center that runs on hardware people already own.
 
 It should help a household answer:
 

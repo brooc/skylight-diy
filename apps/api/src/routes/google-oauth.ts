@@ -1,12 +1,12 @@
 import { randomBytes } from "node:crypto";
-import { connectedAccounts, households } from "@skylight-diy/db";
+import { connectedAccounts, households } from "@daymark/db";
 import { and, eq } from "drizzle-orm";
 import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
 import { env } from "../env";
 import { decryptToken, encryptToken } from "../modules/integrations/token-crypto";
 
-const GOOGLE_STATE_COOKIE = "skylight_google_oauth_state";
+const GOOGLE_STATE_COOKIE = "daymark_google_oauth_state";
 const GOOGLE_STATE_TTL_SECONDS = 60 * 10;
 const GOOGLE_CALENDAR_SCOPE = "https://www.googleapis.com/auth/calendar.readonly";
 

@@ -1,5 +1,5 @@
 {
-  "name": "@skylight-diy/config",
+  "name": "@daymark/config",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -9,8 +9,7 @@
     "build": "tsc -p tsconfig.json",
     "dev": "tsc -p tsconfig.json --watch",
     "lint": "tsc -p tsconfig.json --noEmit",
-    "format": "prettier --check .",
-    "test": "echo \"No tests yet\""
+    "format": "prettier --check ."
   },
   "dependencies": {
     "zod": "^3.23.8"

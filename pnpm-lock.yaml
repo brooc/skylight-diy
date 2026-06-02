@@ -20,18 +20,18 @@ importers:
 
   apps/api:
     dependencies:
+      '@daymark/config':
+        specifier: workspace:*
+        version: link:../../packages/config
+      '@daymark/db':
+        specifier: workspace:*
+        version: link:../../packages/db
       '@fastify/cookie':
         specifier: ^9.4.0
         version: 9.4.0
       '@fastify/cors':
         specifier: ^9.0.1
         version: 9.0.1
-      '@skylight-diy/config':
-        specifier: workspace:*
-        version: link:../../packages/config
-      '@skylight-diy/db':
-        specifier: workspace:*
-        version: link:../../packages/db
       drizzle-orm:
         specifier: ^0.35.3
         version: 0.35.3(@libsql/client-wasm@0.17.3)(@types/pg@8.20.0)(@types/react@18.3.29)(pg@8.21.0)(react@18.3.1)
@@ -85,6 +85,9 @@ importers:
       '@testing-library/user-event':
         specifier: ^14.5.2
         version: 14.6.1(@testing-library/dom@10.4.1)
+      '@types/node':
+        specifier: ^22.7.4
+        version: 22.19.19
       '@types/react':
         specifier: ^18.3.10
         version: 18.3.29
@@ -137,7 +140,7 @@ importers:
 
   packages/db:
     dependencies:
-      '@skylight-diy/config':
+      '@daymark/config':
         specifier: workspace:*
         version: link:../config
       drizzle-orm:

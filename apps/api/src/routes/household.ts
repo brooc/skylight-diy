@@ -1,4 +1,4 @@
-import { households, people } from "@skylight-diy/db";
+import { households, people } from "@daymark/db";
 import { eq } from "drizzle-orm";
 import type { FastifyPluginAsync } from "fastify";
 

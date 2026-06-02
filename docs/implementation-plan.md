@@ -1,6 +1,6 @@
 # Implementation Plan
 
-This is the working implementation plan for Skylight DIY. It is intentionally checkbox-based so we can mark progress as the project evolves.
+This is the working implementation plan for Daymark. It is intentionally checkbox-based so we can mark progress as the project evolves.
 
 ## Guiding architecture decisions
 

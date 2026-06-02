@@ -4,8 +4,12 @@ import type { FastifyReply, FastifyRequest } from "fastify";
 import fp from "fastify-plugin";
 import { env } from "../env";
 
-const ADMIN_UNLOCK_COOKIE = "skylight_admin_unlock_v3";
-const LEGACY_UNLOCK_COOKIES = ["skylight_admin_unlock", "skylight_admin_unlock_v2"];
+const ADMIN_UNLOCK_COOKIE = "daymark_admin_unlock";
+const LEGACY_UNLOCK_COOKIES = [
+  "skylight_admin_unlock",
+  "skylight_admin_unlock_v2",
+  "skylight_admin_unlock_v3"
+];
 const ADMIN_SESSION_TTL_SECONDS = 60 * 60 * 12;
 const activeAdminSessions = new Map<string, number>();
 

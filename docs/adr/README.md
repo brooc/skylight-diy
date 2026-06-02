@@ -1,6 +1,6 @@
 # Architecture Decision Records
 
-This directory contains Architecture Decision Records (ADRs) for Skylight DIY.
+This directory contains Architecture Decision Records (ADRs) for Daymark.
 
 ADRs document important technical and product architecture decisions, including the context, decision, consequences, and status.
 

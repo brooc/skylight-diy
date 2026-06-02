@@ -1,5 +1,5 @@
 {
-  "name": "@skylight-diy/db",
+  "name": "@daymark/db",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -16,7 +16,7 @@
     "db:seed": "tsx src/seed.ts"
   },
   "dependencies": {
-    "@skylight-diy/config": "workspace:*",
+    "@daymark/config": "workspace:*",
     "drizzle-orm": "^0.35.3",
     "pg": "^8.13.0"
   },
