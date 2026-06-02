@@ -1,6 +1,6 @@
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
-import { parseEnv } from "@skylight-diy/config";
+import { parseEnv } from "@daymark/config";
 import * as schema from "./schema";
 
 const env = parseEnv(process.env);
