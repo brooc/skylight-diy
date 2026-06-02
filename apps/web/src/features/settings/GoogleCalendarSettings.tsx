@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { apiFetch } from "../../api/client";
 import { ErrorState } from "../../components/ErrorState";
 import { LoadingState } from "../../components/LoadingState";
@@ -34,6 +34,15 @@ type HouseholdResponse = {
   }>;
 };
 
+type CalendarSource = SourcesResponse["sources"][number];
+
+type SourcePatch = {
+  enabled?: boolean;
+  personId?: string | null;
+  displayName?: string;
+  color?: string | null;
+};
+
 function getErrorMessage(error: unknown, fallback: string): string {
   if (!(error instanceof Error)) {
     return fallback;
@@ -44,6 +53,134 @@ function getErrorMessage(error: unknown, fallback: string): string {
   } catch {
     return error.message || fallback;
   }
+}
+
+function CalendarSourceCard({
+  source,
+  people,
+  busySourceId,
+  onPatch
+}: {
+  source: CalendarSource;
+  people: HouseholdResponse["people"];
+  busySourceId: string | null;
+  onPatch: (sourceId: string, patch: SourcePatch) => Promise<void>;
+}): JSX.Element {
+  const [displayName, setDisplayName] = useState(source.displayName);
+  const [color, setColor] = useState(source.color ?? "#8ec5b8");
+  const [sourceError, setSourceError] = useState<string | null>(null);
+  const isBusy = busySourceId === source.id;
+  const normalizedColor = color.trim();
+  const hasValidColor = /^#[0-9a-f]{6}$/i.test(normalizedColor);
+  const hasChanges =
+    displayName.trim() !== source.displayName || normalizedColor !== (source.color ?? "#8ec5b8");
+
+  useEffect(() => {
+    setDisplayName(source.displayName);
+    setColor(source.color ?? "#8ec5b8");
+    setSourceError(null);
+  }, [source.id, source.displayName, source.color]);
+
+  return (
+    <div className="grid gap-3 rounded-md border border-[#e4dbcc] bg-white p-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <span
+            aria-hidden="true"
+            className="h-5 w-5 rounded-full border border-[#d8d6d1]"
+            style={{ backgroundColor: source.color ?? "#8ec5b8" }}
+          />
+          <div className="text-sm font-semibold text-slate-900">{source.displayName}</div>
+        </div>
+        <button
+          type="button"
+          disabled={isBusy}
+          className={`rounded-full px-3 py-1 text-xs font-semibold ${
+            source.enabled
+              ? "bg-emerald-100 text-emerald-800"
+              : "bg-slate-100 text-slate-600"
+          }`}
+          onClick={async () => {
+            setSourceError(null);
+            try {
+              await onPatch(source.id, { enabled: !source.enabled });
+            } catch (error) {
+              setSourceError(getErrorMessage(error, "Failed to update visibility."));
+            }
+          }}
+        >
+          {source.enabled ? "Enabled" : "Disabled"}
+        </button>
+      </div>
+
+      <div className="grid gap-2 md:grid-cols-[minmax(0,1fr)_96px_auto]">
+        <label className="grid gap-1">
+          <span className="text-xs font-medium text-slate-600">Source name</span>
+          <input
+            value={displayName}
+            disabled={isBusy}
+            onChange={(event) => setDisplayName(event.target.value)}
+            className="min-h-[38px] rounded-md border border-[#d9d8d4] bg-white px-2 text-sm text-slate-900"
+          />
+        </label>
+        <label className="grid gap-1">
+          <span className="text-xs font-medium text-slate-600">Color</span>
+          <input
+            value={color}
+            disabled={isBusy}
+            type="color"
+            onChange={(event) => setColor(event.target.value)}
+            className="min-h-[38px] rounded-md border border-[#d9d8d4] bg-white px-2 py-1"
+          />
+        </label>
+        <div className="flex items-end">
+          <button
+            type="button"
+            disabled={isBusy || !hasChanges || displayName.trim().length === 0 || !hasValidColor}
+            className="min-h-[38px] rounded-md border border-[#c7b8a2] bg-[#fff7ea] px-3 text-sm font-semibold text-slate-800 hover:bg-[#fcedd8] disabled:cursor-not-allowed disabled:opacity-60"
+            onClick={async () => {
+              setSourceError(null);
+              try {
+                await onPatch(source.id, {
+                  displayName: displayName.trim(),
+                  color: normalizedColor
+                });
+              } catch (error) {
+                setSourceError(getErrorMessage(error, "Failed to save source."));
+              }
+            }}
+          >
+            Save
+          </button>
+        </div>
+      </div>
+
+      <label className="grid gap-1 md:max-w-xs">
+        <span className="text-xs font-medium text-slate-600">Assigned person</span>
+        <select
+          value={source.personId ?? ""}
+          disabled={isBusy}
+          className="min-h-[38px] rounded-md border border-[#d9d8d4] bg-white px-2 text-sm text-slate-900"
+          onChange={async (event) => {
+            setSourceError(null);
+            try {
+              await onPatch(source.id, { personId: event.target.value || null });
+            } catch (error) {
+              setSourceError(getErrorMessage(error, "Failed to assign person."));
+            }
+          }}
+        >
+          <option value="">Unassigned</option>
+          {people.map((person) => (
+            <option key={person.id} value={person.id}>
+              {person.displayName}
+            </option>
+          ))}
+        </select>
+      </label>
+      {sourceError ? <p className="text-xs text-rose-700">{sourceError}</p> : null}
+    </div>
+  );
 }
 
 export function GoogleCalendarSettings(): JSX.Element {
@@ -88,6 +225,22 @@ export function GoogleCalendarSettings(): JSX.Element {
   const sources = sourcesQuery.data?.sources ?? [];
   const people = peopleQuery.data?.people ?? [];
   const oauthAvailable = oauthStatusQuery.data?.available ?? false;
+  const patchSource = async (sourceId: string, patch: SourcePatch): Promise<void> => {
+    setBusySourceId(sourceId);
+    try {
+      await apiFetch(`/calendar/sources/${sourceId}`, {
+        method: "PATCH",
+        body: JSON.stringify(patch)
+      });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["calendar-sources"] }),
+        queryClient.invalidateQueries({ queryKey: ["calendar-week"] }),
+        queryClient.invalidateQueries({ queryKey: ["calendar-week-schedule"] })
+      ]);
+    } finally {
+      setBusySourceId(null);
+    }
+  };
 
   return (
     <section className="grid gap-3 rounded-md border border-[#e0d6c7] bg-white p-4">
@@ -129,7 +282,9 @@ export function GoogleCalendarSettings(): JSX.Element {
               setStatus(`Imported ${result.imported} sources.`);
               await Promise.all([
                 queryClient.invalidateQueries({ queryKey: ["calendar-accounts"] }),
-                queryClient.invalidateQueries({ queryKey: ["calendar-sources"] })
+                queryClient.invalidateQueries({ queryKey: ["calendar-sources"] }),
+                queryClient.invalidateQueries({ queryKey: ["calendar-week"] }),
+                queryClient.invalidateQueries({ queryKey: ["calendar-week-schedule"] })
               ]);
             } catch (error) {
               setStatus(getErrorMessage(error, "Failed to import calendars."));
@@ -167,61 +322,13 @@ export function GoogleCalendarSettings(): JSX.Element {
           <p className="text-sm text-slate-600">Import calendars to configure sources.</p>
         ) : (
           sources.map((source) => (
-            <div key={source.id} className="grid gap-2 rounded-md border border-[#e4dbcc] bg-white p-3">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="text-sm font-semibold text-slate-900">{source.displayName}</div>
-                <button
-                  type="button"
-                  disabled={busySourceId === source.id}
-                  className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                    source.enabled
-                      ? "bg-emerald-100 text-emerald-800"
-                      : "bg-slate-100 text-slate-600"
-                  }`}
-                  onClick={async () => {
-                    setBusySourceId(source.id);
-                    try {
-                      await apiFetch(`/calendar/sources/${source.id}`, {
-                        method: "PATCH",
-                        body: JSON.stringify({ enabled: !source.enabled })
-                      });
-                      await queryClient.invalidateQueries({ queryKey: ["calendar-sources"] });
-                    } finally {
-                      setBusySourceId(null);
-                    }
-                  }}
-                >
-                  {source.enabled ? "Enabled" : "Disabled"}
-                </button>
-              </div>
-              <div className="grid gap-1 md:max-w-xs">
-                <label className="text-xs font-medium text-slate-600">Assigned person</label>
-                <select
-                  value={source.personId ?? ""}
-                  disabled={busySourceId === source.id}
-                  className="min-h-[38px] rounded-md border border-[#d9d8d4] bg-white px-2 text-sm text-slate-900"
-                  onChange={async (event) => {
-                    setBusySourceId(source.id);
-                    try {
-                      await apiFetch(`/calendar/sources/${source.id}`, {
-                        method: "PATCH",
-                        body: JSON.stringify({ personId: event.target.value || null })
-                      });
-                      await queryClient.invalidateQueries({ queryKey: ["calendar-sources"] });
-                    } finally {
-                      setBusySourceId(null);
-                    }
-                  }}
-                >
-                  <option value="">Unassigned</option>
-                  {people.map((person) => (
-                    <option key={person.id} value={person.id}>
-                      {person.displayName}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
+            <CalendarSourceCard
+              key={source.id}
+              source={source}
+              people={people}
+              busySourceId={busySourceId}
+              onPatch={patchSource}
+            />
           ))
         )}
       </div>

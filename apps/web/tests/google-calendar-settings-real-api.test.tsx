@@ -1,4 +1,4 @@
-import { screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { FastifyInstance } from "fastify";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
@@ -34,7 +34,7 @@ describe("GoogleCalendarSettings with the real API", () => {
     await app.close();
   });
 
-  it("imports demo calendar sources and toggles source visibility", async () => {
+  it("imports demo calendar sources and edits source visibility, label, color, and assignment", async () => {
     renderWithProviders(<GoogleCalendarSettings />, { route: "/settings" });
     const user = userEvent.setup();
 
@@ -50,5 +50,22 @@ describe("GoogleCalendarSettings with the real API", () => {
 
     await user.click(screen.getAllByRole("button", { name: "Enabled" })[0]!);
     await waitFor(() => expect(screen.getByRole("button", { name: "Disabled" })).toBeInTheDocument());
+
+    const firstNameInput = screen.getAllByLabelText("Source name")[0]!;
+    await user.clear(firstNameInput);
+    await user.type(firstNameInput, "Family Room");
+
+    const firstColorInput = screen.getAllByLabelText("Color")[0]!;
+    fireEvent.change(firstColorInput, { target: { value: "#f7d8d4" } });
+    await user.click(screen.getAllByRole("button", { name: "Save" })[0]!);
+
+    expect(await screen.findByText("Family Room")).toBeInTheDocument();
+    expect(screen.getAllByLabelText("Source name")[0]).toHaveValue("Family Room");
+    expect(screen.getAllByLabelText("Color")[0]).toHaveValue("#f7d8d4");
+
+    const firstPersonSelect = screen.getAllByLabelText("Assigned person")[0]!;
+    const parentOption = within(firstPersonSelect).getByRole("option", { name: "Parent" });
+    await user.selectOptions(firstPersonSelect, parentOption);
+    await waitFor(() => expect(firstPersonSelect).toHaveValue(parentOption.getAttribute("value")));
   });
 });

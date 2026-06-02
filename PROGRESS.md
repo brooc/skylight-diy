@@ -2,8 +2,8 @@
 
 This document tracks progress against the [v0.1 Implementation Plan](docs/v0.1-implementation-plan.md).
 
-**Last updated**: 2026-06-01  
-**Overall completion**: ~90%
+**Last updated**: 2026-06-02  
+**Overall completion**: ~92%
 
 ## Implementation Sequence
 
@@ -95,6 +95,7 @@ This document tracks progress against the [v0.1 Implementation Plan](docs/v0.1-i
 - [x] Replace static Lists page demo data with persisted lists/items from API
 - [x] Replace Today add action with quick-add menu (Tasks/Lists/Meals) instead of forced route jump
 - [x] Surface degraded calendar warnings in Today view
+- [x] Add Today calendar refresh control with cache status badge
 - [ ] Implement component logic (in progress)
 
 ### 🚧 Step 6: Chores and rewards vertical slice (40%)
@@ -135,6 +136,7 @@ This document tracks progress against the [v0.1 Implementation Plan](docs/v0.1-i
 - [x] Add Google event mapper (provider response to display event shape)
 - [x] Add calendar settings routes with no OAuth yet
 - [x] Add CalendarDayView and CalendarWeekView using fixture/no-source state
+- [x] Add editable calendar source label, color, visibility, and person assignment controls in Settings
 
 ### ⬜ Step 9: Calendar cache foundation (10%)
 
@@ -179,13 +181,12 @@ Not started
 - **Frontend component lines**: ~842 lines
 - **Database tables**: 10/10 implemented
 - **Seed data**: Complete with demo household (PIN: 1234)
-- **Automated tests**: API integration tests (15) + web behavior tests (19)
+- **Automated tests**: API integration tests (31) + web behavior tests (27)
+- **Coverage**: API 94.26% statements/lines, web 94.45% statements/lines
 
 ## Next Priorities
 
-1. **Complete Step 4**: Finish admin PIN middleware and setup wizard backend
-2. **Complete Step 5**: Flesh out setup wizard and unlock UI
-3. **Complete Step 6**: Implement chores service and test mark-complete flow
-4. **Complete Step 7**: Quick win on meals display
-
-Once Steps 4-7 are done, we'll have a working vertical slice (household → chores → rewards → meals) to validate the full stack before tackling calendar integration.
+1. **Manual v0.1 smoke pass**: Run the operational checklist in Docker against the browser.
+2. **Real Google validation**: Configure OAuth credentials and verify connect/import/events against an actual account.
+3. **Tablet polish**: Soak test the current Skylight-inspired UI on the target tablet/browser.
+4. **Scope decision**: Keep calendar event creation as a post-v0.1 item unless it becomes required for release.

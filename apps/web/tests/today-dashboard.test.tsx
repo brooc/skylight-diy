@@ -2,7 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { TodayDashboard } from "../src/features/dashboard/TodayDashboard";
 import { createTestQueryClient } from "./helpers/test-utils";
@@ -49,6 +49,12 @@ describe("TodayDashboard", () => {
     expect(await screen.findByText("Coffee With Diane")).toBeInTheDocument();
     expect(await screen.findByText("Dog's Big Bath Day!")).toBeInTheDocument();
     expect(await screen.findAllByText("Cousins Visit")).toHaveLength(2);
+
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    const requestCount = fetchSpy.mock.calls.length;
+    await userEvent.setup().click(screen.getByRole("button", { name: "Refresh" }));
+    await screen.findByText("No enabled calendar sources yet.");
+    expect(fetchSpy.mock.calls.length).toBeGreaterThan(requestCount);
   });
 
   it("opens add actions and navigates to the task quick-add route", async () => {

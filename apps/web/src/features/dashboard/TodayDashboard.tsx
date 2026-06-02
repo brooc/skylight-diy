@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Fragment, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiFetch } from "../../api/client";
@@ -6,6 +6,7 @@ import { DegradedStateBanner } from "../../components/DegradedStateBanner";
 import { queryKeys } from "../../api/queryKeys";
 import { ErrorState } from "../../components/ErrorState";
 import { LoadingState } from "../../components/LoadingState";
+import { CalendarStatusBadge } from "../calendar/CalendarStatusBadge";
 
 type RewardsResponse = {
   balances: Array<{
@@ -77,6 +78,7 @@ function formatEventTime(start: Date, end: Date): string {
 export function TodayDashboard(): JSX.Element {
   const now = new Date();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
   const householdQuery = useQuery({
     queryKey: queryKeys.household,
@@ -238,9 +240,21 @@ export function TodayDashboard(): JSX.Element {
               <div className="rounded-full bg-[#f6f7f9] px-4 py-2 text-sm font-semibold text-slate-700">
                 ▦ Schedule
               </div>
+              <button
+                type="button"
+                className="rounded-full bg-[#f6f7f9] px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-[#ebedf0]"
+                onClick={async () => {
+                  await queryClient.invalidateQueries({ queryKey: ["calendar-week-schedule"] });
+                }}
+              >
+                Refresh
+              </button>
               <div className="rounded-full bg-[#f6f7f9] px-4 py-2 text-sm font-semibold text-slate-700">
                 ⊘ Filter
               </div>
+              {calendarQuery.data ? (
+                <CalendarStatusBadge cacheStatus={calendarQuery.data.cacheStatus} />
+              ) : null}
             </div>
           </div>
           <div className="flex flex-nowrap items-center gap-2 overflow-x-auto pb-1">
