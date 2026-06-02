@@ -101,6 +101,9 @@ export const calendarRoutes: FastifyPluginAsync = async (app) => {
         })
         .returning();
     }
+    if (!account) {
+      return reply.status(500).send({ error: "failed_to_initialize_google_account" });
+    }
 
     const demoSources = [
       {
@@ -122,6 +125,8 @@ export const calendarRoutes: FastifyPluginAsync = async (app) => {
         sortOrder: 2
       }
     ];
+
+    const demoSourceAt = (index: number) => demoSources[index % demoSources.length] ?? demoSources[0]!;
 
     const fetchedGoogleSources: Array<{
       externalCalendarId: string;
@@ -152,7 +157,7 @@ export const calendarRoutes: FastifyPluginAsync = async (app) => {
             fetchedGoogleSources.push({
               externalCalendarId: item.id,
               displayName: item.summary,
-              color: item.backgroundColor ?? demoSources[index % demoSources.length].color,
+              color: item.backgroundColor ?? demoSourceAt(index).color,
               sortOrder: index
             });
           }

@@ -17,24 +17,36 @@ function hashAdminPin(pin: string): string {
   return `v1:${salt.toString("base64")}:${hash.toString("base64")}`;
 }
 
+function ensure<T>(value: T | undefined, label: string): T {
+  if (typeof value === "undefined") {
+    throw new Error(`Expected ${label} to exist during seed.`);
+  }
+  return value;
+}
+
 async function run(): Promise<void> {
   const existingHouseholds = await db.select().from(households).limit(1);
   if (existingHouseholds.length > 0) {
     return;
   }
 
-  const [household] = await db
-    .insert(households)
-    .values({
-      name: "Demo Household",
-      timezone: "America/Los_Angeles",
-      setupCompletedAt: new Date(),
-      adminPinSetAt: new Date(),
-      adminPinHash: hashAdminPin("1234")
-    })
-    .returning({ id: households.id });
+  const household = ensure(
+    (
+      await db
+        .insert(households)
+        .values({
+          name: "Demo Household",
+          timezone: "America/Los_Angeles",
+          setupCompletedAt: new Date(),
+          adminPinSetAt: new Date(),
+          adminPinHash: hashAdminPin("1234")
+        })
+        .returning({ id: households.id })
+    )[0],
+    "household"
+  );
 
-  const [adult, child] = await db
+  const [adultRaw, childRaw] = await db
     .insert(people)
     .values([
       {
@@ -53,8 +65,10 @@ async function run(): Promise<void> {
       }
     ])
     .returning({ id: people.id, displayName: people.displayName });
+  const adult = ensure(adultRaw, "adult");
+  const child = ensure(childRaw, "child");
 
-  const [takeOutTrash, feedDog] = await db
+  const [takeOutTrashRaw, feedDogRaw] = await db
     .insert(chores)
     .values([
       {
@@ -75,8 +89,10 @@ async function run(): Promise<void> {
       }
     ])
     .returning({ id: chores.id, title: chores.title });
+  const takeOutTrash = ensure(takeOutTrashRaw, "takeOutTrash");
+  const feedDog = ensure(feedDogRaw, "feedDog");
 
-  const [tacos, pasta] = await db
+  const [tacosRaw, pastaRaw] = await db
     .insert(meals)
     .values([
       {
@@ -89,6 +105,8 @@ async function run(): Promise<void> {
       }
     ])
     .returning({ id: meals.id, name: meals.name });
+  const tacos = ensure(tacosRaw, "tacos");
+  const pasta = ensure(pastaRaw, "pasta");
 
   const today = new Date();
   const tomorrow = new Date(today);
@@ -110,7 +128,7 @@ async function run(): Promise<void> {
     }
   ]);
 
-  const [groceryList, packingList, todoList, travelList] = await db
+  const [groceryListRaw, packingListRaw, todoListRaw, travelListRaw] = await db
     .insert(lists)
     .values([
       {
@@ -139,6 +157,10 @@ async function run(): Promise<void> {
       }
     ])
     .returning({ id: lists.id, title: lists.title });
+  const groceryList = ensure(groceryListRaw, "groceryList");
+  const packingList = ensure(packingListRaw, "packingList");
+  const todoList = ensure(todoListRaw, "todoList");
+  const travelList = ensure(travelListRaw, "travelList");
 
   await db.insert(listItems).values([
     { householdId: household.id, listId: groceryList.id, title: "Eggs", sortOrder: 0 },

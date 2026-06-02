@@ -19,9 +19,9 @@ export function ChoreCard({
     { card: "bg-[#eef7f7] border-[#cfe8e6]", chip: "bg-[#d9eeec]" },
     { card: "bg-[#f3f0fa] border-[#dfd8ef]", chip: "bg-[#e6e0f3]" },
     { card: "bg-[#faf5e9] border-[#ecdfc4]", chip: "bg-[#f4e8d1]" }
-  ];
+  ] as const;
   const key = (assignedPersonName ?? title).charCodeAt(0) || 0;
-  const palette = palettes[key % palettes.length];
+  const palette = palettes[key % palettes.length] ?? palettes[0]!;
 
   return (
     <article className={`grid gap-3 rounded-md border p-4 ${palette.card}`}>

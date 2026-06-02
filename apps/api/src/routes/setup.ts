@@ -14,7 +14,7 @@ const setupBodySchema = z.object({
 export const setupRoutes: FastifyPluginAsync = async (app) => {
   app.get("/setup/status", async () => {
     const existing = await app.db.select().from(households).limit(1);
-    const setupRequired = existing.length === 0 || !existing[0].setupCompletedAt;
+    const setupRequired = !existing[0]?.setupCompletedAt;
 
     return {
       setupRequired
@@ -56,6 +56,12 @@ export const setupRoutes: FastifyPluginAsync = async (app) => {
         name: households.name,
         timezone: households.timezone
       });
+    if (!household) {
+      return reply.status(500).send({
+        created: false,
+        error: "failed_to_create_household"
+      });
+    }
 
     const names = [body.adminName, ...body.members];
     if (names.length > 0) {
