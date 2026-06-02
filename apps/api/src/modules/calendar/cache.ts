@@ -1,4 +1,4 @@
-import { calendarEventCache } from "@skylight-diy/db";
+import { calendarEventCache } from "@daymark/db";
 import { and, eq } from "drizzle-orm";
 
 type CachePayload = {

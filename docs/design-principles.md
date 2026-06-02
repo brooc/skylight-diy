@@ -1,12 +1,12 @@
 # Design Principles
 
-This document defines the design direction for Skylight DIY.
+This document defines the design direction for Daymark.
 
-Skylight DIY should compete with dedicated family calendar appliances by matching or exceeding their core workflows, but it must have an original visual identity.
+Daymark should compete with dedicated family calendar appliances by matching or exceeding their core workflows, but it must have an original visual identity.
 
 ## Positioning
 
-Skylight DIY is a family command center for inexpensive tablets and wall displays.
+Daymark is a family command center for inexpensive tablets and wall displays.
 
 It should feel like:
 
@@ -25,7 +25,7 @@ It should not feel like:
 
 ## Competitive UX target
 
-Skylight DIY should target functional parity with dedicated family calendar appliances:
+Daymark should target functional parity with dedicated family calendar appliances:
 
 - glanceable calendar
 - color-coded household members
@@ -59,7 +59,7 @@ Design lesson:
 - Make the default view useful from a few feet away.
 - Use color, spacing, and hierarchy to make ownership and timing obvious.
 
-Skylight DIY implication:
+Daymark implication:
 
 - The Today screen should be the default appliance view.
 - Week view should be readable, not just complete.
@@ -82,7 +82,7 @@ Design lesson:
 - Person color should connect events, chores, rewards, and meal responsibilities.
 - The UI should support quick filtering by person.
 
-Skylight DIY implication:
+Daymark implication:
 
 - `Person` should have display name, initials/avatar, and color.
 - Calendar sources should optionally map to people.
@@ -102,7 +102,7 @@ Design lesson:
 - Keep navigation shallow and predictable.
 - Make the device feel safe to leave visible in the kitchen.
 
-Skylight DIY implication:
+Daymark implication:
 
 - Primary navigation should be limited: Today, Week, Chores, Meals, Import, Settings.
 - Settings should be protected behind the local admin PIN.
@@ -120,7 +120,7 @@ Design lesson:
 - Completion should feel immediate and satisfying.
 - Progress should be visible without navigating deeply.
 
-Skylight DIY implication:
+Daymark implication:
 
 - Chore completion should be one tap.
 - Completed states should be visually obvious.
@@ -138,7 +138,7 @@ Design lesson:
 - Use color coding for meaning, not decoration.
 - Make the app approachable for children and non-technical adults.
 
-Skylight DIY implication:
+Daymark implication:
 
 - Avoid enterprise-dashboard styling.
 - Avoid dense grids except where a calendar grid is truly needed.
@@ -157,7 +157,7 @@ Design lesson:
 - The product should meet parents where their information already arrives.
 - Review/confirmation is critical because AI extraction can be wrong.
 
-Skylight DIY implication:
+Daymark implication:
 
 - Magic Import should be framed as a review queue, not an invisible automation.
 - Show original source next to extracted candidates.
@@ -191,7 +191,7 @@ Improvement target:
 
 ### 3. Better self-hosted ownership and longevity
 
-A commercial appliance depends on the vendor’s cloud, subscription decisions, and product lifecycle. Skylight DIY can improve by making the core self-hostable and open.
+A commercial appliance depends on the vendor’s cloud, subscription decisions, and product lifecycle. Daymark can improve by making the core self-hostable and open.
 
 Improvement target:
 
@@ -239,7 +239,7 @@ Improvement target:
 - Provide person filters and horizontal day navigation.
 - Consider compact event stacks rather than full hourly grids on small screens.
 
-## Design principles for Skylight DIY
+## Design principles for Daymark
 
 ### 1. Glance first, manage second
 
@@ -320,7 +320,7 @@ Rules:
 
 ### 7. Original visual identity
 
-Skylight DIY can be inspired by the category leader, but should develop its own visual system.
+Daymark can be inspired by the category leader, but should develop its own visual system.
 
 Do:
 

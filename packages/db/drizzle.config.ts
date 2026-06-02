@@ -1,5 +1,5 @@
 import { defineConfig } from "drizzle-kit";
-import { parseEnv } from "@skylight-diy/config";
+import { parseEnv } from "@daymark/config";
 
 const env = parseEnv(process.env);
 

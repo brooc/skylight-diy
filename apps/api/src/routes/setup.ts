@@ -1,4 +1,4 @@
-import { households, people } from "@skylight-diy/db";
+import { households, people } from "@daymark/db";
 import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
 import { hashAdminPin } from "../modules/auth/admin-pin";

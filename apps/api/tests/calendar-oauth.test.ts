@@ -4,7 +4,7 @@ import {
   connectedAccounts,
   households,
   people
-} from "@skylight-diy/db";
+} from "@daymark/db";
 import { eq } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
@@ -147,7 +147,7 @@ describe("calendar and google integration routes", () => {
         "https://www.googleapis.com/auth/calendar.readonly"
       );
       expect(authUrl.searchParams.get("state")).toBeTruthy();
-      expect(buildCookieHeader(response)).toContain("skylight_google_oauth_state=");
+      expect(buildCookieHeader(response)).toContain("daymark_google_oauth_state=");
     } finally {
       env.GOOGLE_CLIENT_ID = originalGoogleEnv.clientId;
       env.GOOGLE_CLIENT_SECRET = originalGoogleEnv.clientSecret;
@@ -166,7 +166,7 @@ describe("calendar and google integration routes", () => {
     const mismatchedState = await app.inject({
       method: "GET",
       url: "/api/integrations/google/callback?code=auth-code&state=query-state",
-      headers: { cookie: "skylight_google_oauth_state=cookie-state" }
+      headers: { cookie: "daymark_google_oauth_state=cookie-state" }
     });
     expect(mismatchedState.statusCode).toBe(400);
     expect(mismatchedState.json().error).toBe("invalid_oauth_state");
@@ -176,7 +176,7 @@ describe("calendar and google integration routes", () => {
     const providerError = await app.inject({
       method: "GET",
       url: "/api/integrations/google/callback?error=access_denied&state=state-value",
-      headers: { cookie: "skylight_google_oauth_state=state-value" }
+      headers: { cookie: "daymark_google_oauth_state=state-value" }
     });
     expect(providerError.statusCode).toBe(400);
     expect(providerError.json()).toEqual({
@@ -188,7 +188,7 @@ describe("calendar and google integration routes", () => {
     const missingCode = await app.inject({
       method: "GET",
       url: "/api/integrations/google/callback?state=state-value",
-      headers: { cookie: "skylight_google_oauth_state=state-value" }
+      headers: { cookie: "daymark_google_oauth_state=state-value" }
     });
     expect(missingCode.statusCode).toBe(400);
     expect(missingCode.json().error).toBe("missing_oauth_code");
@@ -198,7 +198,7 @@ describe("calendar and google integration routes", () => {
     const callback = await app.inject({
       method: "GET",
       url: "/api/integrations/google/callback?code=auth-code&state=state-value",
-      headers: { cookie: "skylight_google_oauth_state=state-value" }
+      headers: { cookie: "daymark_google_oauth_state=state-value" }
     });
     expect(callback.statusCode).toBe(400);
     expect(callback.json().error).toBe("oauth_not_configured");
@@ -215,7 +215,7 @@ describe("calendar and google integration routes", () => {
       const callback = await app.inject({
         method: "GET",
         url: "/api/integrations/google/callback?code=auth-code&state=state-value",
-        headers: { cookie: "skylight_google_oauth_state=state-value" }
+        headers: { cookie: "daymark_google_oauth_state=state-value" }
       });
       expect(callback.statusCode).toBe(400);
       expect(callback.json()).toEqual({
@@ -238,7 +238,7 @@ describe("calendar and google integration routes", () => {
       const callback = await app.inject({
         method: "GET",
         url: "/api/integrations/google/callback?code=auth-code&state=state-value",
-        headers: { cookie: "skylight_google_oauth_state=state-value" }
+        headers: { cookie: "daymark_google_oauth_state=state-value" }
       });
       expect(callback.statusCode).toBe(400);
       expect(callback.json().error).toBe("missing_access_token");
@@ -257,7 +257,7 @@ describe("calendar and google integration routes", () => {
       const callback = await app.inject({
         method: "GET",
         url: "/api/integrations/google/callback?code=auth-code&state=state-value",
-        headers: { cookie: "skylight_google_oauth_state=state-value" }
+        headers: { cookie: "daymark_google_oauth_state=state-value" }
       });
       expect(callback.statusCode).toBe(404);
       expect(callback.json().error).toBe("setup_not_completed");
@@ -285,7 +285,7 @@ describe("calendar and google integration routes", () => {
       const created = await app.inject({
         method: "GET",
         url: "/api/integrations/google/callback?code=auth-code&state=state-value",
-        headers: { cookie: "skylight_google_oauth_state=state-value" }
+        headers: { cookie: "daymark_google_oauth_state=state-value" }
       });
       expect(created.statusCode).toBe(302);
       expect(created.headers.location).toBe(`${env.APP_BASE_URL.replace(/\/$/, "")}/settings`);
@@ -317,7 +317,7 @@ describe("calendar and google integration routes", () => {
       const updated = await app.inject({
         method: "GET",
         url: "/api/integrations/google/callback?code=auth-code&state=state-value",
-        headers: { cookie: "skylight_google_oauth_state=state-value" }
+        headers: { cookie: "daymark_google_oauth_state=state-value" }
       });
       expect(updated.statusCode).toBe(302);
 

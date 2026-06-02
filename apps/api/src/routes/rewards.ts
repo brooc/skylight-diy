@@ -1,4 +1,4 @@
-import { choreCompletions, households, people, rewardRedemptions } from "@skylight-diy/db";
+import { choreCompletions, households, people, rewardRedemptions } from "@daymark/db";
 import { eq, sql } from "drizzle-orm";
 import type { FastifyPluginAsync } from "fastify";
 

@@ -10,7 +10,7 @@ A hackable family command center for tablets and wall displays.
 
 ## Naming note
 
-The working name is Skylight DIY because it describes the inspiration. Before public promotion, choose a distinct project name to avoid trademark confusion and make the project stand on its own.
+The project now uses Daymark as its distinct public name after starting from a descriptive working name. Public promotion should use Daymark branding to avoid trademark confusion and make the project stand on its own.
 
 ## Suggested license
 

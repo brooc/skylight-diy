@@ -1,4 +1,4 @@
-import { calendarSources, connectedAccounts, households, people } from "@skylight-diy/db";
+import { calendarSources, connectedAccounts, households, people } from "@daymark/db";
 import { and, asc, eq } from "drizzle-orm";
 import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";

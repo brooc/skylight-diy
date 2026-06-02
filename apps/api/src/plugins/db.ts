@@ -1,5 +1,5 @@
 import fp from "fastify-plugin";
-import { db } from "@skylight-diy/db";
+import { db } from "@daymark/db";
 
 declare module "fastify" {
   interface FastifyInstance {

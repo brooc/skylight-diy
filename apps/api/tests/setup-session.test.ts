@@ -60,7 +60,7 @@ describe("setup and session routes", () => {
     expect(unlocked.statusCode).toBe(200);
     expect(unlocked.json()).toEqual({ unlocked: true });
     const cookieHeader = buildCookieHeader(unlocked);
-    expect(cookieHeader).toContain("skylight_admin_unlock_v3=");
+    expect(cookieHeader).toContain("daymark_admin_unlock=");
 
     const current = await app.inject({
       method: "GET",

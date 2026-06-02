@@ -1,4 +1,4 @@
-import { households, mealPlanEntries, meals } from "@skylight-diy/db";
+import { households, mealPlanEntries, meals } from "@daymark/db";
 import { and, eq, gte, lte } from "drizzle-orm";
 import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";

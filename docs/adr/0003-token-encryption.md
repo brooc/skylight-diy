@@ -6,7 +6,7 @@ Accepted
 
 ## Context
 
-Skylight DIY stores Google OAuth credentials so it can fetch read-only calendar events for a household dashboard.
+Daymark stores Google OAuth credentials so it can fetch read-only calendar events for a household dashboard.
 
 OAuth access tokens and refresh tokens are sensitive. They must not be stored in plaintext, exposed to the frontend, or written to logs.
 

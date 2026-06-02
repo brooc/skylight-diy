@@ -2,7 +2,7 @@
 
 ## Current direction
 
-Skylight DIY is a browser-first, self-hostable family command center.
+Daymark is a browser-first, self-hostable family command center.
 
 v0.1 should be a narrow slice of the real application, not a throwaway prototype. The current plan is a modular monolith with a tablet/browser PWA, backend API, Postgres database, and read-only Google Calendar integration.
 
@@ -90,7 +90,7 @@ packages/
 
 Google Calendar remains the source of truth.
 
-Skylight DIY asks Google Calendar for expanded events in a requested date range, maps them into display-only event objects, and renders those objects in the tablet UI.
+Daymark asks Google Calendar for expanded events in a requested date range, maps them into display-only event objects, and renders those objects in the tablet UI.
 
 The app should not implement its own recurrence engine, exception reconciliation, deleted-event tracking, or canonical event store in v0.1.
 

@@ -1,6 +1,6 @@
 # Documentation
 
-This folder is the working plan for Skylight DIY.
+This folder is the working plan for Daymark.
 
 ## Planning docs
 
