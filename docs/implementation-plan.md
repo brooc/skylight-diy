@@ -85,7 +85,7 @@ Goal: Build a real app foundation and prove the Fire Tablet can display househol
 - [x] Add seed data for local/demo development.
 - [x] Add backend API skeleton.
 - [x] Add frontend PWA skeleton.
-- [x] Add tablet-first dashboard layout (Skylight-inspired visual baseline implemented; feature wiring in progress).
+- [x] Add tablet-first dashboard layout (dedicated family calendar appliance-inspired visual baseline implemented; feature wiring in progress).
 - [x] Add household/person model.
 - [ ] Add chores model and basic completion flow (in progress).
 - [ ] Add reward points/stars model (in progress).

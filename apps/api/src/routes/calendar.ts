@@ -128,46 +128,73 @@ export const calendarRoutes: FastifyPluginAsync = async (app) => {
 
     const demoSourceAt = (index: number) => demoSources[index % demoSources.length] ?? demoSources[0]!;
 
-    const fetchedGoogleSources: Array<{
+    let importCandidates: Array<{
       externalCalendarId: string;
       displayName: string;
       color: string;
       sortOrder: number;
-    }> = [];
+    }> = demoSources;
+
     if (account.encryptedAccessToken) {
+      const fetchedGoogleSources: Array<{
+        externalCalendarId: string;
+        displayName: string;
+        color: string;
+        sortOrder: number;
+      }> = [];
+      let accessToken = "";
       try {
-        const accessToken = decryptToken(account.encryptedAccessToken);
+        accessToken = decryptToken(account.encryptedAccessToken);
+      } catch {
+        return reply.status(400).send({
+          error: "google_token_decrypt_failed",
+          message: "Stored Google credentials could not be decrypted. Reconnect Google Calendar."
+        });
+      }
+
+      try {
         const response = await fetch("https://www.googleapis.com/calendar/v3/users/me/calendarList", {
           headers: {
             Authorization: `Bearer ${accessToken}`
           }
         });
-        if (response.ok) {
-          const payload = (await response.json()) as {
-            items?: Array<{
-              id?: string;
-              summary?: string;
-              backgroundColor?: string;
-            }>;
-          };
-          for (const [index, item] of (payload.items ?? []).entries()) {
-            if (!item.id || !item.summary) {
-              continue;
-            }
-            fetchedGoogleSources.push({
-              externalCalendarId: item.id,
-              displayName: item.summary,
-              color: item.backgroundColor ?? demoSourceAt(index).color,
-              sortOrder: index
-            });
-          }
+
+        if (!response.ok) {
+          const details = await response.text();
+          return reply.status(502).send({
+            error: "google_calendar_list_failed",
+            message: "Failed to import calendars from Google.",
+            statusCode: response.status,
+            details
+          });
         }
+
+        const payload = (await response.json()) as {
+          items?: Array<{
+            id?: string;
+            summary?: string;
+            backgroundColor?: string;
+          }>;
+        };
+        for (const [index, item] of (payload.items ?? []).entries()) {
+          if (!item.id || !item.summary) {
+            continue;
+          }
+          fetchedGoogleSources.push({
+            externalCalendarId: item.id,
+            displayName: item.summary,
+            color: item.backgroundColor ?? demoSourceAt(index).color,
+            sortOrder: index
+          });
+        }
+        importCandidates = fetchedGoogleSources;
       } catch {
-        // Fall back to demo sources when token decryption/fetch fails.
+        return reply.status(502).send({
+          error: "google_calendar_list_request_failed",
+          message: "Unexpected error while importing calendars from Google."
+        });
       }
     }
-
-    const importCandidates = fetchedGoogleSources.length > 0 ? fetchedGoogleSources : demoSources;
 
     let imported = 0;
     for (const source of importCandidates) {

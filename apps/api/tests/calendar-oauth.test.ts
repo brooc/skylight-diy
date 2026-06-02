@@ -551,6 +551,65 @@ describe("calendar and google integration routes", () => {
     ]);
   });
 
+  it("does not fall back to demo sources when Google calendar-list import fails for a real token", async () => {
+    const setup = await setupHousehold(app);
+    await app.db.insert(connectedAccounts).values({
+      householdId: setup.household.id,
+      provider: "google",
+      providerAccountId: "google-1",
+      displayName: "Google",
+      encryptedAccessToken: encryptToken("token-value"),
+      scopes: ["https://www.googleapis.com/auth/calendar.readonly"]
+    });
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response("rate limit", {
+        status: 429
+      })
+    );
+
+    const { cookie } = await unlockAdmin(app);
+    const imported = await app.inject({
+      method: "POST",
+      url: "/api/calendar/sources/import-from-google",
+      headers: { cookie }
+    });
+    expect(imported.statusCode).toBe(502);
+    expect(imported.json()).toMatchObject({
+      error: "google_calendar_list_failed",
+      statusCode: 429
+    });
+
+    const sources = await app.inject({
+      method: "GET",
+      url: "/api/calendar/sources"
+    });
+    expect(sources.statusCode).toBe(200);
+    expect(sources.json().sources).toHaveLength(0);
+  });
+
+  it("returns a reconnect error when stored Google credentials cannot be decrypted during import", async () => {
+    const setup = await setupHousehold(app);
+    await app.db.insert(connectedAccounts).values({
+      householdId: setup.household.id,
+      provider: "google",
+      providerAccountId: "google-1",
+      displayName: "Google",
+      encryptedAccessToken: "not-an-encrypted-token",
+      scopes: ["https://www.googleapis.com/auth/calendar.readonly"]
+    });
+
+    const { cookie } = await unlockAdmin(app);
+    const imported = await app.inject({
+      method: "POST",
+      url: "/api/calendar/sources/import-from-google",
+      headers: { cookie }
+    });
+    expect(imported.statusCode).toBe(400);
+    expect(imported.json()).toMatchObject({
+      error: "google_token_decrypt_failed"
+    });
+  });
+
   it("patches calendar source settings and validates assigned people", async () => {
     const setup = await setupHousehold(app);
     const [kiddo] = await app.db

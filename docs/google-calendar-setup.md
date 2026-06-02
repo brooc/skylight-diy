@@ -76,11 +76,13 @@ https://www.googleapis.com/auth/calendar.readonly
 - Calendar events remain owned by Google Calendar.
 - The app stores replaceable display-cache data in Postgres for degraded/offline behavior.
 - v0.1 does not create, edit, or delete Google Calendar events.
+- Demo calendar sources are available before a real Google account is connected. Once a real Google token exists, Google import failures return an error instead of silently falling back to demo sources.
 
 ## Troubleshooting
 
 - **Connect Google is disabled**: the app did not receive `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, or `GOOGLE_REDIRECT_URI`. Check `.env`, then restart the Docker app container.
 - **redirect_uri_mismatch**: the Google OAuth client redirect URI must exactly match `GOOGLE_REDIRECT_URI`.
 - **Access blocked or test-user error**: add your Google account under OAuth consent screen test users, or publish/verify the app for broader use.
+- **Import calendars fails after Google consent**: this is a real Google Calendar List API failure. Check that the Google Calendar API is enabled, the connected account is a consent-screen test user, and the OAuth client has the redirect URI above.
 - **Events do not show after import**: make sure at least one source is enabled, then press **Refresh** on Today or Week.
 - **Tokens fail after restore**: verify the restored `.env` uses the same `TOKEN_ENCRYPTION_KEY` as the original database.

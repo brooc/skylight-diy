@@ -86,12 +86,12 @@ This document tracks progress against the [v0.1 Implementation Plan](docs/v0.1-i
   - [x] `ErrorState`
   - [x] `EmptyState`
   - [x] `DegradedStateBanner`
-- [x] Implement Skylight-inspired visual baseline for Today, Week, Tasks, and Lists pages
+- [x] Implement dedicated family calendar appliance-inspired visual baseline for Today, Week, Tasks, and Lists pages
 - [x] Replace global header with page-specific top bars aligned to reference layout
 - [x] Add floating primary add action on all add-capable scaffold pages (Today/Tasks/Lists)
 - [x] Align person badge colors with calendar card palette for visual consistency
 - [x] Make Today schedule grid vertically scrollable with extended hour range
-- [x] Refine Today calendar layout to mirror Skylight-style top bar, person chips, and in-grid all-day row
+- [x] Refine Today calendar layout with family calendar-style top bar, person chips, and in-grid all-day row
 - [x] Replace static Lists page demo data with persisted lists/items from API
 - [x] Replace Today add action with quick-add menu (Tasks/Lists/Meals) instead of forced route jump
 - [x] Surface degraded calendar warnings in Today view
@@ -156,6 +156,7 @@ This document tracks progress against the [v0.1 Implementation Plan](docs/v0.1-i
 
 - [x] Import calendars from Google Calendar List API when access token is available
 - [x] Fall back to demo source import when token/calendar list is unavailable
+- [x] Return explicit errors instead of demo fallback when real Google calendar-list import fails
 
 ### ⬜ Step 12: Google event read (0%)
 
@@ -189,5 +190,5 @@ Not started
 
 1. **Manual v0.1 smoke pass**: Run the operational checklist in Docker against the browser.
 2. **Real Google validation**: Configure OAuth credentials and verify connect/import/events against an actual account.
-3. **Tablet polish**: Soak test the current Skylight-inspired UI on the target tablet/browser.
+3. **Tablet polish**: Soak test the current Daymark UI on the target tablet/browser.
 4. **Scope decision**: Keep calendar event creation as a post-v0.1 item unless it becomes required for release.
