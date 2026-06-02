@@ -8,6 +8,7 @@ venv/
 dist/
 build/
 .next/
+.turbo/
 
 # Local env
 .env
