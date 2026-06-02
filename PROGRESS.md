@@ -125,20 +125,20 @@ This document tracks progress against the [v0.1 Implementation Plan](docs/v0.1-i
 - [x] Add automated API tests for current-week meals and entry creation
 - [x] Add automated web tests for quick-add meal flow visibility
 
-### 🔜 Step 8: Calendar provider foundation (10%)
+### ✅ Step 8: Calendar provider foundation (100%)
 
 - [x] Create calendar module directory
 - [x] Add fixture-backed calendar events response for Today/Week rendering
 - [x] Wire calendar settings endpoints for accounts/sources import and source updates
 - [x] Add manual refresh control and warning banner visibility in Week view
-- [ ] Add calendar domain types
-- [ ] Add display event type
+- [x] Add calendar domain types
+- [x] Add display event type
 - [x] Add Google event mapper (provider response to display event shape)
 - [x] Add calendar settings routes with no OAuth yet
 - [x] Add CalendarDayView and CalendarWeekView using fixture/no-source state
 - [x] Add editable calendar source label, color, visibility, and person assignment controls in Settings
 
-### ⬜ Step 9: Calendar cache foundation (10%)
+### ✅ Step 9: Calendar cache foundation (100%)
 
 - [x] Add `calendar_event_cache` table to schema
 - [x] Add cache key helper
@@ -146,23 +146,27 @@ This document tracks progress against the [v0.1 Implementation Plan](docs/v0.1-i
 - [x] Add stale/fresh metadata
 - [x] Add degraded response shape
 
-### ⬜ Step 10: Google OAuth spike (0%)
+### ✅ Step 10: Google OAuth spike (100%)
 
 - [x] Add connect route with OAuth state cookie and Google auth URL generation
 - [x] Add callback route with state validation and token exchange
 - [x] Encrypt and persist access/refresh tokens on callback
 
-### ⬜ Step 11: Google calendar source import (0%)
+### ✅ Step 11: Google calendar source import (100%)
 
 - [x] Import calendars from Google Calendar List API when access token is available
 - [x] Fall back to demo source import when token/calendar list is unavailable
 - [x] Return explicit errors instead of demo fallback when real Google calendar-list import fails
 
-### ⬜ Step 12: Google event read (0%)
+### ✅ Step 12: Google event read (100%)
 
 - [x] Fetch Google events from enabled sources when valid access tokens are available
 - [x] Map provider events into display events with all-day/timed support
-- [x] Fall back to demo events with warnings when source fetch fails
+- [x] Preserve source id, location, and description in display events
+- [x] Skip cancelled provider events
+- [x] Return empty refreshed results when Google has no events
+- [x] Add per-source fetch logs
+- [x] Fall back to demo events with warnings when source fetch fails and no stale cache is available
 
 ### ⬜ Step 13: Tablet polish (0%)
 

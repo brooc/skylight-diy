@@ -90,15 +90,15 @@ Goal: Build a real app foundation and prove the Fire Tablet can display househol
 - [ ] Add chores model and basic completion flow (in progress).
 - [ ] Add reward points/stars model (in progress).
 - [ ] Add meal plan model (scaffolded).
-- [ ] Add read-only Google Calendar OAuth spike.
-- [ ] Fetch Google Calendar events directly from Google for a requested date range.
-- [ ] Map Google events into a display-only event model.
-- [ ] Add Postgres-backed replaceable calendar event display cache.
-- [ ] Render Google events in Today and Week views.
-- [ ] Store calendar account, calendar source, and display preference metadata in Postgres.
-- [ ] Do not persist canonical Google Calendar events in Postgres.
-- [ ] Add sync/stale/error status UI for calendar reads.
-- [ ] Add degraded state behavior for Google/network/auth failures.
+- [x] Add read-only Google Calendar OAuth spike.
+- [x] Fetch Google Calendar events directly from Google for a requested date range.
+- [x] Map Google events into a display-only event model.
+- [x] Add Postgres-backed replaceable calendar event display cache.
+- [x] Render Google events in Today and Week views.
+- [x] Store calendar account, calendar source, and display preference metadata in Postgres.
+- [x] Do not persist canonical Google Calendar events in Postgres.
+- [x] Add sync/stale/error status UI for calendar reads.
+- [x] Add degraded state behavior for Google/network/auth failures.
 - [ ] Add Fire Tablet smoke and soak test criteria.
 - [ ] Add backup/restore basics for local self-hosted data.
 - [ ] Document Fire Tablet testing notes.
@@ -208,15 +208,15 @@ Goal: Make the project installable, usable, and welcoming to contributors.
 
 ### Calendar read flow
 
-- [ ] UI requests events for a date range.
-- [ ] API loads enabled calendar sources for the household.
-- [ ] API checks for a fresh Postgres-backed display cache entry.
-- [ ] API returns fresh cache immediately when available.
-- [ ] If cache is missing or expired, API fetches expanded events from Google Calendar for the requested range.
-- [ ] API maps provider events into `DisplayCalendarEvent` objects.
-- [ ] API overwrites the cache on successful fetch.
-- [ ] API returns stale cache with warning if Google fetch fails and stale data is available.
-- [ ] UI renders display events with freshness/degraded-state metadata.
+- [x] UI requests events for a date range.
+- [x] API loads enabled calendar sources for the household.
+- [x] API checks for a fresh Postgres-backed display cache entry.
+- [x] API returns fresh cache immediately when available.
+- [x] If cache is missing or expired, API fetches expanded events from Google Calendar for the requested range.
+- [x] API maps provider events into `DisplayCalendarEvent` objects.
+- [x] API overwrites the cache on successful fetch.
+- [x] API returns stale cache with warning if Google fetch fails and stale data is available.
+- [x] UI renders display events with freshness/degraded-state metadata.
 
 ## Security and privacy details
 

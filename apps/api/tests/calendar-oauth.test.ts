@@ -1,5 +1,6 @@
 import {
   calendarEventCache,
+  calendarFetchLogs,
   calendarSources,
   connectedAccounts,
   households,
@@ -730,24 +731,42 @@ describe("calendar and google integration routes", () => {
       })
       .returning();
 
-    await app.db.insert(calendarSources).values({
-      householdId,
-      connectedAccountId: account.id,
-      provider: "google",
-      externalCalendarId: "calendar-1",
-      displayName: "Parent",
-      color: "#bee8ea",
-      enabled: true,
-      sortOrder: 0
-    });
+    const [source] = await app.db
+      .insert(calendarSources)
+      .values({
+        householdId,
+        connectedAccountId: account.id,
+        provider: "google",
+        externalCalendarId: "calendar-1",
+        displayName: "Parent",
+        color: "#bee8ea",
+        enabled: true,
+        sortOrder: 0
+      })
+      .returning();
 
     const providerPayload = {
       items: [
         {
           id: "evt-1",
           summary: "Dentist",
+          description: "Bring insurance card",
+          location: "Main clinic",
           start: { dateTime: "2026-06-02T16:00:00.000Z" },
           end: { dateTime: "2026-06-02T17:00:00.000Z" }
+        },
+        {
+          id: "evt-2",
+          summary: "School closed",
+          start: { date: "2026-06-03" },
+          end: { date: "2026-06-04" }
+        },
+        {
+          id: "evt-cancelled",
+          summary: "Cancelled",
+          status: "cancelled",
+          start: { dateTime: "2026-06-04T16:00:00.000Z" },
+          end: { dateTime: "2026-06-04T17:00:00.000Z" }
         }
       ]
     };
@@ -770,7 +789,20 @@ describe("calendar and google integration routes", () => {
     });
     expect(first.statusCode).toBe(200);
     expect(first.json().cacheStatus).toBe("refreshed");
-    expect(first.json().events).toHaveLength(1);
+    expect(first.json().events).toHaveLength(2);
+    expect(first.json().events[0]).toMatchObject({
+      sourceId: source.id,
+      title: "Dentist",
+      description: "Bring insurance card",
+      location: "Main clinic",
+      isAllDay: false
+    });
+    expect(first.json().events[1]).toMatchObject({
+      sourceId: source.id,
+      title: "School closed",
+      isAllDay: true
+    });
+    expect(first.json().events.map((event: { title: string }) => event.title)).not.toContain("Cancelled");
 
     const second = await app.inject({
       method: "GET",
@@ -778,8 +810,78 @@ describe("calendar and google integration routes", () => {
     });
     expect(second.statusCode).toBe(200);
     expect(second.json().cacheStatus).toBe("fresh");
-    expect(second.json().events).toHaveLength(1);
+    expect(second.json().events).toHaveLength(2);
     expect(fetchSpy).toHaveBeenCalledTimes(1);
+
+    const logs = await app.db
+      .select({
+        calendarSourceId: calendarFetchLogs.calendarSourceId,
+        status: calendarFetchLogs.status,
+        errorMessage: calendarFetchLogs.errorMessage
+      })
+      .from(calendarFetchLogs);
+    expect(logs).toEqual([
+      {
+        calendarSourceId: source.id,
+        status: "success",
+        errorMessage: null
+      }
+    ]);
+  });
+
+  it("returns empty refreshed events when Google successfully returns no events", async () => {
+    const setup = await setupHousehold(app);
+    const [account] = await app.db
+      .insert(connectedAccounts)
+      .values({
+        householdId: setup.household.id,
+        provider: "google",
+        providerAccountId: "google-1",
+        displayName: "Google",
+        encryptedAccessToken: encryptToken("token-value"),
+        scopes: ["https://www.googleapis.com/auth/calendar.readonly"]
+      })
+      .returning();
+    const [source] = await app.db
+      .insert(calendarSources)
+      .values({
+        householdId: setup.household.id,
+        connectedAccountId: account.id,
+        provider: "google",
+        externalCalendarId: "calendar-1",
+        displayName: "Family",
+        color: "#bee8ea",
+        enabled: true,
+        sortOrder: 0
+      })
+      .returning();
+
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ items: [] }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" }
+      })
+    );
+
+    const response = await app.inject({
+      method: "GET",
+      url: calendarEventsUrl()
+    });
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      cacheStatus: "refreshed",
+      degraded: false,
+      events: [],
+      warnings: []
+    });
+
+    const logs = await app.db
+      .select({
+        calendarSourceId: calendarFetchLogs.calendarSourceId,
+        status: calendarFetchLogs.status
+      })
+      .from(calendarFetchLogs);
+    expect(logs).toEqual([{ calendarSourceId: source.id, status: "success" }]);
   });
 });
 

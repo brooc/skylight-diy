@@ -1,4 +1,4 @@
-import { calendarSources, connectedAccounts, households, people } from "@daymark/db";
+import { calendarFetchLogs, calendarSources, connectedAccounts, households, people } from "@daymark/db";
 import { and, asc, eq } from "drizzle-orm";
 import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
@@ -337,6 +337,7 @@ export const calendarRoutes: FastifyPluginAsync = async (app) => {
     const demoEvents = [
       {
         id: "evt-1",
+        sourceId: "demo-kiddo",
         title: "Coffee With Diane",
         start: toIsoAt(1, 9, 45),
         end: toIsoAt(1, 11, 0),
@@ -346,6 +347,7 @@ export const calendarRoutes: FastifyPluginAsync = async (app) => {
       },
       {
         id: "evt-2",
+        sourceId: "demo-parent",
         title: "Pickup Dry Cleaning",
         start: toIsoAt(2, 9, 30),
         end: toIsoAt(2, 10, 15),
@@ -355,6 +357,7 @@ export const calendarRoutes: FastifyPluginAsync = async (app) => {
       },
       {
         id: "evt-3",
+        sourceId: "demo-kiddo",
         title: "History Test",
         start: toIsoAt(2, 10, 30),
         end: toIsoAt(2, 11, 0),
@@ -364,6 +367,7 @@ export const calendarRoutes: FastifyPluginAsync = async (app) => {
       },
       {
         id: "evt-4",
+        sourceId: "demo-parent",
         title: "Birthday Party",
         start: toIsoAt(3, 10, 30),
         end: toIsoAt(3, 12, 0),
@@ -373,6 +377,7 @@ export const calendarRoutes: FastifyPluginAsync = async (app) => {
       },
       {
         id: "evt-5",
+        sourceId: "demo-parent",
         title: "Grocery Run",
         start: toIsoAt(0, 10, 0),
         end: toIsoAt(0, 11, 30),
@@ -382,6 +387,7 @@ export const calendarRoutes: FastifyPluginAsync = async (app) => {
       },
       {
         id: "evt-6",
+        sourceId: "demo-family",
         title: "Dog's Big Bath Day!",
         start: toIsoAt(1, 11, 0),
         end: toIsoAt(1, 12, 0),
@@ -391,6 +397,7 @@ export const calendarRoutes: FastifyPluginAsync = async (app) => {
       },
       {
         id: "evt-7",
+        sourceId: "demo-family",
         title: "Camping Trip",
         start: toIsoAt(0, 0, 0),
         end: toIsoAt(1, 0, 0),
@@ -400,6 +407,7 @@ export const calendarRoutes: FastifyPluginAsync = async (app) => {
       },
       {
         id: "evt-8",
+        sourceId: "demo-family",
         title: "Cousins Visit",
         start: toIsoAt(5, 0, 0),
         end: toIsoAt(7, 0, 0),
@@ -488,16 +496,36 @@ export const calendarRoutes: FastifyPluginAsync = async (app) => {
     const staleCachePayload = cacheHit.status === "stale" ? cacheHit.payload : null;
     const googleEvents: Array<{
       id: string;
+      sourceId: string;
       title: string;
+      description?: string;
+      location?: string;
       start: string;
       end: string;
       isAllDay: boolean;
       sourceName: string;
       color: string | null;
     }> = [];
+    let successfulProviderFetches = 0;
+
+    const logFetch = async (
+      sourceId: string,
+      status: "success" | "skipped" | "error",
+      errorMessage?: string
+    ): Promise<void> => {
+      await app.db.insert(calendarFetchLogs).values({
+        householdId: household.id,
+        calendarSourceId: sourceId,
+        rangeStart: rangeStart,
+        rangeEnd: new Date(parsed.data.end),
+        status,
+        errorMessage
+      });
+    };
 
     for (const source of enabledSources) {
       if (!source.encryptedAccessToken) {
+        await logFetch(source.id, "skipped", "Source is missing an access token.");
         warnings.push({
           code: "SOURCE_MISSING_TOKEN",
           message: `Source "${source.displayName}" is missing an access token.`,
@@ -510,6 +538,7 @@ export const calendarRoutes: FastifyPluginAsync = async (app) => {
       try {
         accessToken = decryptToken(source.encryptedAccessToken);
       } catch {
+        await logFetch(source.id, "error", "Stored access token could not be decrypted.");
         warnings.push({
           code: "SOURCE_TOKEN_DECRYPT_FAILED",
           message: `Could not decrypt token for "${source.displayName}".`,
@@ -534,6 +563,7 @@ export const calendarRoutes: FastifyPluginAsync = async (app) => {
         });
 
         if (!providerResponse.ok) {
+          await logFetch(source.id, "error", `Google Calendar returned ${providerResponse.status}.`);
           warnings.push({
             code: "SOURCE_FETCH_FAILED",
             message: `Failed to fetch events for "${source.displayName}".`,
@@ -546,12 +576,20 @@ export const calendarRoutes: FastifyPluginAsync = async (app) => {
           items?: Array<{
             id?: string;
             summary?: string;
+            description?: string;
+            location?: string;
+            status?: string;
             start?: { date?: string; dateTime?: string };
             end?: { date?: string; dateTime?: string };
           }>;
         };
+        successfulProviderFetches += 1;
+        await logFetch(source.id, "success");
 
         for (const item of payload.items ?? []) {
+          if (item.status === "cancelled") {
+            continue;
+          }
           const start = item.start?.dateTime ?? item.start?.date;
           const end = item.end?.dateTime ?? item.end?.date;
           if (!start || !end) {
@@ -560,7 +598,10 @@ export const calendarRoutes: FastifyPluginAsync = async (app) => {
           const isAllDay = Boolean(item.start?.date && !item.start?.dateTime);
           googleEvents.push({
             id: `${source.id}:${item.id ?? start}`,
+            sourceId: source.id,
             title: item.summary || "Untitled event",
+            description: item.description,
+            location: item.location,
             start,
             end,
             isAllDay,
@@ -569,6 +610,7 @@ export const calendarRoutes: FastifyPluginAsync = async (app) => {
           });
         }
       } catch {
+        await logFetch(source.id, "error", "Unexpected error while fetching events from Google.");
         warnings.push({
           code: "SOURCE_REQUEST_ERROR",
           message: `Unexpected error while fetching "${source.displayName}".`,
@@ -577,7 +619,7 @@ export const calendarRoutes: FastifyPluginAsync = async (app) => {
       }
     }
 
-    if (googleEvents.length > 0) {
+    if (successfulProviderFetches > 0) {
       googleEvents.sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
       const payload = {
         rangeStart: parsed.data.start,

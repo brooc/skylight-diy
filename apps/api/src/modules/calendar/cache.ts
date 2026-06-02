@@ -7,7 +7,10 @@ type CachePayload = {
   timezone: string;
   events: Array<{
     id: string;
+    sourceId: string;
     title: string;
+    description?: string;
+    location?: string;
     start: string;
     end: string;
     isAllDay: boolean;
