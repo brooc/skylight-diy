@@ -179,6 +179,7 @@ Not started
 - [x] Add Vitest coverage reporting script
 - [x] Fix strict TypeScript lint baseline in db/domain/api/web packages
 - [x] Add Google Calendar setup guide and Docker env passthrough for OAuth credentials
+- [x] Run database migrations automatically during Docker app startup
 
 ## Key Metrics
 

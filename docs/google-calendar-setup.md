@@ -37,6 +37,14 @@ GOOGLE_REDIRECT_URI=http://localhost:3000/api/integrations/google/callback
 TOKEN_ENCRYPTION_KEY=replace-with-32-byte-base64-key
 ```
 
+If you copied `.env.example` while running the Docker workflow, keep the Docker database host:
+
+```env
+DATABASE_URL=postgres://daymark:daymark@postgres:5432/daymark
+```
+
+Use `localhost` only when running the API directly on your host machine outside Docker.
+
 Generate `TOKEN_ENCRYPTION_KEY` with:
 
 ```bash
@@ -53,7 +61,7 @@ Restart the app container after changing `.env`:
 docker compose up --build app
 ```
 
-Docker Compose reads the repo-root `.env` file and passes the Google OAuth variables into the app container.
+Docker Compose reads the repo-root `.env` file and passes the Google OAuth variables into the app container. On a fresh Docker volume, Postgres creates the `daymark` database automatically, and the app runs database migrations before starting the API and web app.
 
 ## Connect In The App
 
@@ -81,6 +89,8 @@ https://www.googleapis.com/auth/calendar.readonly
 ## Troubleshooting
 
 - **Connect Google is disabled**: the app did not receive `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, or `GOOGLE_REDIRECT_URI`. Check `.env`, then restart the Docker app container.
+- **Database connection points at `127.0.0.1:5432` inside Docker**: set `DATABASE_URL=postgres://daymark:daymark@postgres:5432/daymark` in `.env`, then recreate the app container.
+- **Database says `role "daymark" does not exist` after the Daymark rename**: your Docker Postgres volume was probably initialized before the rename. If you do not need the old data, remove the old database volume and rerun setup, or create a fresh `daymark` role/database and run migrations.
 - **redirect_uri_mismatch**: the Google OAuth client redirect URI must exactly match `GOOGLE_REDIRECT_URI`.
 - **Access blocked or test-user error**: add your Google account under OAuth consent screen test users, or publish/verify the app for broader use.
 - **Import calendars fails after Google consent**: this is a real Google Calendar List API failure. Check that the Google Calendar API is enabled, the connected account is a consent-screen test user, and the OAuth client has the redirect URI above.

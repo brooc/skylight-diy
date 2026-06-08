@@ -67,6 +67,8 @@ Open `http://localhost:5173` and complete the setup wizard.
 
 **Demo credentials**: Admin PIN is `1234` (from seed data)
 
+The Docker app startup runs database migrations automatically before starting the API and web app. On a fresh Docker volume, Postgres creates the `daymark` database and the app creates/updates the tables on boot.
+
 ### Option 2: Local Development
 
 With pnpm installed locally:

@@ -6,7 +6,7 @@
   "scripts": {
     "build": "turbo run build",
     "dev": "turbo run dev --parallel",
-    "dev:docker": "turbo run dev:docker --filter=@daymark/api --filter=@daymark/web",
+    "dev:docker": "pnpm db:migrate && turbo run dev:docker --filter=@daymark/api --filter=@daymark/web",
     "lint": "turbo run lint",
     "format": "turbo run format",
     "test": "turbo run test --concurrency=1",
