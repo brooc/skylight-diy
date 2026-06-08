@@ -1,3 +1,4 @@
+import { createHmac } from "node:crypto";
 import {
   calendarEventCache,
   calendarFetchLogs,
@@ -98,27 +99,29 @@ describe("calendar and google integration routes", () => {
   });
 
   it("reports oauth status and blocks connect when oauth env is not configured", async () => {
-    await setupHousehold(app);
-    const status = await app.inject({
-      method: "GET",
-      url: "/api/integrations/google/status"
-    });
-    expect(status.statusCode).toBe(200);
-    expect(status.json().available).toBe(false);
+    await withGoogleOauthConfigCleared(async () => {
+      await setupHousehold(app);
+      const status = await app.inject({
+        method: "GET",
+        url: "/api/integrations/google/status"
+      });
+      expect(status.statusCode).toBe(200);
+      expect(status.json().available).toBe(false);
 
-    const connect = await app.inject({
-      method: "GET",
-      url: "/api/integrations/google/connect"
-    });
-    expect(connect.statusCode).toBe(401);
+      const connect = await app.inject({
+        method: "GET",
+        url: "/api/integrations/google/connect"
+      });
+      expect(connect.statusCode).toBe(401);
 
-    const { cookie } = await unlockAdmin(app);
-    const connectUnlocked = await app.inject({
-      method: "GET",
-      url: "/api/integrations/google/connect",
-      headers: { cookie }
+      const { cookie } = await unlockAdmin(app);
+      const connectUnlocked = await app.inject({
+        method: "GET",
+        url: "/api/integrations/google/connect",
+        headers: { cookie }
+      });
+      expect(connectUnlocked.statusCode).toBe(400);
     });
-    expect(connectUnlocked.statusCode).toBe(400);
   });
 
   it("builds a Google OAuth authorization URL when configured and unlocked", async () => {
@@ -147,8 +150,10 @@ describe("calendar and google integration routes", () => {
       expect(authUrl.searchParams.get("scope")).toBe(
         "https://www.googleapis.com/auth/calendar.readonly"
       );
-      expect(authUrl.searchParams.get("state")).toBeTruthy();
-      expect(buildCookieHeader(response)).toContain("daymark_google_oauth_state=");
+      const state = authUrl.searchParams.get("state");
+      expect(state).toBeTruthy();
+      expect(isTestOauthStateValid(state ?? "")).toBe(true);
+      expect(buildCookieHeader(response)).not.toContain("daymark_google_oauth_state=");
     } finally {
       env.GOOGLE_CLIENT_ID = originalGoogleEnv.clientId;
       env.GOOGLE_CLIENT_SECRET = originalGoogleEnv.clientSecret;
@@ -156,7 +161,7 @@ describe("calendar and google integration routes", () => {
     }
   });
 
-  it("rejects Google OAuth callbacks without a matching state cookie", async () => {
+  it("rejects Google OAuth callbacks without a valid signed state", async () => {
     const missingState = await app.inject({
       method: "GET",
       url: "/api/integrations/google/callback?code=auth-code&state=missing"
@@ -166,18 +171,24 @@ describe("calendar and google integration routes", () => {
 
     const mismatchedState = await app.inject({
       method: "GET",
-      url: "/api/integrations/google/callback?code=auth-code&state=query-state",
-      headers: { cookie: "daymark_google_oauth_state=cookie-state" }
+      url: `/api/integrations/google/callback?code=auth-code&state=${encodeURIComponent(createTestOauthState({ tamperSignature: true }))}`
     });
     expect(mismatchedState.statusCode).toBe(400);
     expect(mismatchedState.json().error).toBe("invalid_oauth_state");
+
+    const expiredState = await app.inject({
+      method: "GET",
+      url: `/api/integrations/google/callback?code=auth-code&state=${encodeURIComponent(createTestOauthState({ expiresAt: Date.now() - 1_000 }))}`
+    });
+    expect(expiredState.statusCode).toBe(400);
+    expect(expiredState.json().error).toBe("invalid_oauth_state");
   });
 
   it("handles Google OAuth provider errors and missing codes after state validation", async () => {
+    const state = createTestOauthState();
     const providerError = await app.inject({
       method: "GET",
-      url: "/api/integrations/google/callback?error=access_denied&state=state-value",
-      headers: { cookie: "daymark_google_oauth_state=state-value" }
+      url: `/api/integrations/google/callback?error=access_denied&state=${encodeURIComponent(state)}`
     });
     expect(providerError.statusCode).toBe(400);
     expect(providerError.json()).toEqual({
@@ -188,21 +199,21 @@ describe("calendar and google integration routes", () => {
 
     const missingCode = await app.inject({
       method: "GET",
-      url: "/api/integrations/google/callback?state=state-value",
-      headers: { cookie: "daymark_google_oauth_state=state-value" }
+      url: `/api/integrations/google/callback?state=${encodeURIComponent(createTestOauthState())}`
     });
     expect(missingCode.statusCode).toBe(400);
     expect(missingCode.json().error).toBe("missing_oauth_code");
   });
 
   it("requires OAuth configuration before exchanging a validated callback code", async () => {
-    const callback = await app.inject({
-      method: "GET",
-      url: "/api/integrations/google/callback?code=auth-code&state=state-value",
-      headers: { cookie: "daymark_google_oauth_state=state-value" }
+    await withGoogleOauthConfigCleared(async () => {
+      const callback = await app.inject({
+        method: "GET",
+        url: `/api/integrations/google/callback?code=auth-code&state=${encodeURIComponent(createTestOauthState())}`
+      });
+      expect(callback.statusCode).toBe(400);
+      expect(callback.json().error).toBe("oauth_not_configured");
     });
-    expect(callback.statusCode).toBe(400);
-    expect(callback.json().error).toBe("oauth_not_configured");
   });
 
   it("reports token exchange failures from Google OAuth", async () => {
@@ -215,8 +226,7 @@ describe("calendar and google integration routes", () => {
 
       const callback = await app.inject({
         method: "GET",
-        url: "/api/integrations/google/callback?code=auth-code&state=state-value",
-        headers: { cookie: "daymark_google_oauth_state=state-value" }
+        url: `/api/integrations/google/callback?code=auth-code&state=${encodeURIComponent(createTestOauthState())}`
       });
       expect(callback.statusCode).toBe(400);
       expect(callback.json()).toEqual({
@@ -238,8 +248,7 @@ describe("calendar and google integration routes", () => {
 
       const callback = await app.inject({
         method: "GET",
-        url: "/api/integrations/google/callback?code=auth-code&state=state-value",
-        headers: { cookie: "daymark_google_oauth_state=state-value" }
+        url: `/api/integrations/google/callback?code=auth-code&state=${encodeURIComponent(createTestOauthState())}`
       });
       expect(callback.statusCode).toBe(400);
       expect(callback.json().error).toBe("missing_access_token");
@@ -257,8 +266,7 @@ describe("calendar and google integration routes", () => {
 
       const callback = await app.inject({
         method: "GET",
-        url: "/api/integrations/google/callback?code=auth-code&state=state-value",
-        headers: { cookie: "daymark_google_oauth_state=state-value" }
+        url: `/api/integrations/google/callback?code=auth-code&state=${encodeURIComponent(createTestOauthState())}`
       });
       expect(callback.statusCode).toBe(404);
       expect(callback.json().error).toBe("setup_not_completed");
@@ -285,8 +293,7 @@ describe("calendar and google integration routes", () => {
 
       const created = await app.inject({
         method: "GET",
-        url: "/api/integrations/google/callback?code=auth-code&state=state-value",
-        headers: { cookie: "daymark_google_oauth_state=state-value" }
+        url: `/api/integrations/google/callback?code=auth-code&state=${encodeURIComponent(createTestOauthState())}`
       });
       expect(created.statusCode).toBe(302);
       expect(created.headers.location).toBe(`${env.APP_BASE_URL.replace(/\/$/, "")}/settings`);
@@ -317,8 +324,7 @@ describe("calendar and google integration routes", () => {
 
       const updated = await app.inject({
         method: "GET",
-        url: "/api/integrations/google/callback?code=auth-code&state=state-value",
-        headers: { cookie: "daymark_google_oauth_state=state-value" }
+        url: `/api/integrations/google/callback?code=auth-code&state=${encodeURIComponent(createTestOauthState())}`
       });
       expect(updated.statusCode).toBe(302);
 
@@ -891,6 +897,27 @@ function calendarEventsUrl(): string {
   return `/api/calendar/events?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}&timezone=UTC`;
 }
 
+function createTestOauthState(options?: { expiresAt?: number; tamperSignature?: boolean }): string {
+  const payload = Buffer.from(
+    JSON.stringify({
+      nonce: "test-nonce",
+      expiresAt: options?.expiresAt ?? Date.now() + 60_000
+    })
+  ).toString("base64url");
+  const signature = createHmac("sha256", env.SESSION_SECRET).update(payload).digest("base64url");
+  const tamperedSignature = signature.startsWith("x") ? `y${signature.slice(1)}` : `x${signature.slice(1)}`;
+  return `${payload}.${options?.tamperSignature ? tamperedSignature : signature}`;
+}
+
+function isTestOauthStateValid(state: string): boolean {
+  const [payload, signature, ...rest] = state.split(".");
+  if (!payload || !signature || rest.length > 0) {
+    return false;
+  }
+  const expectedSignature = createHmac("sha256", env.SESSION_SECRET).update(payload).digest("base64url");
+  return signature === expectedSignature;
+}
+
 async function withGoogleOauthConfig<T>(run: () => Promise<T>): Promise<T> {
   const originalGoogleEnv = {
     clientId: env.GOOGLE_CLIENT_ID,
@@ -900,6 +927,25 @@ async function withGoogleOauthConfig<T>(run: () => Promise<T>): Promise<T> {
   env.GOOGLE_CLIENT_ID = "client-id";
   env.GOOGLE_CLIENT_SECRET = "client-secret";
   env.GOOGLE_REDIRECT_URI = "http://localhost:3000/api/integrations/google/callback";
+
+  try {
+    return await run();
+  } finally {
+    env.GOOGLE_CLIENT_ID = originalGoogleEnv.clientId;
+    env.GOOGLE_CLIENT_SECRET = originalGoogleEnv.clientSecret;
+    env.GOOGLE_REDIRECT_URI = originalGoogleEnv.redirectUri;
+  }
+}
+
+async function withGoogleOauthConfigCleared<T>(run: () => Promise<T>): Promise<T> {
+  const originalGoogleEnv = {
+    clientId: env.GOOGLE_CLIENT_ID,
+    clientSecret: env.GOOGLE_CLIENT_SECRET,
+    redirectUri: env.GOOGLE_REDIRECT_URI
+  };
+  env.GOOGLE_CLIENT_ID = undefined;
+  env.GOOGLE_CLIENT_SECRET = undefined;
+  env.GOOGLE_REDIRECT_URI = undefined;
 
   try {
     return await run();

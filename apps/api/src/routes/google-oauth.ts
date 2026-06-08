@@ -1,4 +1,4 @@
-import { randomBytes } from "node:crypto";
+import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { connectedAccounts, households } from "@daymark/db";
 import { and, eq } from "drizzle-orm";
 import type { FastifyPluginAsync } from "fastify";
@@ -6,7 +6,6 @@ import { z } from "zod";
 import { env } from "../env";
 import { decryptToken, encryptToken } from "../modules/integrations/token-crypto";
 
-const GOOGLE_STATE_COOKIE = "daymark_google_oauth_state";
 const GOOGLE_STATE_TTL_SECONDS = 60 * 10;
 const GOOGLE_CALENDAR_SCOPE = "https://www.googleapis.com/auth/calendar.readonly";
 
@@ -19,6 +18,48 @@ const callbackQuerySchema = z.object({
 
 function hasGoogleOauthConfig(): boolean {
   return Boolean(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET && env.GOOGLE_REDIRECT_URI);
+}
+
+function signStatePayload(payload: string): string {
+  return createHmac("sha256", env.SESSION_SECRET).update(payload).digest("base64url");
+}
+
+function createOauthState(): string {
+  const payload = Buffer.from(
+    JSON.stringify({
+      nonce: randomBytes(24).toString("base64url"),
+      expiresAt: Date.now() + GOOGLE_STATE_TTL_SECONDS * 1000
+    })
+  ).toString("base64url");
+  return `${payload}.${signStatePayload(payload)}`;
+}
+
+function isValidOauthState(state: string | undefined): boolean {
+  if (!state) {
+    return false;
+  }
+
+  const [payload, signature, ...rest] = state.split(".");
+  if (!payload || !signature || rest.length > 0) {
+    return false;
+  }
+
+  const expectedSignature = signStatePayload(payload);
+  const signatureBuffer = Buffer.from(signature);
+  const expectedBuffer = Buffer.from(expectedSignature);
+  if (signatureBuffer.length !== expectedBuffer.length || !timingSafeEqual(signatureBuffer, expectedBuffer)) {
+    return false;
+  }
+
+  try {
+    const parsed = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as {
+      nonce?: unknown;
+      expiresAt?: unknown;
+    };
+    return typeof parsed.nonce === "string" && typeof parsed.expiresAt === "number" && parsed.expiresAt > Date.now();
+  } catch {
+    return false;
+  }
 }
 
 export const googleOauthRoutes: FastifyPluginAsync = async (app) => {
@@ -41,14 +82,7 @@ export const googleOauthRoutes: FastifyPluginAsync = async (app) => {
       });
     }
 
-    const state = randomBytes(24).toString("base64url");
-    reply.setCookie(GOOGLE_STATE_COOKIE, state, {
-      path: "/",
-      sameSite: "lax",
-      httpOnly: true,
-      secure: env.NODE_ENV === "production",
-      maxAge: GOOGLE_STATE_TTL_SECONDS
-    });
+    const state = createOauthState();
 
     const authUrl = new URL("https://accounts.google.com/o/oauth2/v2/auth");
     authUrl.searchParams.set("client_id", env.GOOGLE_CLIENT_ID as string);
@@ -77,15 +111,7 @@ export const googleOauthRoutes: FastifyPluginAsync = async (app) => {
     }
 
     const query = parsed.data;
-    const expectedState = request.cookies[GOOGLE_STATE_COOKIE];
-    reply.clearCookie(GOOGLE_STATE_COOKIE, {
-      path: "/",
-      sameSite: "lax",
-      httpOnly: true,
-      secure: env.NODE_ENV === "production"
-    });
-
-    if (!query.state || !expectedState || query.state !== expectedState) {
+    if (!isValidOauthState(query.state)) {
       return reply.status(400).send({
         connected: false,
         error: "invalid_oauth_state"
