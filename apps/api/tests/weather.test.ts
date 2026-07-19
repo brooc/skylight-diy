@@ -89,6 +89,7 @@ describe("weather route", () => {
     expect(response.json().locations[0]).toEqual({
       id: 5368361,
       name: "Los Angeles",
+      displayName: "Los Angeles, California",
       label: "Los Angeles, California, United States",
       latitude: 34.0522,
       longitude: -118.2437

@@ -337,7 +337,7 @@ export function TodayDashboard(): JSX.Element {
                   title={weatherQuery.data.locationName}
                 >
                   {weatherGlyph(weatherQuery.data.weatherCode, weatherQuery.data.isDay)}{" "}
-                  {weatherQuery.data.temperature}° · {weatherQuery.data.locationName}
+                  {weatherQuery.data.temperature}°
                 </div>
               ) : null}
             </div>

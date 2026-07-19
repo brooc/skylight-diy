@@ -43,6 +43,7 @@ export const weatherRoutes: FastifyPluginAsync = async (app) => {
         locations: (payload.results ?? []).map((result) => ({
           id: result.id,
           name: result.name,
+          displayName: [result.name, result.admin1].filter(Boolean).join(", "),
           label: [result.name, result.admin1, result.country].filter(Boolean).join(", "),
           latitude: result.latitude,
           longitude: result.longitude

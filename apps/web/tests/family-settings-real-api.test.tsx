@@ -96,7 +96,7 @@ describe("FamilySettings with the real API", () => {
         name: "Daymark Family",
         timezone: "America/New_York",
         weekStartsOn: "sunday",
-        locationName: "Los Angeles, California, United States",
+        locationName: "Los Angeles, California",
         latitude: 34.0522,
         longitude: -118.2437
       });

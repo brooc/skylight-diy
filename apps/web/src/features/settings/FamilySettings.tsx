@@ -27,6 +27,7 @@ type HouseholdResponse = {
 type LocationCandidate = {
   id: number;
   name: string;
+  displayName: string;
   label: string;
   latitude: number;
   longitude: number;
@@ -67,7 +68,9 @@ export function FamilySettings(): JSX.Element {
       setName(familyQuery.data.household.name);
       setTimezone(familyQuery.data.household.timezone);
       setWeekStartsOn(familyQuery.data.household.weekStartsOn ?? "monday");
-      setLocationName(familyQuery.data.household.locationName ?? "");
+      setLocationName(
+        (familyQuery.data.household.locationName ?? "").replace(/, United States$/, "")
+      );
       setLatitude(familyQuery.data.household.latitude?.toString() ?? "");
       setLongitude(familyQuery.data.household.longitude?.toString() ?? "");
     }
@@ -200,11 +203,11 @@ export function FamilySettings(): JSX.Element {
                 type="button"
                 className="min-h-[40px] rounded-md px-3 text-left text-sm text-slate-700 hover:bg-slate-100"
                 onClick={() => {
-                  setLocationName(location.label);
+                  setLocationName(location.displayName);
                   setLatitude(String(location.latitude));
                   setLongitude(String(location.longitude));
                   setLocationResults([]);
-                  setFamilyStatus(`${location.label} selected. Save family to apply it.`);
+                  setFamilyStatus(`${location.displayName} selected. Save family to apply it.`);
                 }}
               >
                 {location.label}
