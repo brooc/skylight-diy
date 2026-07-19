@@ -266,8 +266,7 @@ export function TodayDashboard(): JSX.Element {
                 <time dateTime={now.toISOString()}>
                   {now.toLocaleTimeString(undefined, {
                     hour: "numeric",
-                    minute: "2-digit",
-                    second: "2-digit"
+                    minute: "2-digit"
                   })}
                 </time>
               </div>
