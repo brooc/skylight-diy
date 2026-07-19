@@ -33,3 +33,13 @@ export function dateFromLocalDateKey(dateKey: string): Date {
   const [year, month, day] = dateKey.split("-").map(Number);
   return new Date(year!, month! - 1, day!);
 }
+
+export function startOfWeekDateKey(
+  dateKey: string,
+  weekStartsOn: "sunday" | "monday"
+): string {
+  const dayOfWeek = new Date(`${dateKey}T00:00:00.000Z`).getUTCDay();
+  const firstDay = weekStartsOn === "monday" ? 1 : 0;
+  const daysSinceStart = (dayOfWeek - firstDay + 7) % 7;
+  return shiftDateKey(dateKey, -daysSinceStart);
+}

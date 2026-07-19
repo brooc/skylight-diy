@@ -6,7 +6,12 @@ import { CalendarDayView } from "../src/features/calendar/CalendarDayView";
 import { CalendarEventCard } from "../src/features/calendar/CalendarEventCard";
 import { CalendarStatusBadge } from "../src/features/calendar/CalendarStatusBadge";
 import { CalendarWeekView } from "../src/features/calendar/CalendarWeekView";
-import { dateKeyInTimeZone, formatDateKey, shiftDateKey } from "../src/features/calendar/dateKeys";
+import {
+  dateKeyInTimeZone,
+  formatDateKey,
+  shiftDateKey,
+  startOfWeekDateKey
+} from "../src/features/calendar/dateKeys";
 import { layoutTimedEvents } from "../src/features/calendar/layoutTimedEvents";
 import { createTestQueryClient, mockJsonResponse } from "./helpers/test-utils";
 
@@ -110,6 +115,8 @@ describe("calendar components", () => {
       "2026-11-01"
     );
     expect(shiftDateKey("2026-03-09", -1)).toBe("2026-03-08");
+    expect(startOfWeekDateKey("2026-07-18", "monday")).toBe("2026-07-13");
+    expect(startOfWeekDateKey("2026-07-18", "sunday")).toBe("2026-07-12");
     expect(
       formatDateKey("2026-07-19", { weekday: "long", month: "short", day: "numeric" }, "en-US")
     ).toBe("Sunday, Jul 19");
@@ -118,6 +125,9 @@ describe("calendar components", () => {
   it("renders week events, warnings, cache status, and refreshes the query", async () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
       const url = typeof input === "string" ? input : input.url;
+      if (url.startsWith("/api/household/current")) {
+        return mockJsonResponse({ household: { weekStartsOn: "monday" } });
+      }
       if (url.startsWith("/api/calendar/events")) {
         return mockJsonResponse({
           rangeStart: "2026-06-01T00:00:00.000Z",
@@ -159,14 +169,22 @@ describe("calendar components", () => {
 
     await userEvent.setup().click(screen.getByRole("button", { name: "Next week" }));
     await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledTimes(2);
+      expect(
+        fetchSpy.mock.calls.filter(([input]) => String(input).includes("/api/calendar/events"))
+      ).toHaveLength(2);
     });
 
     await userEvent.setup().click(screen.getByRole("button", { name: "Refresh" }));
     await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledTimes(3);
+      expect(
+        fetchSpy.mock.calls.filter(([input]) => String(input).includes("/api/calendar/events"))
+      ).toHaveLength(3);
     });
-    const refreshedUrl = String(fetchSpy.mock.calls[2]?.[0]);
+    const refreshedUrl = String(
+      fetchSpy.mock.calls
+        .filter(([input]) => String(input).includes("/api/calendar/events"))
+        .at(-1)?.[0]
+    );
     expect(refreshedUrl).toContain("refresh=true");
   });
 });

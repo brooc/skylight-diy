@@ -12,6 +12,7 @@ const personFieldsSchema = z.object({
 const updateHouseholdSchema = z
   .object({
     name: z.string().trim().min(1).max(120).optional(),
+    weekStartsOn: z.enum(["sunday", "monday"]).optional(),
     locationName: z.string().trim().min(1).max(120).nullable().optional(),
     latitude: z.number().min(-90).max(90).nullable().optional(),
     longitude: z.number().min(-180).max(180).nullable().optional(),
@@ -32,6 +33,7 @@ const updateHouseholdSchema = z
   .refine(
     (value) =>
       value.name !== undefined ||
+      value.weekStartsOn !== undefined ||
       value.timezone !== undefined ||
       value.locationName !== undefined ||
       value.latitude !== undefined ||

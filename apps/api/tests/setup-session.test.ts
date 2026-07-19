@@ -153,12 +153,17 @@ describe("setup and session routes", () => {
       method: "PATCH",
       url: "/api/household/current",
       headers: { cookie },
-      payload: { name: "The Daymarks", timezone: "America/New_York" }
+      payload: {
+        name: "The Daymarks",
+        timezone: "America/New_York",
+        weekStartsOn: "sunday"
+      }
     });
     expect(updatedHousehold.statusCode).toBe(200);
     expect(updatedHousehold.json().household).toMatchObject({
       name: "The Daymarks",
-      timezone: "America/New_York"
+      timezone: "America/New_York",
+      weekStartsOn: "sunday"
     });
 
     const created = await app.inject({

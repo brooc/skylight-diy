@@ -23,7 +23,25 @@ describe("FamilySettings with the real API", () => {
   beforeEach(async () => {
     await resetRealApiApp(app);
     const cookie = await unlockRealApiAdmin(app);
-    restoreFetch = installRealApiFetch(app, { cookie });
+    restoreFetch = installRealApiFetch(app, {
+      cookie,
+      externalFetch: async () =>
+        new Response(
+          JSON.stringify({
+            results: [
+              {
+                id: 1,
+                name: "Los Angeles",
+                admin1: "California",
+                country: "United States",
+                latitude: 34.0522,
+                longitude: -118.2437
+              }
+            ]
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } }
+        )
+    });
   });
 
   afterEach(() => {
@@ -47,6 +65,14 @@ describe("FamilySettings with the real API", () => {
     const timezone = screen.getByLabelText("Time zone");
     await user.clear(timezone);
     await user.type(timezone, "America/New_York");
+    await user.selectOptions(screen.getByLabelText("First day of week"), "sunday");
+    await user.type(screen.getByLabelText("Weather city"), "Los Angeles");
+    await user.click(screen.getByRole("button", { name: "Find city" }));
+    await user.click(
+      await screen.findByRole("button", {
+        name: "Los Angeles, California, United States"
+      })
+    );
     await user.click(screen.getByRole("button", { name: "Save family" }));
     expect(await screen.findByText("Family details saved.")).toBeInTheDocument();
 
@@ -68,7 +94,11 @@ describe("FamilySettings with the real API", () => {
     await waitFor(async () => {
       expect((await app.db.select().from(households))[0]).toMatchObject({
         name: "Daymark Family",
-        timezone: "America/New_York"
+        timezone: "America/New_York",
+        weekStartsOn: "sunday",
+        locationName: "Los Angeles, California, United States",
+        latitude: 34.0522,
+        longitude: -118.2437
       });
       expect(await app.db.select().from(people)).toEqual(
         expect.arrayContaining([

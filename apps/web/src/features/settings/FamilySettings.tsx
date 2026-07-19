@@ -16,11 +16,20 @@ type HouseholdResponse = {
   household: {
     name: string;
     timezone: string;
+    weekStartsOn: "sunday" | "monday";
     locationName: string | null;
     latitude: number | null;
     longitude: number | null;
   };
   people: Person[];
+};
+
+type LocationCandidate = {
+  id: number;
+  name: string;
+  label: string;
+  latitude: number;
+  longitude: number;
 };
 
 const defaultMember: Omit<Person, "id"> = {
@@ -41,9 +50,12 @@ export function FamilySettings(): JSX.Element {
   });
   const [name, setName] = useState("");
   const [timezone, setTimezone] = useState("");
+  const [weekStartsOn, setWeekStartsOn] = useState<"sunday" | "monday">("monday");
   const [locationName, setLocationName] = useState("");
   const [latitude, setLatitude] = useState("");
   const [longitude, setLongitude] = useState("");
+  const [locationResults, setLocationResults] = useState<LocationCandidate[]>([]);
+  const [isSearchingLocation, setIsSearchingLocation] = useState(false);
   const [newMember, setNewMember] = useState(defaultMember);
   const [familyStatus, setFamilyStatus] = useState<string | null>(null);
   const [addStatus, setAddStatus] = useState<string | null>(null);
@@ -54,6 +66,7 @@ export function FamilySettings(): JSX.Element {
     if (familyQuery.data) {
       setName(familyQuery.data.household.name);
       setTimezone(familyQuery.data.household.timezone);
+      setWeekStartsOn(familyQuery.data.household.weekStartsOn ?? "monday");
       setLocationName(familyQuery.data.household.locationName ?? "");
       setLatitude(familyQuery.data.household.latitude?.toString() ?? "");
       setLongitude(familyQuery.data.household.longitude?.toString() ?? "");
@@ -85,6 +98,10 @@ export function FamilySettings(): JSX.Element {
         className="grid gap-3 rounded-xl bg-[#faf8f4] p-4 sm:grid-cols-2 sm:items-end"
         onSubmit={async (event) => {
           event.preventDefault();
+          if (locationName.trim() && (!latitude || !longitude)) {
+            setFamilyStatus("Choose a city from the search results before saving.");
+            return;
+          }
           setIsSavingFamily(true);
           setFamilyStatus(null);
           try {
@@ -93,6 +110,7 @@ export function FamilySettings(): JSX.Element {
               body: JSON.stringify({
                 name,
                 timezone,
+                weekStartsOn,
                 locationName: locationName.trim() || null,
                 latitude: latitude === "" ? null : Number(latitude),
                 longitude: longitude === "" ? null : Number(longitude)
@@ -128,61 +146,72 @@ export function FamilySettings(): JSX.Element {
           />
         </label>
         <label className="grid gap-1 text-sm font-semibold text-slate-700">
-          Weather location
+          First day of week
+          <select
+            value={weekStartsOn}
+            onChange={(event) => setWeekStartsOn(event.target.value as "sunday" | "monday")}
+            className="min-h-[44px] rounded-lg border border-[#d8cbb8] bg-white px-3 font-normal text-slate-900"
+          >
+            <option value="monday">Monday</option>
+            <option value="sunday">Sunday</option>
+          </select>
+        </label>
+        <label className="grid gap-1 text-sm font-semibold text-slate-700">
+          Weather city
           <input
             value={locationName}
-            onChange={(event) => setLocationName(event.target.value)}
+            onChange={(event) => {
+              setLocationName(event.target.value);
+              setLatitude("");
+              setLongitude("");
+              setLocationResults([]);
+            }}
             className="min-h-[44px] rounded-lg border border-[#d8cbb8] bg-white px-3 font-normal text-slate-900"
-            placeholder="Home"
+            placeholder="Los Angeles"
           />
         </label>
-        <div className="grid grid-cols-2 gap-2">
-          <label className="grid gap-1 text-sm font-semibold text-slate-700">
-            Latitude
-            <input
-              type="number"
-              min={-90}
-              max={90}
-              step="any"
-              value={latitude}
-              onChange={(event) => setLatitude(event.target.value)}
-              className="min-h-[44px] rounded-lg border border-[#d8cbb8] bg-white px-3 font-normal text-slate-900"
-            />
-          </label>
-          <label className="grid gap-1 text-sm font-semibold text-slate-700">
-            Longitude
-            <input
-              type="number"
-              min={-180}
-              max={180}
-              step="any"
-              value={longitude}
-              onChange={(event) => setLongitude(event.target.value)}
-              className="min-h-[44px] rounded-lg border border-[#d8cbb8] bg-white px-3 font-normal text-slate-900"
-            />
-          </label>
-        </div>
         <button
           type="button"
           className="min-h-[44px] rounded-lg border border-[#d8cbb8] bg-white px-4 text-sm font-semibold text-slate-700"
-          onClick={() => {
-            if (!navigator.geolocation) {
-              setFamilyStatus("This device does not provide location access.");
-              return;
+          disabled={isSearchingLocation || locationName.trim().length < 2}
+          onClick={async () => {
+            setIsSearchingLocation(true);
+            setFamilyStatus(null);
+            try {
+              const response = await apiFetch<{ locations: LocationCandidate[] }>(
+                `/weather/locations?query=${encodeURIComponent(locationName.trim())}`
+              );
+              setLocationResults(response.locations);
+              if (!response.locations.length) setFamilyStatus("No matching cities found.");
+            } catch (error) {
+              setFamilyStatus(errorMessage(error));
+            } finally {
+              setIsSearchingLocation(false);
             }
-            navigator.geolocation.getCurrentPosition(
-              (position) => {
-                setLatitude(position.coords.latitude.toFixed(5));
-                setLongitude(position.coords.longitude.toFixed(5));
-                setLocationName((value) => value || "Home");
-                setFamilyStatus("Location captured. Save family to apply it.");
-              },
-              () => setFamilyStatus("Location access was not available.")
-            );
           }}
         >
-          Use this device’s location
+          {isSearchingLocation ? "Searching…" : "Find city"}
         </button>
+        {locationResults.length ? (
+          <div className="grid gap-1 rounded-lg border border-[#d8cbb8] bg-white p-2 sm:col-span-2">
+            {locationResults.map((location) => (
+              <button
+                key={location.id}
+                type="button"
+                className="min-h-[40px] rounded-md px-3 text-left text-sm text-slate-700 hover:bg-slate-100"
+                onClick={() => {
+                  setLocationName(location.label);
+                  setLatitude(String(location.latitude));
+                  setLongitude(String(location.longitude));
+                  setLocationResults([]);
+                  setFamilyStatus(`${location.label} selected. Save family to apply it.`);
+                }}
+              >
+                {location.label}
+              </button>
+            ))}
+          </div>
+        ) : null}
         <button
           type="submit"
           disabled={isSavingFamily}

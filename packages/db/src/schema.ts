@@ -22,6 +22,7 @@ export const households = pgTable("households", {
   id: id(),
   name: text("name").notNull(),
   timezone: text("timezone").notNull().default("America/Los_Angeles"),
+  weekStartsOn: text("week_starts_on").notNull().default("monday"),
   locationName: text("location_name"),
   latitude: doublePrecision("latitude"),
   longitude: doublePrecision("longitude"),

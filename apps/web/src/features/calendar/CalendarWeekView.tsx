@@ -1,12 +1,22 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { apiFetch } from "../../api/client";
+import { queryKeys } from "../../api/queryKeys";
 import { DegradedStateBanner } from "../../components/DegradedStateBanner";
 import { ErrorState } from "../../components/ErrorState";
 import { LoadingState } from "../../components/LoadingState";
 import { CalendarDayView } from "./CalendarDayView";
 import { CalendarStatusBadge } from "./CalendarStatusBadge";
-import { dateFromLocalDateKey, dateKeyInTimeZone, shiftDateKey } from "./dateKeys";
+import {
+  dateFromLocalDateKey,
+  dateKeyInTimeZone,
+  shiftDateKey,
+  startOfWeekDateKey
+} from "./dateKeys";
+
+type HouseholdResponse = {
+  household: { weekStartsOn: "sunday" | "monday" };
+};
 
 type CalendarResponse = {
   rangeStart: string;
@@ -37,19 +47,33 @@ export function CalendarWeekView(): JSX.Element {
   const queryClient = useQueryClient();
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [refreshError, setRefreshError] = useState<string | null>(null);
+  const [weekOffset, setWeekOffset] = useState(0);
   const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
   const todayKey = dateKeyInTimeZone(new Date(), timezone);
-  const [weekStartKey, setWeekStartKey] = useState(todayKey);
+  const householdQuery = useQuery({
+    queryKey: queryKeys.household,
+    queryFn: () => apiFetch<HouseholdResponse>("/household/current")
+  });
+  const baseWeekStartKey = startOfWeekDateKey(
+    todayKey,
+    householdQuery.data?.household.weekStartsOn ?? "monday"
+  );
+  const weekStartKey = shiftDateKey(baseWeekStartKey, weekOffset * 7);
   const { start, end } = getWeekRange(weekStartKey);
   const queryKey = ["calendar-week", start, end, timezone] as const;
   const eventsUrl = `/calendar/events?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}&timezone=${encodeURIComponent(timezone)}`;
   const calendarQuery = useQuery({
     queryKey,
-    queryFn: () => apiFetch<CalendarResponse>(eventsUrl)
+    queryFn: () => apiFetch<CalendarResponse>(eventsUrl),
+    enabled: householdQuery.isSuccess
   });
 
-  if (calendarQuery.isLoading) {
+  if (householdQuery.isLoading || calendarQuery.isLoading) {
     return <LoadingState label="Loading calendar..." />;
+  }
+
+  if (householdQuery.isError) {
+    return <ErrorState message={householdQuery.error.message} />;
   }
 
   if (calendarQuery.isError) {
@@ -93,14 +117,14 @@ export function CalendarWeekView(): JSX.Element {
             type="button"
             aria-label="Previous week"
             className="flex h-10 w-10 items-center justify-center rounded-full border border-[#d8cbb8] bg-[#fff7ea] text-xl text-slate-700 hover:bg-[#fcedd8]"
-            onClick={() => setWeekStartKey((value) => shiftDateKey(value, -7))}
+            onClick={() => setWeekOffset((value) => value - 1)}
           >
             ‹
           </button>
           <button
             type="button"
             className="min-h-[40px] rounded-full border border-[#d8cbb8] bg-[#fff7ea] px-3 text-sm font-semibold text-slate-700 hover:bg-[#fcedd8]"
-            onClick={() => setWeekStartKey(todayKey)}
+            onClick={() => setWeekOffset(0)}
           >
             Today
           </button>
@@ -108,7 +132,7 @@ export function CalendarWeekView(): JSX.Element {
             type="button"
             aria-label="Next week"
             className="flex h-10 w-10 items-center justify-center rounded-full border border-[#d8cbb8] bg-[#fff7ea] text-xl text-slate-700 hover:bg-[#fcedd8]"
-            onClick={() => setWeekStartKey((value) => shiftDateKey(value, 7))}
+            onClick={() => setWeekOffset((value) => value + 1)}
           >
             ›
           </button>

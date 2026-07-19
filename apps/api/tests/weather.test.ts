@@ -60,4 +60,41 @@ describe("weather route", () => {
     });
     expect(String(fetchSpy.mock.calls[0]?.[0])).toContain("api.open-meteo.com/v1/forecast");
   });
+
+  it("searches for cities while keeping coordinates internal", async () => {
+    const { cookie } = await unlockAdmin(app);
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          results: [
+            {
+              id: 5368361,
+              name: "Los Angeles",
+              admin1: "California",
+              country: "United States",
+              latitude: 34.0522,
+              longitude: -118.2437
+            }
+          ]
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } }
+      )
+    );
+    const response = await app.inject({
+      method: "GET",
+      url: "/api/weather/locations?query=Los%20Angeles",
+      headers: { cookie }
+    });
+    expect(response.statusCode).toBe(200);
+    expect(response.json().locations[0]).toEqual({
+      id: 5368361,
+      name: "Los Angeles",
+      label: "Los Angeles, California, United States",
+      latitude: 34.0522,
+      longitude: -118.2437
+    });
+    expect(String(fetchSpy.mock.calls[0]?.[0])).toContain(
+      "geocoding-api.open-meteo.com/v1/search"
+    );
+  });
 });

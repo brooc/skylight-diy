@@ -7,7 +7,12 @@ import { queryKeys } from "../../api/queryKeys";
 import { ErrorState } from "../../components/ErrorState";
 import { LoadingState } from "../../components/LoadingState";
 import { CalendarStatusBadge } from "../calendar/CalendarStatusBadge";
-import { dateFromLocalDateKey, dateKeyInTimeZone, shiftDateKey } from "../calendar/dateKeys";
+import {
+  dateFromLocalDateKey,
+  dateKeyInTimeZone,
+  shiftDateKey,
+  startOfWeekDateKey
+} from "../calendar/dateKeys";
 import { layoutTimedEvents } from "../calendar/layoutTimedEvents";
 
 type RewardsResponse = {
@@ -21,6 +26,7 @@ type RewardsResponse = {
 type HouseholdResponse = {
   household: {
     name: string;
+    weekStartsOn: "sunday" | "monday";
   };
 };
 
@@ -123,9 +129,7 @@ export function calendarHourRange(
 export function TodayDashboard(): JSX.Element {
   const [now, setNow] = useState(() => new Date());
   const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
-  const [calendarStartKey, setCalendarStartKey] = useState(() =>
-    dateKeyInTimeZone(new Date(), timezone)
-  );
+  const [weekOffset, setWeekOffset] = useState(0);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
@@ -158,6 +162,12 @@ export function TodayDashboard(): JSX.Element {
     queryKey: queryKeys.weekMeals,
     queryFn: () => apiFetch<MealsResponse>("/meals/week")
   });
+  const todayKey = dateKeyInTimeZone(now, timezone);
+  const currentWeekStartKey = startOfWeekDateKey(
+    todayKey,
+    householdQuery.data?.household.weekStartsOn ?? "monday"
+  );
+  const calendarStartKey = shiftDateKey(currentWeekStartKey, weekOffset * 7);
   const startOfCalendar = dateFromLocalDateKey(calendarStartKey);
   const start = startOfCalendar.toISOString();
   const endDate = new Date(startOfCalendar);
@@ -168,7 +178,8 @@ export function TodayDashboard(): JSX.Element {
 
   const calendarQuery = useQuery({
     queryKey: calendarQueryKey,
-    queryFn: () => apiFetch<CalendarResponse>(calendarEventsUrl)
+    queryFn: () => apiFetch<CalendarResponse>(calendarEventsUrl),
+    enabled: householdQuery.isSuccess
   });
 
   if (householdQuery.isLoading || rewardsQuery.isLoading || mealsQuery.isLoading || calendarQuery.isLoading) {
@@ -179,7 +190,6 @@ export function TodayDashboard(): JSX.Element {
   if (mealsQuery.isError) return <ErrorState message={mealsQuery.error.message} />;
   if (calendarQuery.isError) return <ErrorState message={calendarQuery.error.message} />;
 
-  const todayKey = dateKeyInTimeZone(now, timezone);
   const todaysMeals = mealsQuery.data?.days.find((day) => day.date === todayKey)?.entries ?? [];
   const tonightMeal =
     todaysMeals.find((entry) => entry.slot === "dinner")?.customTitle ??
@@ -327,7 +337,7 @@ export function TodayDashboard(): JSX.Element {
                   title={weatherQuery.data.locationName}
                 >
                   {weatherGlyph(weatherQuery.data.weatherCode, weatherQuery.data.isDay)}{" "}
-                  {weatherQuery.data.temperature}°
+                  {weatherQuery.data.temperature}° · {weatherQuery.data.locationName}
                 </div>
               ) : null}
             </div>
@@ -336,14 +346,14 @@ export function TodayDashboard(): JSX.Element {
                 type="button"
                 aria-label="Previous week"
                 className="flex h-10 w-10 items-center justify-center rounded-full bg-[#f6f7f9] text-xl text-slate-700 hover:bg-[#ebedf0]"
-                onClick={() => setCalendarStartKey((value) => shiftDateKey(value, -7))}
+                onClick={() => setWeekOffset((value) => value - 1)}
               >
                 ‹
               </button>
               <button
                 type="button"
                 className="rounded-full bg-[#f6f7f9] px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-[#ebedf0]"
-                onClick={() => setCalendarStartKey(todayKey)}
+                onClick={() => setWeekOffset(0)}
               >
                 Today
               </button>
@@ -351,7 +361,7 @@ export function TodayDashboard(): JSX.Element {
                 type="button"
                 aria-label="Next week"
                 className="flex h-10 w-10 items-center justify-center rounded-full bg-[#f6f7f9] text-xl text-slate-700 hover:bg-[#ebedf0]"
-                onClick={() => setCalendarStartKey((value) => shiftDateKey(value, 7))}
+                onClick={() => setWeekOffset((value) => value + 1)}
               >
                 ›
               </button>
@@ -450,9 +460,6 @@ export function TodayDashboard(): JSX.Element {
                   {person.displayName.slice(0, 1).toUpperCase()}
                 </div>
                 <div className="text-base font-semibold text-slate-800">{person.displayName}</div>
-                <div className="text-sm font-semibold text-slate-700">
-                  {person.balance} {person.balance === 1 ? "point" : "points"}
-                </div>
               </div>
             ))}
           </div>

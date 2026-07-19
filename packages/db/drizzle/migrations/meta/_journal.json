@@ -22,6 +22,13 @@
       "when": 1784442119000,
       "tag": "0002_household_location",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1784444000000,
+      "tag": "0003_week_start",
+      "breakpoints": true
     }
   ]
 }
