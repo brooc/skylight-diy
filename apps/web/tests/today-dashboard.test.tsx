@@ -58,6 +58,20 @@ describe("TodayDashboard", () => {
     expect(String(fetchSpy.mock.calls.at(-1)?.[0])).toContain("refresh=true");
   });
 
+  it("ticks the visible clock every second without polling the calendar", async () => {
+    const intervalSpy = vi.spyOn(window, "setInterval").mockReturnValue(1);
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+
+    renderTodayDashboard();
+
+    expect(await screen.findByText("Test Household")).toBeInTheDocument();
+    expect(intervalSpy).toHaveBeenCalledWith(expect.any(Function), 1_000);
+    expect(document.querySelector("time")?.getAttribute("datetime")).toBeTruthy();
+    expect(
+      fetchSpy.mock.calls.filter(([input]) => String(input).includes("/api/calendar/events"))
+    ).toHaveLength(1);
+  });
+
   it("renders overlapping events in separate contained columns", async () => {
     const [household] = await app.db.select().from(households).limit(1);
     const [account] = await app.db

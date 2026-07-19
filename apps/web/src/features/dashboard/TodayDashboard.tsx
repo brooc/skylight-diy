@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Fragment, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiFetch } from "../../api/client";
 import { DegradedStateBanner } from "../../components/DegradedStateBanner";
@@ -88,13 +88,19 @@ function formatCompactEventTime(start: Date, end: Date): string {
 }
 
 export function TodayDashboard(): JSX.Element {
-  const now = new Date();
+  const [now, setNow] = useState(() => new Date());
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState<RenderEvent | null>(null);
   const [isCalendarRefreshing, setIsCalendarRefreshing] = useState(false);
   const [calendarRefreshError, setCalendarRefreshError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const clockInterval = window.setInterval(() => setNow(new Date()), 1_000);
+    return () => window.clearInterval(clockInterval);
+  }, []);
+
   const householdQuery = useQuery({
     queryKey: queryKeys.household,
     queryFn: () => apiFetch<HouseholdResponse>("/household/current")
@@ -257,7 +263,13 @@ export function TodayDashboard(): JSX.Element {
                 {householdQuery.data?.household.name ?? "Family"}
               </h1>
               <div className="font-display text-3xl leading-none text-slate-900 md:text-[34px]">
-                {now.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}
+                <time dateTime={now.toISOString()}>
+                  {now.toLocaleTimeString(undefined, {
+                    hour: "numeric",
+                    minute: "2-digit",
+                    second: "2-digit"
+                  })}
+                </time>
               </div>
               <div className="text-2xl leading-none text-slate-500 md:text-[28px]">☀ 80°</div>
             </div>
