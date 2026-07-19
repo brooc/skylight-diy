@@ -44,6 +44,7 @@ describe("chores and rewards", () => {
     expect(choresBefore.statusCode).toBe(200);
     expect(choresBefore.json().chores).toHaveLength(1);
     expect(choresBefore.json().chores[0].completed).toBe(false);
+    expect(choresBefore.json().chores[0].assignedPersonColor).toBe(kiddo.color);
 
     const markComplete = await app.inject({
       method: "POST",
@@ -65,6 +66,7 @@ describe("chores and rewards", () => {
       .json()
       .balances.find((row: { displayName: string }) => row.displayName === "Kiddo");
     expect(kiddoBalance.balance).toBe(3);
+    expect(kiddoBalance.color).toBe(kiddo.color);
 
     const today = new Date().toISOString().slice(0, 10);
     const uncomplete = await app.inject({

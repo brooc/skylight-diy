@@ -5,6 +5,7 @@ type ChoreItem = {
   title: string;
   points: number;
   assignedPersonName?: string | null;
+  assignedPersonColor?: string | null;
   completed: boolean;
 };
 

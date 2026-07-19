@@ -7,6 +7,7 @@ import { ErrorState } from "../../components/ErrorState";
 import { LoadingState } from "../../components/LoadingState";
 import { CalendarDayView } from "./CalendarDayView";
 import { CalendarStatusBadge } from "./CalendarStatusBadge";
+import { familyMemberColorForSource, type FamilyMemberColor } from "../family/memberAppearance";
 import {
   dateFromLocalDateKey,
   dateKeyInTimeZone,
@@ -16,6 +17,7 @@ import {
 
 type HouseholdResponse = {
   household: { weekStartsOn: "sunday" | "monday" };
+  people: FamilyMemberColor[];
 };
 
 type CalendarResponse = {
@@ -89,7 +91,19 @@ export function CalendarWeekView(): JSX.Element {
   }
 
   const eventsByDay = new Map<string, CalendarResponse["events"]>();
-  for (const event of data.events) {
+  for (const rawEvent of data.events) {
+    const sourceNames = rawEvent.sourceNames?.length
+      ? rawEvent.sourceNames
+      : [rawEvent.sourceName ?? "Calendar"];
+    const providerColors = rawEvent.colors?.length ? rawEvent.colors : [rawEvent.color];
+    const colors = sourceNames.map(
+      (sourceName, index) =>
+        familyMemberColorForSource(sourceName, householdQuery.data?.people ?? []) ??
+        providerColors[index] ??
+        rawEvent.color ??
+        "#64748b"
+    );
+    const event = { ...rawEvent, color: colors[0], colors };
     const key = event.isAllDay
       ? event.start.slice(0, 10)
       : dateKeyInTimeZone(event.start, timezone);

@@ -13,6 +13,7 @@ describe("chore components", () => {
         title="Take out trash"
         points={2}
         assignedPersonName="Kiddo"
+        assignedPersonColor="#336699"
         completed={false}
         onToggle={(completed) => selectedStates.push(completed)}
       />
@@ -21,6 +22,9 @@ describe("chore components", () => {
     expect(screen.getByText("Take out trash")).toBeInTheDocument();
     expect(screen.getByText("Kiddo")).toBeInTheDocument();
     expect(screen.getByText("2 pts")).toBeInTheDocument();
+    expect(screen.getByText("Take out trash").closest("article")).toHaveStyle({
+      backgroundColor: "#d8e2ec"
+    });
 
     await userEvent.setup().click(screen.getByRole("button", { name: "Mark complete" }));
     expect(selectedStates).toEqual([true]);

@@ -81,6 +81,7 @@ export function FamilySettings(): JSX.Element {
       queryClient.invalidateQueries({ queryKey: queryKeys.householdSettings }),
       queryClient.invalidateQueries({ queryKey: queryKeys.household }),
       queryClient.invalidateQueries({ queryKey: queryKeys.rewardBalances }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.todayChores }),
       queryClient.invalidateQueries({ queryKey: ["household-people-for-calendar"] }),
       queryClient.invalidateQueries({ queryKey: ["current-weather"] })
     ]);

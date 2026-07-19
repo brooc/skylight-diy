@@ -15,12 +15,14 @@ import {
 } from "../calendar/dateKeys";
 import { layoutTimedEvents } from "../calendar/layoutTimedEvents";
 import { eventBandBackground, softenEventColor } from "../calendar/eventAppearance";
+import { familyMemberColorForSource, memberAppearance } from "../family/memberAppearance";
 import { weatherIconForCode } from "../weather/weatherIcons";
 
 type RewardsResponse = {
   balances: Array<{
     personId: string;
     displayName: string;
+    color: string;
     balance: number;
   }>;
 };
@@ -221,7 +223,7 @@ export function TodayDashboard(): JSX.Element {
   const personColorByName = new Map(
     balances.map((person, index) => [
       person.displayName.toLowerCase(),
-      paletteAt(index)
+      memberAppearance(person.color, paletteAt(index).accent)
     ])
   );
   const fallbackEventPalette = ["#bee8ea", "#f3cfd0", "#e4daf0", "#d5edd7", "#f7d8d4"] as const;
@@ -237,13 +239,15 @@ export function TodayDashboard(): JSX.Element {
     const sourceNames = eventSourceNames(event);
     const providerColors = event.colors?.length ? event.colors : [event.color];
     const colors = sourceNames.map((sourceName, sourceIndex) => {
-      const lowerSourceName = sourceName.toLowerCase();
-      const personColor = Array.from(personColorByName.entries()).find(([name]) =>
-        lowerSourceName.includes(name)
-      )?.[1];
+      const familyColor = familyMemberColorForSource(sourceName, balances);
       return (
-        personColor?.soft ??
-        softenEventColor(providerColors[sourceIndex] ?? event.color, fallbackColorAt(index + sourceIndex))
+        (familyColor
+          ? memberAppearance(familyColor, paletteAt(sourceIndex).accent).soft
+          : undefined) ??
+        softenEventColor(
+          providerColors[sourceIndex] ?? event.color,
+          fallbackColorAt(index + sourceIndex)
+        )
       );
     });
     return Array.from(new Set(colors));

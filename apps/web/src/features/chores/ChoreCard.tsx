@@ -1,8 +1,11 @@
+import { memberAppearance } from "../family/memberAppearance";
+
 type ChoreCardProps = {
   id: string;
   title: string;
   points: number;
   assignedPersonName?: string | null;
+  assignedPersonColor?: string | null;
   completed: boolean;
   onToggle: (nextCompleted: boolean) => void;
 };
@@ -11,6 +14,7 @@ export function ChoreCard({
   title,
   points,
   assignedPersonName,
+  assignedPersonColor,
   completed,
   onToggle
 }: ChoreCardProps): JSX.Element {
@@ -22,15 +26,30 @@ export function ChoreCard({
   ] as const;
   const key = (assignedPersonName ?? title).charCodeAt(0) || 0;
   const palette = palettes[key % palettes.length] ?? palettes[0]!;
+  const appearance = assignedPersonColor
+    ? memberAppearance(assignedPersonColor, "#0f766e")
+    : null;
 
   return (
-    <article className={`grid gap-3 rounded-md border p-4 ${palette.card}`}>
+    <article
+      className={`grid gap-3 rounded-md border p-4 ${appearance ? "" : palette.card}`}
+      style={
+        appearance
+          ? { backgroundColor: appearance.soft, borderColor: appearance.border }
+          : undefined
+      }
+    >
       <div className="flex items-start justify-between gap-3">
         <div>
           <h3 className="text-base font-semibold text-slate-900">{title}</h3>
           <p className="text-sm text-slate-600">{assignedPersonName ?? "Unassigned"}</p>
         </div>
-        <span className={`rounded-md px-2 py-1 text-sm font-medium text-slate-700 ${palette.chip}`}>
+        <span
+          className={`rounded-md px-2 py-1 text-sm font-medium text-slate-700 ${
+            appearance ? "" : palette.chip
+          }`}
+          style={appearance ? { backgroundColor: appearance.chip } : undefined}
+        >
           {points} pts
         </span>
       </div>

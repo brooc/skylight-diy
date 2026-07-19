@@ -1,5 +1,7 @@
+import { pastelColor } from "../family/memberAppearance";
+
 export function softenEventColor(color: string | undefined, fallback: string): string {
-  return color && /^#[0-9a-f]{6}$/i.test(color) ? `${color}30` : fallback;
+  return color && /^#[0-9a-f]{6}$/i.test(color) ? pastelColor(color, 0.19) : fallback;
 }
 
 export function eventBandBackground(colors: string[], fallback: string): string {

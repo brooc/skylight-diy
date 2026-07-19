@@ -12,7 +12,8 @@ import { createTestQueryClient } from "./helpers/test-utils";
 import {
   createRealApiApp,
   installRealApiFetch,
-  resetRealApiApp
+  resetRealApiApp,
+  unlockRealApiAdmin
 } from "./helpers/real-api";
 
 describe("TodayDashboard", () => {
@@ -236,6 +237,23 @@ describe("TodayDashboard", () => {
 
   it("merges a shared Google occurrence and renders its calendar color bands", async () => {
     const [household] = await app.db.select().from(households).limit(1);
+    const householdResponse = await app.inject({ method: "GET", url: "/api/household/current" });
+    const members = householdResponse.json().people as Array<{
+      id: string;
+      displayName: string;
+    }>;
+    const adminCookie = await unlockRealApiAdmin(app);
+    for (const [displayName, color] of [["Parent", "#336699"], ["Kiddo", "#993366"]] as const) {
+      const member = members.find((person) => person.displayName === displayName);
+      expect(member).toBeTruthy();
+      const update = await app.inject({
+        method: "PATCH",
+        url: `/api/household/people/${member!.id}`,
+        headers: { cookie: adminCookie },
+        payload: { color }
+      });
+      expect(update.statusCode).toBe(200);
+    }
     const [account] = await app.db
       .insert(connectedAccounts)
       .values({
@@ -301,6 +319,8 @@ describe("TodayDashboard", () => {
     const sharedEvent = sharedEventTitles[0]?.closest("button");
     expect(sharedEvent).toHaveAttribute("data-event-shared", "true");
     expect(sharedEvent?.getAttribute("style")).toContain("linear-gradient");
+    expect(sharedEvent?.getAttribute("style")).toContain("#d8e2ec");
+    expect(sharedEvent?.getAttribute("style")).toContain("#ecd8e2");
 
     await userEvent.setup().click(sharedEvent!);
     expect(await screen.findByText("Parent · Kiddo")).toBeInTheDocument();

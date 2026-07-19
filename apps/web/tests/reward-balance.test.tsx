@@ -7,8 +7,8 @@ describe("RewardBalance", () => {
     render(
       <RewardBalance
         balances={[
-          { personId: "person-1", displayName: "Parent", balance: 4 },
-          { personId: "person-2", displayName: "Kiddo", balance: 11 }
+          { personId: "person-1", displayName: "Parent", color: "#336699", balance: 4 },
+          { personId: "person-2", displayName: "Kiddo", color: "#993366", balance: 11 }
         ]}
       />
     );
@@ -18,6 +18,9 @@ describe("RewardBalance", () => {
     expect(screen.getByText("4 pts")).toBeInTheDocument();
     expect(screen.getByText("Kiddo")).toBeInTheDocument();
     expect(screen.getByText("11 pts")).toBeInTheDocument();
+    expect(screen.getByText("Parent").closest("li")).toHaveStyle({
+      backgroundColor: "#d8e2ec"
+    });
   });
 
   it("keeps the section available when there are no balances yet", () => {

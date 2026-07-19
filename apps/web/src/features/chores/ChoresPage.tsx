@@ -15,6 +15,7 @@ type ChoreResponse = {
     title: string;
     points: number;
     assignedPersonName?: string | null;
+    assignedPersonColor?: string | null;
     completed: boolean;
   }>;
 };
@@ -23,6 +24,7 @@ type RewardsResponse = {
   balances: Array<{
     personId: string;
     displayName: string;
+    color: string;
     balance: number;
   }>;
 };

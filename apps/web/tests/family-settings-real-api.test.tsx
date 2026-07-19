@@ -1,4 +1,4 @@
-import { screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { FastifyInstance } from "fastify";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
@@ -80,6 +80,9 @@ describe("FamilySettings with the real API", () => {
     const kiddoName = within(kiddoForm).getByLabelText("Member name");
     await user.clear(kiddoName);
     await user.type(kiddoName, "Alex");
+    fireEvent.change(within(kiddoForm).getByLabelText("Kiddo color"), {
+      target: { value: "#336699" }
+    });
     await user.selectOptions(within(kiddoForm).getByLabelText("Role"), "adult");
     await user.click(within(kiddoForm).getByRole("button", { name: "Save" }));
     expect(await within(kiddoForm).findByText("Saved.")).toBeInTheDocument();
@@ -102,7 +105,7 @@ describe("FamilySettings with the real API", () => {
       });
       expect(await app.db.select().from(people)).toEqual(
         expect.arrayContaining([
-          expect.objectContaining({ displayName: "Alex", role: "adult" }),
+          expect.objectContaining({ displayName: "Alex", role: "adult", color: "#336699" }),
           expect.objectContaining({ displayName: "Sam", role: "child" })
         ])
       );

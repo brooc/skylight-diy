@@ -12,7 +12,8 @@ export const rewardsRoutes: FastifyPluginAsync = async (app) => {
     const members = await app.db
       .select({
         id: people.id,
-        displayName: people.displayName
+        displayName: people.displayName,
+        color: people.color
       })
       .from(people)
       .where(eq(people.householdId, household.id));
@@ -52,6 +53,7 @@ export const rewardsRoutes: FastifyPluginAsync = async (app) => {
         return {
           personId: member.id,
           displayName: member.displayName,
+          color: member.color,
           earnedPoints: earned,
           spentPoints: spent,
           balance: earned - spent

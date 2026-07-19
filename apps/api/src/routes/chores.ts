@@ -30,7 +30,8 @@ export const choresRoutes: FastifyPluginAsync = async (app) => {
         points: chores.points,
         frequency: chores.frequency,
         assignedPersonId: chores.assignedPersonId,
-        assignedPersonName: people.displayName
+        assignedPersonName: people.displayName,
+        assignedPersonColor: people.color
       })
       .from(chores)
       .leftJoin(people, eq(chores.assignedPersonId, people.id))
