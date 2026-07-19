@@ -16,6 +16,10 @@ const callbackQuerySchema = z.object({
   error_description: z.string().optional()
 });
 
+const connectQuerySchema = z.object({
+  accountId: z.string().uuid().optional()
+});
+
 const accountParamsSchema = z.object({
   accountId: z.string().uuid()
 });
@@ -28,41 +32,61 @@ function signStatePayload(payload: string): string {
   return createHmac("sha256", env.SESSION_SECRET).update(payload).digest("base64url");
 }
 
-function createOauthState(): string {
+type OauthStatePayload = {
+  nonce: string;
+  expiresAt: number;
+  accountId?: string;
+};
+
+function createOauthState(accountId?: string): string {
   const payload = Buffer.from(
     JSON.stringify({
       nonce: randomBytes(24).toString("base64url"),
-      expiresAt: Date.now() + GOOGLE_STATE_TTL_SECONDS * 1000
+      expiresAt: Date.now() + GOOGLE_STATE_TTL_SECONDS * 1000,
+      ...(accountId ? { accountId } : {})
     })
   ).toString("base64url");
   return `${payload}.${signStatePayload(payload)}`;
 }
 
-function isValidOauthState(state: string | undefined): boolean {
+function parseOauthState(state: string | undefined): OauthStatePayload | null {
   if (!state) {
-    return false;
+    return null;
   }
 
   const [payload, signature, ...rest] = state.split(".");
   if (!payload || !signature || rest.length > 0) {
-    return false;
+    return null;
   }
 
   const expectedSignature = signStatePayload(payload);
   const signatureBuffer = Buffer.from(signature);
   const expectedBuffer = Buffer.from(expectedSignature);
   if (signatureBuffer.length !== expectedBuffer.length || !timingSafeEqual(signatureBuffer, expectedBuffer)) {
-    return false;
+    return null;
   }
 
   try {
     const parsed = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as {
       nonce?: unknown;
       expiresAt?: unknown;
+      accountId?: unknown;
     };
-    return typeof parsed.nonce === "string" && typeof parsed.expiresAt === "number" && parsed.expiresAt > Date.now();
+    if (
+      typeof parsed.nonce !== "string" ||
+      typeof parsed.expiresAt !== "number" ||
+      parsed.expiresAt <= Date.now() ||
+      (parsed.accountId !== undefined && !z.string().uuid().safeParse(parsed.accountId).success)
+    ) {
+      return null;
+    }
+    return {
+      nonce: parsed.nonce,
+      expiresAt: parsed.expiresAt,
+      ...(typeof parsed.accountId === "string" ? { accountId: parsed.accountId } : {})
+    };
   } catch {
-    return false;
+    return null;
   }
 }
 
@@ -86,7 +110,34 @@ export const googleOauthRoutes: FastifyPluginAsync = async (app) => {
       });
     }
 
-    const state = createOauthState();
+    const parsedQuery = connectQuerySchema.safeParse(request.query);
+    if (!parsedQuery.success) {
+      return reply.status(400).send({ error: "invalid_account_id" });
+    }
+
+    let reconnectAccount: typeof connectedAccounts.$inferSelect | undefined;
+    if (parsedQuery.data.accountId) {
+      const [household] = await app.db.select().from(households).limit(1);
+      if (!household) {
+        return reply.status(404).send({ error: "setup_not_completed" });
+      }
+      [reconnectAccount] = await app.db
+        .select()
+        .from(connectedAccounts)
+        .where(
+          and(
+            eq(connectedAccounts.id, parsedQuery.data.accountId),
+            eq(connectedAccounts.householdId, household.id),
+            eq(connectedAccounts.provider, "google")
+          )
+        )
+        .limit(1);
+      if (!reconnectAccount) {
+        return reply.status(404).send({ error: "connected_account_not_found" });
+      }
+    }
+
+    const state = createOauthState(reconnectAccount?.id);
 
     const authUrl = new URL("https://accounts.google.com/o/oauth2/v2/auth");
     authUrl.searchParams.set("client_id", env.GOOGLE_CLIENT_ID as string);
@@ -94,7 +145,10 @@ export const googleOauthRoutes: FastifyPluginAsync = async (app) => {
     authUrl.searchParams.set("response_type", "code");
     authUrl.searchParams.set("scope", GOOGLE_CALENDAR_SCOPE);
     authUrl.searchParams.set("access_type", "offline");
-    authUrl.searchParams.set("prompt", "consent");
+    authUrl.searchParams.set("prompt", reconnectAccount ? "consent" : "select_account consent");
+    if (reconnectAccount?.email) {
+      authUrl.searchParams.set("login_hint", reconnectAccount.email);
+    }
     authUrl.searchParams.set("state", state);
     authUrl.searchParams.set("include_granted_scopes", "true");
 
@@ -115,7 +169,8 @@ export const googleOauthRoutes: FastifyPluginAsync = async (app) => {
     }
 
     const query = parsed.data;
-    if (!isValidOauthState(query.state)) {
+    const oauthState = parseOauthState(query.state);
+    if (!oauthState) {
       return reply.status(400).send({
         connected: false,
         error: "invalid_oauth_state"
@@ -214,11 +269,45 @@ export const googleOauthRoutes: FastifyPluginAsync = async (app) => {
       });
     }
 
-    const [existingAccount] = await app.db
-      .select()
-      .from(connectedAccounts)
-      .where(and(eq(connectedAccounts.householdId, household.id), eq(connectedAccounts.provider, "google")))
-      .limit(1);
+    let existingAccount: typeof connectedAccounts.$inferSelect | undefined;
+    if (oauthState.accountId) {
+      [existingAccount] = await app.db
+        .select()
+        .from(connectedAccounts)
+        .where(
+          and(
+            eq(connectedAccounts.id, oauthState.accountId),
+            eq(connectedAccounts.householdId, household.id),
+            eq(connectedAccounts.provider, "google")
+          )
+        )
+        .limit(1);
+      if (!existingAccount) {
+        return reply.status(404).send({ connected: false, error: "connected_account_not_found" });
+      }
+      if (
+        existingAccount.providerAccountId &&
+        existingAccount.providerAccountId !== primaryCalendar.id
+      ) {
+        return reply.status(409).send({
+          connected: false,
+          error: "google_account_mismatch",
+          message: `Sign in as ${existingAccount.email || existingAccount.displayName || "the original Google account"} to reconnect.`
+        });
+      }
+    } else {
+      [existingAccount] = await app.db
+        .select()
+        .from(connectedAccounts)
+        .where(
+          and(
+            eq(connectedAccounts.householdId, household.id),
+            eq(connectedAccounts.provider, "google"),
+            eq(connectedAccounts.providerAccountId, primaryCalendar.id)
+          )
+        )
+        .limit(1);
+    }
 
     const encryptedAccessToken = encryptToken(tokenPayload.access_token);
     const persistedRefreshToken = tokenPayload.refresh_token

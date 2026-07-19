@@ -48,7 +48,11 @@ const patchSourceBodySchema = z.object({
   color: z.string().regex(/^#[0-9a-f]{6}$/i).nullable().optional()
 });
 
-const importSourcesBodySchema = z.object({
+const accountSourcesBodySchema = z.object({
+  accountId: z.string().uuid()
+});
+
+const importSourcesBodySchema = accountSourcesBodySchema.extend({
   externalCalendarIds: z.array(z.string().min(1)).max(250)
 });
 
@@ -376,6 +380,11 @@ export const calendarRoutes: FastifyPluginAsync = async (app) => {
       return reply.status(401).send({ error: "admin_unlock_required" });
     }
 
+    const parsed = accountSourcesBodySchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: "invalid_body", details: parsed.error.flatten() });
+    }
+
     const [household] = await app.db.select().from(households).limit(1);
     if (!household) {
       return reply.status(404).send({ error: "setup_not_completed" });
@@ -384,7 +393,13 @@ export const calendarRoutes: FastifyPluginAsync = async (app) => {
     const [account] = await app.db
       .select()
       .from(connectedAccounts)
-      .where(and(eq(connectedAccounts.householdId, household.id), eq(connectedAccounts.provider, "google")))
+      .where(
+        and(
+          eq(connectedAccounts.id, parsed.data.accountId),
+          eq(connectedAccounts.householdId, household.id),
+          eq(connectedAccounts.provider, "google")
+        )
+      )
       .limit(1);
 
     if (!account) {
@@ -460,7 +475,13 @@ export const calendarRoutes: FastifyPluginAsync = async (app) => {
     const [account] = await app.db
       .select()
       .from(connectedAccounts)
-      .where(and(eq(connectedAccounts.householdId, household.id), eq(connectedAccounts.provider, "google")))
+      .where(
+        and(
+          eq(connectedAccounts.id, parsed.data.accountId),
+          eq(connectedAccounts.householdId, household.id),
+          eq(connectedAccounts.provider, "google")
+        )
+      )
       .limit(1);
     if (!account || (!account.encryptedAccessToken && !account.encryptedRefreshToken)) {
       return reply.status(409).send({
@@ -519,6 +540,7 @@ export const calendarRoutes: FastifyPluginAsync = async (app) => {
     const sources = await app.db
       .select({
         id: calendarSources.id,
+        connectedAccountId: calendarSources.connectedAccountId,
         displayName: calendarSources.displayName,
         color: calendarSources.color,
         enabled: calendarSources.enabled,

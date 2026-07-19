@@ -29,6 +29,13 @@
       "when": 1784444000000,
       "tag": "0003_week_start",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1784445000000,
+      "tag": "0004_connected_account_identity",
+      "breakpoints": true
     }
   ]
 }

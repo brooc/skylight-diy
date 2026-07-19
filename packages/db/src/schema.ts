@@ -158,30 +158,40 @@ export const listItems = pgTable("list_items", {
   updatedAt: updatedAt()
 });
 
-export const connectedAccounts = pgTable("connected_accounts", {
-  id: id(),
-  householdId: uuid("household_id")
-    .notNull()
-    .references(() => households.id, { onDelete: "cascade" }),
-  provider: text("provider").notNull(),
-  providerAccountId: text("provider_account_id"),
-  displayName: text("display_name"),
-  email: text("email"),
-  encryptedAccessToken: text("encrypted_access_token"),
-  encryptedRefreshToken: text("encrypted_refresh_token"),
-  accessTokenExpiresAt: timestamp("access_token_expires_at", {
-    withTimezone: true
-  }),
-  reauthorizationRequired: boolean("reauthorization_required")
-    .notNull()
-    .default(false),
-  scopes: text("scopes")
-    .array()
-    .notNull()
-    .default(sql`'{}'::text[]`),
-  createdAt: createdAt(),
-  updatedAt: updatedAt()
-});
+export const connectedAccounts = pgTable(
+  "connected_accounts",
+  {
+    id: id(),
+    householdId: uuid("household_id")
+      .notNull()
+      .references(() => households.id, { onDelete: "cascade" }),
+    provider: text("provider").notNull(),
+    providerAccountId: text("provider_account_id"),
+    displayName: text("display_name"),
+    email: text("email"),
+    encryptedAccessToken: text("encrypted_access_token"),
+    encryptedRefreshToken: text("encrypted_refresh_token"),
+    accessTokenExpiresAt: timestamp("access_token_expires_at", {
+      withTimezone: true
+    }),
+    reauthorizationRequired: boolean("reauthorization_required")
+      .notNull()
+      .default(false),
+    scopes: text("scopes")
+      .array()
+      .notNull()
+      .default(sql`'{}'::text[]`),
+    createdAt: createdAt(),
+    updatedAt: updatedAt()
+  },
+  (table) => ({
+    uniqueProviderAccount: uniqueIndex("connected_accounts_unique_provider_account").on(
+      table.householdId,
+      table.provider,
+      table.providerAccountId
+    )
+  })
+);
 
 export const calendarSources = pgTable(
   "calendar_sources",
