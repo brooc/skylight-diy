@@ -89,6 +89,10 @@ describe("TodayDashboard", () => {
     secondStart.setMinutes(30);
     const secondEnd = new Date(firstStart);
     secondEnd.setHours(11, 30, 0, 0);
+    const halfHourStart = new Date(firstStart);
+    halfHourStart.setHours(12, 30, 0, 0);
+    const halfHourEnd = new Date(halfHourStart);
+    halfHourEnd.setMinutes(halfHourStart.getMinutes() + 30);
 
     restoreFetch?.();
     restoreFetch = installRealApiFetch(app, {
@@ -107,6 +111,12 @@ describe("TodayDashboard", () => {
                 summary: "Overlap two",
                 start: { dateTime: secondStart.toISOString() },
                 end: { dateTime: secondEnd.toISOString() }
+              },
+              {
+                id: "half-hour",
+                summary: "Half-hour alignment",
+                start: { dateTime: halfHourStart.toISOString() },
+                end: { dateTime: halfHourEnd.toISOString() }
               }
             ]
           }),
@@ -116,8 +126,9 @@ describe("TodayDashboard", () => {
 
     renderTodayDashboard();
 
-    const firstCard = (await screen.findByText("Overlap one")).closest("article");
-    const secondCard = (await screen.findByText("Overlap two")).closest("article");
+    const firstCard = (await screen.findByText("Overlap one")).closest("button");
+    const secondCard = (await screen.findByText("Overlap two")).closest("button");
+    const halfHourCard = (await screen.findByText("Half-hour alignment")).closest("button");
     expect(firstCard).toHaveAttribute("data-layout-column", "0");
     expect(firstCard).toHaveAttribute("data-layout-columns", "2");
     expect(firstCard).toHaveStyle({ width: "calc(50% - 8px)" });
@@ -125,6 +136,14 @@ describe("TodayDashboard", () => {
     expect(secondCard).toHaveAttribute("data-layout-column", "1");
     expect(secondCard).toHaveAttribute("data-layout-columns", "2");
     expect(secondCard).toHaveStyle({ left: "calc(50% + 4px)" });
+    expect(halfHourCard).toHaveAttribute("data-event-density", "compact");
+    expect(halfHourCard).toHaveStyle({ top: "41px", height: "35px" });
+    expect(document.querySelectorAll('[data-half-hour-line="true"]').length).toBeGreaterThan(0);
+
+    await userEvent.setup().click(halfHourCard!);
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Half-hour alignment" })).toBeInTheDocument();
+    expect(screen.getByText(/12:30 PM - 1:00 PM/)).toBeInTheDocument();
   });
 
   it("opens add actions and navigates to the task quick-add route", async () => {

@@ -58,6 +58,8 @@ type RenderEvent = {
   durationHours: number;
   title: string;
   timeLabel: string;
+  compactTimeLabel: string;
+  sourceName: string;
   color: string;
   ownerInitial?: string;
   ownerCount: number;
@@ -77,11 +79,20 @@ function formatEventTime(start: Date, end: Date): string {
   })} - ${end.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`;
 }
 
+function formatCompactEventTime(start: Date, end: Date): string {
+  const compact = (value: Date) =>
+    value
+      .toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
+      .replace(/\s?[AP]M$/i, "");
+  return `${compact(start)}–${compact(end)}`;
+}
+
 export function TodayDashboard(): JSX.Element {
   const now = new Date();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
+  const [selectedEvent, setSelectedEvent] = useState<RenderEvent | null>(null);
   const [isCalendarRefreshing, setIsCalendarRefreshing] = useState(false);
   const [calendarRefreshError, setCalendarRefreshError] = useState<string | null>(null);
   const householdQuery = useQuery({
@@ -186,6 +197,8 @@ export function TodayDashboard(): JSX.Element {
         durationHours,
         title: event.title,
         timeLabel: formatEventTime(startDate, endDate),
+        compactTimeLabel: formatCompactEventTime(startDate, endDate),
+        sourceName: event.sourceName ?? "Calendar",
         ownerInitial: owner?.displayName.slice(0, 1).toUpperCase(),
         ownerCount: matchedPeople.length,
         striped: matchedPeople.length > 1,
@@ -229,8 +242,8 @@ export function TodayDashboard(): JSX.Element {
         color: ["#d6efd8", "#f7d8d4", "#e4daf0", "#bee8ea"][index % 4]
       };
     });
-  const startHour = 9;
-  const endHour = 21;
+  const startHour = 6;
+  const endHour = 22;
   const hourSlots = Array.from({ length: endHour - startHour + 1 }, (_, i) => startHour + i);
   const slotHeight = 82;
 
@@ -323,8 +336,8 @@ export function TodayDashboard(): JSX.Element {
           <div
             className="grid"
             style={{
-              gridTemplateColumns: `76px repeat(${days.length}, minmax(150px, 1fr))`,
-              minWidth: `${76 + days.length * 150}px`
+              gridTemplateColumns: `76px repeat(${days.length}, minmax(180px, 1fr))`,
+              minWidth: `${76 + days.length * 180}px`
             }}
           >
             <div className="sticky top-0 z-20 border-b border-r border-[#ecebe8] bg-white" />
@@ -389,6 +402,11 @@ export function TodayDashboard(): JSX.Element {
                       className="relative border-r border-t border-[#ecebe8]"
                       style={{ height: slotHeight }}
                     >
+                      <div
+                        aria-hidden="true"
+                        data-half-hour-line="true"
+                        className="pointer-events-none absolute inset-x-0 top-1/2 border-t border-dashed border-[#ecebe8]"
+                      />
                       {hourEvents.map((event) => {
                         const offset = (event.startHour - hour) * slotHeight;
                         const availableHeight = Math.max(
@@ -396,7 +414,7 @@ export function TodayDashboard(): JSX.Element {
                           (endHour + 1 - event.startHour) * slotHeight - 4
                         );
                         const height = Math.min(
-                          Math.max(40, event.durationHours * slotHeight - 8),
+                          Math.max(24, event.durationHours * slotHeight - 6),
                           availableHeight
                         );
                         const layout = timedEventLayout.get(event.id) ?? {
@@ -404,13 +422,21 @@ export function TodayDashboard(): JSX.Element {
                           columnCount: 1
                         };
                         const columnWidth = 100 / layout.columnCount;
+                        const isCompact = event.durationHours <= 1 || layout.columnCount > 1;
+                        const showTime = event.durationHours >= 0.75;
+                        const showOwner = event.durationHours >= 1.5 && layout.columnCount === 1;
                         return (
-                          <article
+                          <button
+                            type="button"
                             key={event.id}
                             data-event-id={event.id}
                             data-layout-column={layout.column}
                             data-layout-columns={layout.columnCount}
-                            className="absolute z-10 min-w-0 overflow-hidden rounded-[20px] px-2 py-2 text-slate-800"
+                            data-event-density={isCompact ? "compact" : "comfortable"}
+                            aria-label={`${event.title}, ${event.timeLabel}, ${event.sourceName}`}
+                            title={`${event.title} · ${event.timeLabel} · ${event.sourceName}`}
+                            className="absolute z-10 min-w-0 overflow-hidden rounded-xl px-2 py-1.5 text-left text-slate-800 transition-shadow hover:shadow-md focus:outline-none focus:ring-2 focus:ring-sky-500"
+                            onClick={() => setSelectedEvent(event)}
                             style={{
                               top: offset,
                               height,
@@ -421,17 +447,15 @@ export function TodayDashboard(): JSX.Element {
                                 : event.color
                             }}
                           >
-                            <div
-                              className={`${layout.columnCount > 1 ? "text-[15px]" : "text-[20px]"} break-words font-semibold leading-tight`}
-                            >
+                            <div className={`${isCompact ? "text-[13px]" : "text-[16px]"} break-normal font-semibold leading-tight`}>
                               {event.title}
                             </div>
-                            <div
-                              className={`${layout.columnCount > 1 ? "text-[12px]" : "text-[16px]"} mt-1 break-words leading-tight text-slate-700`}
-                            >
-                              {event.timeLabel}
-                            </div>
-                            {event.ownerInitial ? (
+                            {showTime ? (
+                              <div className={`${isCompact ? "text-[11px]" : "text-[13px]"} mt-0.5 whitespace-nowrap leading-tight text-slate-700`}>
+                                {event.compactTimeLabel}
+                              </div>
+                            ) : null}
+                            {showOwner && event.ownerInitial ? (
                               <div className="absolute bottom-2 right-2 flex items-center gap-1">
                                 {event.ownerCount > 1 ? (
                                   <span className="rounded-full bg-white/80 px-1.5 text-[12px] font-semibold text-slate-700">
@@ -443,7 +467,7 @@ export function TodayDashboard(): JSX.Element {
                                 </span>
                               </div>
                             ) : null}
-                          </article>
+                          </button>
                         );
                       })}
                     </div>
@@ -486,6 +510,33 @@ export function TodayDashboard(): JSX.Element {
             </button>
             <div className="rounded-md border border-[#ecebe8] px-3 py-2 text-xs text-slate-500">
               Event creation from calendar is coming in a later version.
+            </div>
+          </div>
+        ) : null}
+        {selectedEvent ? (
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="calendar-event-detail-title"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/35 p-4"
+            onClick={() => setSelectedEvent(null)}
+          >
+            <div
+              className="w-full max-w-md rounded-md bg-white p-5 shadow-xl"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <h2 id="calendar-event-detail-title" className="text-xl font-semibold text-slate-900">
+                {selectedEvent.title}
+              </h2>
+              <p className="mt-2 text-sm text-slate-700">{selectedEvent.timeLabel}</p>
+              <p className="mt-1 text-sm text-slate-600">{selectedEvent.sourceName}</p>
+              <button
+                type="button"
+                className="mt-4 min-h-[40px] rounded-md bg-slate-900 px-4 text-sm font-semibold text-white"
+                onClick={() => setSelectedEvent(null)}
+              >
+                Close
+              </button>
             </div>
           </div>
         ) : null}

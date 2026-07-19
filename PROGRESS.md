@@ -179,11 +179,12 @@ This document tracks progress against the [v0.1 Implementation Plan](docs/v0.1-i
 - [x] Validate event ranges and IANA timezones before provider requests
 - [x] Keep timed and all-day events on the correct local date across UTC and DST boundaries
 
-### 🚧 Step 13: Tablet polish (20%)
+### 🚧 Step 13: Tablet polish (35%)
 
 - [x] Place overlapping timed calendar events in deterministic side-by-side columns
 - [x] Keep timed-event text and cards contained within their assigned column and visible schedule range
 - [x] Add layout-algorithm and real API/dashboard regression coverage
+- [x] Align quarter/half-hour starts, add half-hour guides, and make compact events readable on tap
 - [ ] Complete responsive 10-inch tablet landscape pass across all primary routes
 
 ### 🚧 Step 14: Documentation and cleanup (60%)
