@@ -7,7 +7,7 @@ import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { calendarSources, connectedAccounts, households } from "../../../packages/db/src/index";
 import { encryptToken } from "../../api/src/modules/integrations/token-crypto";
 import { dateKeyInTimeZone } from "../src/features/calendar/dateKeys";
-import { TodayDashboard } from "../src/features/dashboard/TodayDashboard";
+import { calendarHourRange, TodayDashboard } from "../src/features/dashboard/TodayDashboard";
 import { createTestQueryClient } from "./helpers/test-utils";
 import {
   createRealApiApp,
@@ -32,6 +32,16 @@ describe("TodayDashboard", () => {
   afterAll(async () => {
     restoreFetch?.();
     await app.close();
+  });
+
+  it("expands the visible day only when events fall outside normal hours", () => {
+    expect(calendarHourRange([])).toEqual({ startHour: 6, endHour: 22 });
+    expect(
+      calendarHourRange([
+        { startHour: 1.5, durationHours: 1 },
+        { startHour: 23, durationHours: 1 }
+      ])
+    ).toEqual({ startHour: 1, endHour: 23 });
   });
 
   it("renders an honest empty calendar state and force-refreshes from the real API", async () => {
@@ -155,7 +165,14 @@ describe("TodayDashboard", () => {
     expect(within(halfHourCard!).getByText(/12:30–1:00/)).toBeInTheDocument();
     expect(document.querySelectorAll('[data-half-hour-line="true"]').length).toBeGreaterThan(0);
 
-    await userEvent.setup().click(halfHourCard!);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Filter" }));
+    const familyFilter = screen.getByRole("checkbox", { name: "Family" });
+    expect(familyFilter).not.toBeChecked();
+    await user.click(familyFilter);
+    expect(screen.getByRole("button", { name: "Filter (1)" })).toBeInTheDocument();
+
+    await user.click(halfHourCard!);
     expect(await screen.findByRole("dialog")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Half-hour alignment" })).toBeInTheDocument();
     expect(screen.getByText(/12:30 PM - 1:00 PM/)).toBeInTheDocument();

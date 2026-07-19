@@ -6,7 +6,7 @@ import { CalendarDayView } from "../src/features/calendar/CalendarDayView";
 import { CalendarEventCard } from "../src/features/calendar/CalendarEventCard";
 import { CalendarStatusBadge } from "../src/features/calendar/CalendarStatusBadge";
 import { CalendarWeekView } from "../src/features/calendar/CalendarWeekView";
-import { dateKeyInTimeZone, shiftDateKey } from "../src/features/calendar/dateKeys";
+import { dateKeyInTimeZone, formatDateKey, shiftDateKey } from "../src/features/calendar/dateKeys";
 import { layoutTimedEvents } from "../src/features/calendar/layoutTimedEvents";
 import { createTestQueryClient, mockJsonResponse } from "./helpers/test-utils";
 
@@ -60,7 +60,7 @@ describe("calendar components", () => {
     expect(screen.getByText("All day")).toBeInTheDocument();
     expect(screen.getByText("Wed, Jun 3")).toBeInTheDocument();
     expect(screen.getByText("No events")).toBeInTheDocument();
-    expect(screen.getByText("Up to date")).toBeInTheDocument();
+    expect(screen.queryByText("Up to date")).not.toBeInTheDocument();
     expect(screen.getByText("Just refreshed")).toBeInTheDocument();
     expect(screen.getByText("Showing saved data")).toBeInTheDocument();
     expect(screen.getByText("No calendar data")).toBeInTheDocument();
@@ -110,6 +110,9 @@ describe("calendar components", () => {
       "2026-11-01"
     );
     expect(shiftDateKey("2026-03-09", -1)).toBe("2026-03-08");
+    expect(
+      formatDateKey("2026-07-19", { weekday: "long", month: "short", day: "numeric" }, "en-US")
+    ).toBe("Sunday, Jul 19");
   });
 
   it("renders week events, warnings, cache status, and refreshes the query", async () => {
@@ -154,11 +157,16 @@ describe("calendar components", () => {
     );
     expect(weekGrid).not.toHaveClass("min-w-[1120px]");
 
-    await userEvent.setup().click(screen.getByRole("button", { name: "Refresh" }));
+    await userEvent.setup().click(screen.getByRole("button", { name: "Next week" }));
     await waitFor(() => {
       expect(fetchSpy).toHaveBeenCalledTimes(2);
     });
-    const refreshedUrl = String(fetchSpy.mock.calls[1]?.[0]);
+
+    await userEvent.setup().click(screen.getByRole("button", { name: "Refresh" }));
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledTimes(3);
+    });
+    const refreshedUrl = String(fetchSpy.mock.calls[2]?.[0]);
     expect(refreshedUrl).toContain("refresh=true");
   });
 });

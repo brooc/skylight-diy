@@ -7,7 +7,7 @@ import { queryKeys } from "../../api/queryKeys";
 import { ErrorState } from "../../components/ErrorState";
 import { LoadingState } from "../../components/LoadingState";
 import { CalendarStatusBadge } from "../calendar/CalendarStatusBadge";
-import { dateKeyInTimeZone, shiftDateKey } from "../calendar/dateKeys";
+import { dateFromLocalDateKey, dateKeyInTimeZone, shiftDateKey } from "../calendar/dateKeys";
 import { layoutTimedEvents } from "../calendar/layoutTimedEvents";
 
 type RewardsResponse = {
@@ -23,6 +23,17 @@ type HouseholdResponse = {
     name: string;
   };
 };
+
+type WeatherResponse =
+  | { configured: false }
+  | {
+      configured: true;
+      locationName: string;
+      temperature: number;
+      temperatureUnit: string;
+      weatherCode: number;
+      isDay: boolean;
+    };
 
 type CalendarResponse = {
   cacheStatus: "fresh" | "refreshed" | "stale" | "miss";
@@ -87,11 +98,39 @@ function formatCompactEventTime(start: Date, end: Date): string {
   return `${compact(start)}–${compact(end)}`;
 }
 
+function weatherGlyph(code: number, isDay: boolean): string {
+  if (code === 0) return isDay ? "☀" : "☾";
+  if (code <= 3) return "☁";
+  if (code === 45 || code === 48) return "≋";
+  if (code >= 71 && code <= 77) return "❄";
+  if (code >= 95) return "ϟ";
+  return "☂";
+}
+
+export function calendarHourRange(
+  events: Array<{ startHour: number; durationHours: number }>
+): { startHour: number; endHour: number } {
+  if (events.length === 0) return { startHour: 6, endHour: 22 };
+  const earliest = Math.floor(Math.min(...events.map((event) => event.startHour)));
+  const latest =
+    Math.ceil(Math.max(...events.map((event) => event.startHour + event.durationHours))) - 1;
+  return {
+    startHour: Math.max(0, Math.min(6, earliest)),
+    endHour: Math.min(23, Math.max(22, latest))
+  };
+}
+
 export function TodayDashboard(): JSX.Element {
   const [now, setNow] = useState(() => new Date());
+  const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+  const [calendarStartKey, setCalendarStartKey] = useState(() =>
+    dateKeyInTimeZone(new Date(), timezone)
+  );
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const [selectedCalendarFilters, setSelectedCalendarFilters] = useState<string[]>([]);
   const [selectedEvent, setSelectedEvent] = useState<RenderEvent | null>(null);
   const [isCalendarRefreshing, setIsCalendarRefreshing] = useState(false);
   const [calendarRefreshError, setCalendarRefreshError] = useState<string | null>(null);
@@ -105,6 +144,12 @@ export function TodayDashboard(): JSX.Element {
     queryKey: queryKeys.household,
     queryFn: () => apiFetch<HouseholdResponse>("/household/current")
   });
+  const weatherQuery = useQuery({
+    queryKey: ["current-weather"],
+    queryFn: () => apiFetch<WeatherResponse>("/weather/current"),
+    staleTime: 10 * 60 * 1_000,
+    retry: false
+  });
   const rewardsQuery = useQuery({
     queryKey: queryKeys.rewardBalances,
     queryFn: () => apiFetch<RewardsResponse>("/rewards/balances")
@@ -113,11 +158,9 @@ export function TodayDashboard(): JSX.Element {
     queryKey: queryKeys.weekMeals,
     queryFn: () => apiFetch<MealsResponse>("/meals/week")
   });
-  const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
-  const startOfToday = new Date();
-  startOfToday.setHours(0, 0, 0, 0);
-  const start = startOfToday.toISOString();
-  const endDate = new Date(startOfToday);
+  const startOfCalendar = dateFromLocalDateKey(calendarStartKey);
+  const start = startOfCalendar.toISOString();
+  const endDate = new Date(startOfCalendar);
   endDate.setDate(endDate.getDate() + 7);
   const end = endDate.toISOString();
   const calendarQueryKey = ["calendar-week-schedule", start, end, timezone] as const;
@@ -144,14 +187,14 @@ export function TodayDashboard(): JSX.Element {
     "No dinner planned";
 
   const days = Array.from({ length: 7 }, (_, index) => {
-    const date = new Date(startOfToday);
-    date.setDate(startOfToday.getDate() + index);
+    const date = new Date(startOfCalendar);
+    date.setDate(startOfCalendar.getDate() + index);
     return {
       index,
       dayKey: dateKeyInTimeZone(date, timezone),
       weekday: date.toLocaleDateString(undefined, { weekday: "short" }),
       dayNumber: date.getDate(),
-      isToday: date.toDateString() === now.toDateString()
+      isToday: dateKeyInTimeZone(date, timezone) === todayKey
     };
   });
 
@@ -217,7 +260,14 @@ export function TodayDashboard(): JSX.Element {
     })
     .filter((event) => event.dayIndex >= 0);
 
-  const scheduleEvents = mappedEvents;
+  const availableCalendarFilters = Array.from(
+    new Set(
+      (calendarQuery.data?.events ?? []).map((event) => event.sourceName ?? "Calendar")
+    )
+  ).sort((a, b) => a.localeCompare(b));
+  const eventMatchesFilter = (sourceName: string) =>
+    selectedCalendarFilters.length === 0 || selectedCalendarFilters.includes(sourceName);
+  const scheduleEvents = mappedEvents.filter((event) => eventMatchesFilter(event.sourceName));
   const timedEventLayout = new Map(
     days.flatMap((day) =>
       layoutTimedEvents(
@@ -245,11 +295,12 @@ export function TodayDashboard(): JSX.Element {
         startIndex: Math.max(0, startIndex),
         endIndex: Math.max(startIndex, endIndex),
         striped: endIndex > startIndex,
-        color: ["#d6efd8", "#f7d8d4", "#e4daf0", "#bee8ea"][index % 4]
+        color: ["#d6efd8", "#f7d8d4", "#e4daf0", "#bee8ea"][index % 4],
+        sourceName: event.sourceName ?? "Calendar"
       };
-    });
-  const startHour = 6;
-  const endHour = 22;
+    })
+    .filter((event) => eventMatchesFilter(event.sourceName));
+  const { startHour, endHour } = calendarHourRange(scheduleEvents);
   const hourSlots = Array.from({ length: endHour - startHour + 1 }, (_, i) => startHour + i);
   const slotHeight = 96;
 
@@ -270,12 +321,40 @@ export function TodayDashboard(): JSX.Element {
                   })}
                 </time>
               </div>
-              <div className="text-2xl leading-none text-slate-500 md:text-[28px]">☀ 80°</div>
+              {weatherQuery.data?.configured ? (
+                <div
+                  className="text-2xl leading-none text-slate-500 md:text-[28px]"
+                  title={weatherQuery.data.locationName}
+                >
+                  {weatherGlyph(weatherQuery.data.weatherCode, weatherQuery.data.isDay)}{" "}
+                  {weatherQuery.data.temperature}°
+                </div>
+              ) : null}
             </div>
             <div className="flex items-center gap-2">
-              <div className="rounded-full bg-[#f6f7f9] px-4 py-2 text-sm font-semibold text-slate-700">
-                ▦ Schedule
-              </div>
+              <button
+                type="button"
+                aria-label="Previous week"
+                className="flex h-10 w-10 items-center justify-center rounded-full bg-[#f6f7f9] text-xl text-slate-700 hover:bg-[#ebedf0]"
+                onClick={() => setCalendarStartKey((value) => shiftDateKey(value, -7))}
+              >
+                ‹
+              </button>
+              <button
+                type="button"
+                className="rounded-full bg-[#f6f7f9] px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-[#ebedf0]"
+                onClick={() => setCalendarStartKey(todayKey)}
+              >
+                Today
+              </button>
+              <button
+                type="button"
+                aria-label="Next week"
+                className="flex h-10 w-10 items-center justify-center rounded-full bg-[#f6f7f9] text-xl text-slate-700 hover:bg-[#ebedf0]"
+                onClick={() => setCalendarStartKey((value) => shiftDateKey(value, 7))}
+              >
+                ›
+              </button>
               <button
                 type="button"
                 disabled={isCalendarRefreshing}
@@ -295,8 +374,53 @@ export function TodayDashboard(): JSX.Element {
               >
                 {isCalendarRefreshing ? "Refreshing…" : "Refresh"}
               </button>
-              <div className="rounded-full bg-[#f6f7f9] px-4 py-2 text-sm font-semibold text-slate-700">
-                ⊘ Filter
+              <div className="relative">
+                <button
+                  type="button"
+                  aria-expanded={isFilterOpen}
+                  className={`rounded-full px-4 py-2 text-sm font-semibold ${
+                    selectedCalendarFilters.length > 0
+                      ? "bg-teal-100 text-teal-900"
+                      : "bg-[#f6f7f9] text-slate-700 hover:bg-[#ebedf0]"
+                  }`}
+                  onClick={() => setIsFilterOpen((value) => !value)}
+                >
+                  Filter{selectedCalendarFilters.length ? ` (${selectedCalendarFilters.length})` : ""}
+                </button>
+                {isFilterOpen ? (
+                  <div className="absolute right-0 top-12 z-40 grid min-w-[240px] gap-2 rounded-xl border border-[#d9d8d4] bg-white p-3 shadow-xl">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="text-sm font-semibold text-slate-900">People & calendars</div>
+                      <button
+                        type="button"
+                        className="text-xs font-semibold text-teal-700"
+                        onClick={() => setSelectedCalendarFilters([])}
+                      >
+                        Show all
+                      </button>
+                    </div>
+                    {availableCalendarFilters.length ? (
+                      availableCalendarFilters.map((name) => (
+                        <label key={name} className="flex min-h-[40px] items-center gap-2 rounded-lg px-2 hover:bg-slate-50">
+                          <input
+                            type="checkbox"
+                            checked={selectedCalendarFilters.includes(name)}
+                            onChange={() =>
+                              setSelectedCalendarFilters((current) =>
+                                current.includes(name)
+                                  ? current.filter((value) => value !== name)
+                                  : [...current, name]
+                              )
+                            }
+                          />
+                          <span className="text-sm text-slate-700">{name}</span>
+                        </label>
+                      ))
+                    ) : (
+                      <div className="text-sm text-slate-500">No calendars to filter.</div>
+                    )}
+                  </div>
+                ) : null}
               </div>
               {calendarQuery.data ? (
                 <CalendarStatusBadge cacheStatus={calendarQuery.data.cacheStatus} />
@@ -326,7 +450,9 @@ export function TodayDashboard(): JSX.Element {
                   {person.displayName.slice(0, 1).toUpperCase()}
                 </div>
                 <div className="text-base font-semibold text-slate-800">{person.displayName}</div>
-                <div className="text-base font-semibold text-slate-800">{person.balance}/20</div>
+                <div className="text-sm font-semibold text-slate-700">
+                  {person.balance} {person.balance === 1 ? "point" : "points"}
+                </div>
               </div>
             ))}
           </div>
@@ -345,6 +471,9 @@ export function TodayDashboard(): JSX.Element {
         ) : null}
         <div className="max-h-[72vh] overflow-auto">
           <div
+            data-testid="dashboard-calendar-grid"
+            data-calendar-start-hour={startHour}
+            data-calendar-end-hour={endHour}
             className="grid"
             style={{
               gridTemplateColumns: `76px repeat(${days.length}, minmax(180px, 1fr))`,

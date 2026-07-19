@@ -6,7 +6,7 @@ import { ErrorState } from "../../components/ErrorState";
 import { LoadingState } from "../../components/LoadingState";
 import { CalendarDayView } from "./CalendarDayView";
 import { CalendarStatusBadge } from "./CalendarStatusBadge";
-import { dateKeyInTimeZone } from "./dateKeys";
+import { dateFromLocalDateKey, dateKeyInTimeZone, shiftDateKey } from "./dateKeys";
 
 type CalendarResponse = {
   rangeStart: string;
@@ -26,9 +26,8 @@ type CalendarResponse = {
   warnings: Array<{ code: string; message: string }>;
 };
 
-function getWeekRange(now = new Date()): { start: string; end: string } {
-  const start = new Date(now);
-  start.setHours(0, 0, 0, 0);
+function getWeekRange(startKey: string): { start: string; end: string } {
+  const start = dateFromLocalDateKey(startKey);
   const end = new Date(start);
   end.setDate(start.getDate() + 7);
   return { start: start.toISOString(), end: end.toISOString() };
@@ -39,7 +38,9 @@ export function CalendarWeekView(): JSX.Element {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [refreshError, setRefreshError] = useState<string | null>(null);
   const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
-  const { start, end } = getWeekRange();
+  const todayKey = dateKeyInTimeZone(new Date(), timezone);
+  const [weekStartKey, setWeekStartKey] = useState(todayKey);
+  const { start, end } = getWeekRange(weekStartKey);
   const queryKey = ["calendar-week", start, end, timezone] as const;
   const eventsUrl = `/calendar/events?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}&timezone=${encodeURIComponent(timezone)}`;
   const calendarQuery = useQuery({
@@ -88,6 +89,29 @@ export function CalendarWeekView(): JSX.Element {
       <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-[#e7e7e5] bg-white p-4">
         <h1 className="font-display text-3xl text-slate-900">Week calendar</h1>
         <div className="flex items-center gap-2">
+          <button
+            type="button"
+            aria-label="Previous week"
+            className="flex h-10 w-10 items-center justify-center rounded-full border border-[#d8cbb8] bg-[#fff7ea] text-xl text-slate-700 hover:bg-[#fcedd8]"
+            onClick={() => setWeekStartKey((value) => shiftDateKey(value, -7))}
+          >
+            ‹
+          </button>
+          <button
+            type="button"
+            className="min-h-[40px] rounded-full border border-[#d8cbb8] bg-[#fff7ea] px-3 text-sm font-semibold text-slate-700 hover:bg-[#fcedd8]"
+            onClick={() => setWeekStartKey(todayKey)}
+          >
+            Today
+          </button>
+          <button
+            type="button"
+            aria-label="Next week"
+            className="flex h-10 w-10 items-center justify-center rounded-full border border-[#d8cbb8] bg-[#fff7ea] text-xl text-slate-700 hover:bg-[#fcedd8]"
+            onClick={() => setWeekStartKey((value) => shiftDateKey(value, 7))}
+          >
+            ›
+          </button>
           <button
             type="button"
             disabled={isRefreshing}

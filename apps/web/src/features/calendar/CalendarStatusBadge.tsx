@@ -2,18 +2,18 @@ export function CalendarStatusBadge({
   cacheStatus
 }: {
   cacheStatus: "fresh" | "refreshed" | "stale" | "miss";
-}): JSX.Element {
+}): JSX.Element | null {
+  if (cacheStatus === "fresh") return null;
+
   const label =
-    cacheStatus === "fresh"
-      ? "Up to date"
-      : cacheStatus === "refreshed"
+    cacheStatus === "refreshed"
         ? "Just refreshed"
         : cacheStatus === "stale"
           ? "Showing saved data"
           : "No calendar data";
 
   const style =
-    cacheStatus === "fresh" || cacheStatus === "refreshed"
+    cacheStatus === "refreshed"
       ? "border-emerald-200 bg-emerald-50 text-emerald-800"
       : cacheStatus === "stale"
         ? "border-amber-200 bg-amber-50 text-amber-900"

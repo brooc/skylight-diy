@@ -18,3 +18,18 @@ export function shiftDateKey(dateKey: string, days: number): string {
     String(shifted.getUTCDate()).padStart(2, "0")
   ].join("-");
 }
+
+export function formatDateKey(
+  dateKey: string,
+  options: Intl.DateTimeFormatOptions,
+  locale?: string | string[]
+): string {
+  return new Intl.DateTimeFormat(locale, { ...options, timeZone: "UTC" }).format(
+    new Date(`${dateKey}T00:00:00.000Z`)
+  );
+}
+
+export function dateFromLocalDateKey(dateKey: string): Date {
+  const [year, month, day] = dateKey.split("-").map(Number);
+  return new Date(year!, month! - 1, day!);
+}
