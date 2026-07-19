@@ -9,6 +9,7 @@ Daymark helps families coordinate shared calendars, chores, rewards, meal planni
 **v0.1 implementation in progress** (~80% complete)
 
 Completed:
+
 - ✅ Monorepo infrastructure (pnpm + Turborepo)
 - ✅ Database schema with all v0.1 tables
 - ✅ API skeleton with Fastify + route scaffolding
@@ -17,16 +18,18 @@ Completed:
 - ✅ Dedicated family-calendar appliance-inspired tablet UI baseline for Today/Week/Tasks/Lists
 
 In progress:
+
 - 🚧 First-run setup wizard and admin PIN
 - 🚧 Chores and rewards vertical slice
 
 Next up:
+
 - Calendar integration with Google Calendar
 - Fire Tablet testing and optimization
 
 See [PROGRESS.md](PROGRESS.md) for detailed implementation tracking.
 
-The initial target device is an Amazon Fire HD 10 tablet.
+The initial tested target device is an Amazon Fire HD 8 tablet.
 
 ## Core idea
 
@@ -51,6 +54,7 @@ Start here:
 - [Google Calendar Setup](docs/google-calendar-setup.md)
 - [Open Source Strategy](docs/open-source-strategy.md)
 - [Fire Tablet Setup](docs/fire-tablet-setup.md)
+- [Home Deployment](docs/deployment.md)
 
 ## Quick Start
 

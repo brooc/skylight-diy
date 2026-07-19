@@ -15,6 +15,7 @@ This folder is the working plan for Daymark.
 - [Google Calendar Setup](google-calendar-setup.md)
 - [Open Source Strategy](open-source-strategy.md)
 - [Fire Tablet Setup](fire-tablet-setup.md)
+- [Home Deployment](deployment.md)
 - [Architecture Decision Records](adr/README.md)
 
 ## Feature plans

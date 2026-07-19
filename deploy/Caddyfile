@@ -1,0 +1,19 @@
+:8080 {
+  encode zstd gzip
+
+  @api path /api/*
+  handle @api {
+    reverse_proxy api:3000
+  }
+
+  handle {
+    root * /srv
+    try_files {path} /index.html
+    file_server
+  }
+
+  @pwa path /sw.js /manifest.webmanifest
+  header @pwa Cache-Control "no-cache"
+  header X-Content-Type-Options "nosniff"
+  header Referrer-Policy "same-origin"
+}
