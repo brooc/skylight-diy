@@ -4,6 +4,7 @@ import type { FastifyPluginAsync } from "fastify";
 import { env } from "../env";
 
 const execFileAsync = promisify(execFile);
+const wait = (milliseconds: number) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 
 interface TailscaleStatusJson {
   BackendState?: unknown;
@@ -54,6 +55,37 @@ export function parseTailscaleStatus(value: TailscaleStatusJson): TailscaleStatu
 export function findServeEnableUrl(output: string): string | null {
   const match = output.match(/https:\/\/login\.tailscale\.com\/f\/serve\?[^\s]+/);
   return match?.[0] ?? null;
+}
+
+async function readRawTailscaleStatus(socketPath: string): Promise<TailscaleStatusJson> {
+  const { stdout } = await execFileAsync(
+    "tailscale",
+    [`--socket=${socketPath}`, "status", "--json"],
+    { timeout: 5_000, maxBuffer: 1024 * 1024 }
+  );
+  return JSON.parse(stdout) as TailscaleStatusJson;
+}
+
+async function logOutAndWaitForLogin(socketPath: string): Promise<boolean> {
+  const socketArg = `--socket=${socketPath}`;
+
+  for (let attempt = 0; attempt < 12; attempt += 1) {
+    try {
+      const status = await readRawTailscaleStatus(socketPath);
+      if (status.BackendState === "NeedsLogin" && safeString(status.AuthURL)) return true;
+
+      await execFileAsync("tailscale", [socketArg, "logout"], {
+        timeout: 10_000,
+        maxBuffer: 1024 * 1024
+      });
+    } catch {
+      // Logout restarts containerboot and briefly removes the shared socket. Retry until
+      // the daemon has returned with a new interactive login URL.
+    }
+    await wait(1_500);
+  }
+
+  return false;
 }
 
 async function addServeStatus(status: TailscaleStatus): Promise<TailscaleStatus> {
@@ -112,12 +144,8 @@ export const tailscaleRoutes: FastifyPluginAsync = async (app) => {
     if (!env.TAILSCALE_SOCKET_PATH) return unavailableStatus;
 
     try {
-      const { stdout } = await execFileAsync(
-        "tailscale",
-        [`--socket=${env.TAILSCALE_SOCKET_PATH}`, "status", "--json"],
-        { timeout: 5_000, maxBuffer: 1024 * 1024 }
-      );
-      const status = parseTailscaleStatus(JSON.parse(stdout) as TailscaleStatusJson);
+      const rawStatus = await readRawTailscaleStatus(env.TAILSCALE_SOCKET_PATH);
+      const status = parseTailscaleStatus(rawStatus);
       return await addServeStatus(status);
     } catch (error) {
       app.log.warn({ err: error }, "Unable to read Tailscale status");
@@ -144,10 +172,8 @@ export const tailscaleRoutes: FastifyPluginAsync = async (app) => {
     }
 
     try {
-      await execFileAsync("tailscale", [socketArg, "logout"], {
-        timeout: 10_000,
-        maxBuffer: 1024 * 1024
-      });
+      const loggedOut = await logOutAndWaitForLogin(env.TAILSCALE_SOCKET_PATH);
+      if (!loggedOut) throw new Error("Tailscale did not return to the login state");
       return { reset: true };
     } catch (error) {
       app.log.warn({ err: error }, "Unable to log out Tailscale");
