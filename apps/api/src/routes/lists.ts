@@ -195,4 +195,22 @@ export const listsRoutes: FastifyPluginAsync = async (app) => {
 
     return { item: updated };
   });
+
+  app.delete("/lists/:listId/items/:itemId", async (request, reply) => {
+    const [household] = await app.db.select().from(households).limit(1);
+    if (!household) return reply.status(404).send({ error: "setup_not_completed" });
+    const params = request.params as { listId: string; itemId: string };
+    const [deleted] = await app.db
+      .delete(listItems)
+      .where(
+        and(
+          eq(listItems.id, params.itemId),
+          eq(listItems.listId, params.listId),
+          eq(listItems.householdId, household.id)
+        )
+      )
+      .returning({ id: listItems.id });
+    if (!deleted) return reply.status(404).send({ error: "list_item_not_found" });
+    return { deleted: true, itemId: deleted.id };
+  });
 };

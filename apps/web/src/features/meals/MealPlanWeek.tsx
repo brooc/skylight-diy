@@ -5,8 +5,10 @@ import { apiFetch } from "../../api/client";
 import { queryKeys } from "../../api/queryKeys";
 import { ErrorState } from "../../components/ErrorState";
 import { LoadingState } from "../../components/LoadingState";
+import { dateKeyInTimeZone, formatDateKey } from "../calendar/dateKeys";
 
 type MealsResponse = {
+  timezone: string;
   days: Array<{
     date: string;
     entries: Array<{
@@ -27,13 +29,17 @@ export function MealPlanWeek(): JSX.Element {
   const [date, setDate] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const mealsQuery = useQuery({
     queryKey: queryKeys.weekMeals,
     queryFn: () => apiFetch<MealsResponse>("/meals/week")
   });
 
-  const todayKey = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  const todayKey = useMemo(
+    () => dateKeyInTimeZone(new Date(), mealsQuery.data?.timezone ?? "UTC"),
+    [mealsQuery.data?.timezone]
+  );
   const days = mealsQuery.data?.days ?? [];
   const defaultDate = days[0]?.date ?? todayKey;
   const activeDate = date || defaultDate;
@@ -81,7 +87,7 @@ export function MealPlanWeek(): JSX.Element {
               >
                 {days.map((day) => (
                   <option key={day.date} value={day.date}>
-                    {new Date(day.date).toLocaleDateString(undefined, {
+                    {formatDateKey(day.date, {
                       weekday: "short",
                       month: "short",
                       day: "numeric"
@@ -150,6 +156,7 @@ export function MealPlanWeek(): JSX.Element {
 
       <section className="grid gap-3">
         <h1 className="font-display text-3xl text-slate-900">Meals this week</h1>
+        {actionError ? <p className="text-sm text-rose-700">{actionError}</p> : null}
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           {days.map((day) => {
             const isToday = day.date === todayKey;
@@ -161,7 +168,7 @@ export function MealPlanWeek(): JSX.Element {
                 }`}
               >
                 <h2 className="text-base font-semibold text-slate-900">
-                  {new Date(day.date).toLocaleDateString(undefined, {
+                  {formatDateKey(day.date, {
                     weekday: "long",
                     month: "short",
                     day: "numeric"
@@ -170,11 +177,30 @@ export function MealPlanWeek(): JSX.Element {
                 <ul className="mt-2 grid gap-2 text-sm text-slate-700">
                   {day.entries.length > 0 ? (
                     day.entries.map((entry) => (
-                      <li key={entry.id} className="min-h-[44px] rounded-md bg-[#f8f2e8] px-2 py-2">
-                        <div className="font-medium text-slate-900">
-                          {entry.customTitle || entry.mealName || "Meal"}
+                      <li key={entry.id} className="flex min-h-[44px] items-center justify-between gap-2 rounded-md bg-[#f8f2e8] px-2 py-2">
+                        <div>
+                          <div className="font-medium text-slate-900">
+                            {entry.customTitle || entry.mealName || "Meal"}
+                          </div>
+                          <div className="text-xs uppercase tracking-wide text-slate-500">{entry.slot}</div>
                         </div>
-                        <div className="text-xs uppercase tracking-wide text-slate-500">{entry.slot}</div>
+                        <button
+                          type="button"
+                          aria-label={`Remove ${entry.customTitle || entry.mealName || "meal"}`}
+                          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-slate-500 hover:bg-white hover:text-rose-700"
+                          onClick={async () => {
+                            if (!window.confirm(`Remove ${entry.customTitle || entry.mealName || "this meal"}?`)) return;
+                            setActionError(null);
+                            try {
+                              await apiFetch(`/meals/week/entries/${entry.id}`, { method: "DELETE" });
+                              await queryClient.invalidateQueries({ queryKey: queryKeys.weekMeals });
+                            } catch (error) {
+                              setActionError(error instanceof Error ? error.message : "Failed to remove meal.");
+                            }
+                          }}
+                        >
+                          ×
+                        </button>
                       </li>
                     ))
                   ) : (

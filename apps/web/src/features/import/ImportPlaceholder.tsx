@@ -34,6 +34,7 @@ export function ImportPlaceholder(): JSX.Element {
   const [title, setTitle] = useState("");
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
   const listsQuery = useQuery({
     queryKey: queryKeys.lists,
     queryFn: () => apiFetch<ListsResponse>("/lists")
@@ -171,6 +172,7 @@ export function ImportPlaceholder(): JSX.Element {
       ) : null}
 
       <section className="grid gap-3 rounded-md border border-[#e7e7e5] bg-white p-3">
+        {actionError ? <p className="text-sm text-rose-700">{actionError}</p> : null}
         <header className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-[#ecebe8] bg-[#fbfbfa] px-3 py-2">
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
             <div className="font-display text-4xl leading-none text-slate-900 md:text-5xl">
@@ -183,7 +185,6 @@ export function ImportPlaceholder(): JSX.Element {
             <div className="font-display text-4xl leading-none text-slate-900 md:text-5xl">
               {now.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}
             </div>
-            <div className="text-[32px] leading-none text-slate-500 md:text-[44px]">☀ 80°</div>
           </div>
           <div className="flex items-center gap-2">
             <button
@@ -236,29 +237,47 @@ export function ImportPlaceholder(): JSX.Element {
                   </div>
                   <div className="grid gap-2">
                     {list.items.map((item) => (
-                      <button
-                        key={item.id}
-                        type="button"
-                        onClick={async () => {
-                          await apiFetch(`/lists/${list.id}/items/${item.id}`, {
-                            method: "PATCH",
-                            body: JSON.stringify({ completed: !item.completed })
-                          });
-                          await queryClient.invalidateQueries({ queryKey: queryKeys.lists });
-                        }}
-                        className="flex min-h-[50px] items-center justify-between rounded-xl bg-white/65 px-3 text-left text-lg text-slate-800"
-                      >
-                        <span className={item.completed ? "line-through opacity-60" : ""}>
-                          {item.title}
-                        </span>
-                        <span
-                          className={`h-7 w-7 rounded-md border ${
-                            item.completed
-                              ? "border-[#6ea088] bg-[#b7d9c8]"
-                              : "border-[#e3e1dc] bg-white"
-                          }`}
-                        />
-                      </button>
+                      <div key={item.id} className="flex min-h-[50px] items-center gap-1 rounded-xl bg-white/65 px-2 text-lg text-slate-800">
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            await apiFetch(`/lists/${list.id}/items/${item.id}`, {
+                              method: "PATCH",
+                              body: JSON.stringify({ completed: !item.completed })
+                            });
+                            await queryClient.invalidateQueries({ queryKey: queryKeys.lists });
+                          }}
+                          className="flex min-w-0 flex-1 items-center justify-between gap-2 px-1 text-left"
+                        >
+                          <span className={`min-w-0 truncate ${item.completed ? "line-through opacity-60" : ""}`}>
+                            {item.title}
+                          </span>
+                          <span
+                            className={`h-7 w-7 shrink-0 rounded-md border ${
+                              item.completed
+                                ? "border-[#6ea088] bg-[#b7d9c8]"
+                                : "border-[#e3e1dc] bg-white"
+                            }`}
+                          />
+                        </button>
+                        <button
+                          type="button"
+                          aria-label={`Remove ${item.title}`}
+                          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-slate-500 hover:bg-white hover:text-rose-700"
+                          onClick={async () => {
+                            if (!window.confirm(`Remove ${item.title}?`)) return;
+                            setActionError(null);
+                            try {
+                              await apiFetch(`/lists/${list.id}/items/${item.id}`, { method: "DELETE" });
+                              await queryClient.invalidateQueries({ queryKey: queryKeys.lists });
+                            } catch (error) {
+                              setActionError(error instanceof Error ? error.message : "Failed to remove item.");
+                            }
+                          }}
+                        >
+                          ×
+                        </button>
+                      </div>
                     ))}
                   </div>
                 </article>

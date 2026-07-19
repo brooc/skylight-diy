@@ -73,7 +73,7 @@ export const mealsRoutes: FastifyPluginAsync = async (app) => {
       };
     });
 
-    return { days };
+    return { days, timezone: household.timezone };
   });
 
   app.post("/meals/week/entries", async (request, reply) => {
@@ -106,5 +106,22 @@ export const mealsRoutes: FastifyPluginAsync = async (app) => {
       });
 
     return reply.status(201).send({ entry: created });
+  });
+
+  app.delete("/meals/week/entries/:entryId", async (request, reply) => {
+    const [household] = await app.db.select().from(households).limit(1);
+    if (!household) return reply.status(404).send({ error: "setup_not_completed" });
+    const entryId = (request.params as { entryId: string }).entryId;
+    const [deleted] = await app.db
+      .delete(mealPlanEntries)
+      .where(
+        and(
+          eq(mealPlanEntries.id, entryId),
+          eq(mealPlanEntries.householdId, household.id)
+        )
+      )
+      .returning({ id: mealPlanEntries.id });
+    if (!deleted) return reply.status(404).send({ error: "meal_entry_not_found" });
+    return { deleted: true, entryId: deleted.id };
   });
 };

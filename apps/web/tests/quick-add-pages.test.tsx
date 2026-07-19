@@ -1,7 +1,7 @@
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { FastifyInstance } from "fastify";
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { ChoresPage } from "../src/features/chores/ChoresPage";
 import { ImportPlaceholder } from "../src/features/import/ImportPlaceholder";
 import { MealPlanWeek } from "../src/features/meals/MealPlanWeek";
@@ -62,6 +62,10 @@ describe("quick add page states", () => {
     await user.click(screen.getByRole("button", { name: "Add item" }));
     expect(await screen.findByText("Milk")).toBeInTheDocument();
 
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    await user.click(screen.getByRole("button", { name: "Remove Milk" }));
+    await waitFor(() => expect(screen.queryByText("Milk")).not.toBeInTheDocument());
+
     await user.click(screen.getByRole("button", { name: "Add" }));
     await user.click(screen.getByRole("button", { name: "List" }));
     await user.type(screen.getByLabelText("List title"), "Packing List");
@@ -81,5 +85,9 @@ describe("quick add page states", () => {
     await waitFor(() => expect(screen.queryByText("Add meal entry")).not.toBeInTheDocument());
     expect(await screen.findByText("Taco night")).toBeInTheDocument();
     expect(screen.getByText("lunch")).toBeInTheDocument();
+
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    await user.click(screen.getByRole("button", { name: "Remove Taco night" }));
+    await waitFor(() => expect(screen.queryByText("Taco night")).not.toBeInTheDocument());
   });
 });

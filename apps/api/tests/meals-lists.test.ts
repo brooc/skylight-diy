@@ -40,6 +40,12 @@ describe("meals and lists", () => {
     const matchingDay = weekMeals.json().days.find((day: { date: string }) => day.date === date);
     expect(matchingDay.entries).toHaveLength(1);
     expect(matchingDay.entries[0].customTitle).toBe("Pasta night");
+
+    const deleted = await app.inject({
+      method: "DELETE",
+      url: `/api/meals/week/entries/${matchingDay.entries[0].id}`
+    });
+    expect(deleted.statusCode).toBe(200);
   });
 
   it("creates lists/items and toggles item completion", async () => {
@@ -80,5 +86,11 @@ describe("meals and lists", () => {
     expect(allLists.json().lists).toHaveLength(1);
     expect(allLists.json().lists[0].items).toHaveLength(1);
     expect(allLists.json().lists[0].items[0].completed).toBe(true);
+
+    const deleted = await app.inject({
+      method: "DELETE",
+      url: `/api/lists/${listId}/items/${itemId}`
+    });
+    expect(deleted.statusCode).toBe(200);
   });
 });
