@@ -605,21 +605,26 @@ describe("calendar and google integration routes", () => {
       })
       .returning();
     expect(account.id).toBeTruthy();
-    vi.spyOn(globalThis, "fetch").mockImplementation(async () =>
-      new Response(
-        JSON.stringify({
-          items: [
-            { id: "primary", summary: "Family", backgroundColor: "#8ec5b8" },
-            { id: "school", summary: "School" },
-            { summary: "Ignored missing id" }
-          ]
-        }),
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const pageToken = new URL(input.toString()).searchParams.get("pageToken");
+      return new Response(
+        JSON.stringify(pageToken
+          ? {
+              items: [
+                { id: "school", summary: "School" },
+                { summary: "Ignored missing id" }
+              ]
+            }
+          : {
+              items: [{ id: "primary", summary: "Family", backgroundColor: "#8ec5b8" }],
+              nextPageToken: "calendar-page-2"
+            }),
         {
           status: 200,
           headers: { "Content-Type": "application/json" }
         }
-      )
-    );
+      );
+    });
 
     const { cookie } = await unlockAdmin(app);
     const discovered = await app.inject({
@@ -647,6 +652,9 @@ describe("calendar and google integration routes", () => {
       "School"
     ]);
     expect(imported.json().sources[0]).toMatchObject({ enabled: true, personId: null });
+    expect(fetchSpy).toHaveBeenCalledTimes(4);
+    expect(fetchSpy.mock.calls.some(([input]) => input.toString().includes("pageToken=calendar-page-2")))
+      .toBe(true);
   });
 
   it("returns an explicit error when Google calendar-list import fails", async () => {
@@ -844,38 +852,42 @@ describe("calendar and google integration routes", () => {
       })
       .returning();
 
-    const providerPayload = {
-      items: [
-        {
-          id: "evt-1",
-          summary: "Dentist",
-          description: "Bring insurance card",
-          location: "Main clinic",
-          start: { dateTime: "2026-06-02T16:00:00.000Z" },
-          end: { dateTime: "2026-06-02T17:00:00.000Z" }
-        },
-        {
-          id: "evt-2",
-          summary: "School closed",
-          start: { date: "2026-06-03" },
-          end: { date: "2026-06-04" }
-        },
-        {
-          id: "evt-cancelled",
-          summary: "Cancelled",
-          status: "cancelled",
-          start: { dateTime: "2026-06-04T16:00:00.000Z" },
-          end: { dateTime: "2026-06-04T17:00:00.000Z" }
-        }
-      ]
-    };
-    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(
-      async () =>
-        new Response(JSON.stringify(providerPayload), {
-          status: 200,
-          headers: { "Content-Type": "application/json" }
-        })
-    );
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const pageToken = new URL(input.toString()).searchParams.get("pageToken");
+      const providerPayload = pageToken
+        ? {
+            items: [{
+              id: "evt-2",
+              summary: "School closed",
+              start: { date: "2026-06-03" },
+              end: { date: "2026-06-04" }
+            }]
+          }
+        : {
+            items: [
+              {
+                id: "evt-1",
+                summary: "Dentist",
+                description: "Bring insurance card",
+                location: "Main clinic",
+                start: { dateTime: "2026-06-02T16:00:00.000Z" },
+                end: { dateTime: "2026-06-02T17:00:00.000Z" }
+              },
+              {
+                id: "evt-cancelled",
+                summary: "Cancelled",
+                status: "cancelled",
+                start: { dateTime: "2026-06-04T16:00:00.000Z" },
+                end: { dateTime: "2026-06-04T17:00:00.000Z" }
+              }
+            ],
+            nextPageToken: "event-page-2"
+          };
+      return new Response(JSON.stringify(providerPayload), {
+        status: 200,
+        headers: { "Content-Type": "application/json" }
+      });
+    });
 
     const start = new Date("2026-06-01T00:00:00.000Z").toISOString();
     const end = new Date("2026-06-08T00:00:00.000Z").toISOString();
@@ -909,7 +921,7 @@ describe("calendar and google integration routes", () => {
     expect(second.statusCode).toBe(200);
     expect(second.json().cacheStatus).toBe("fresh");
     expect(second.json().events).toHaveLength(2);
-    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
 
     const forced = await app.inject({
       method: "GET",
@@ -917,7 +929,9 @@ describe("calendar and google integration routes", () => {
     });
     expect(forced.statusCode).toBe(200);
     expect(forced.json().cacheStatus).toBe("refreshed");
-    expect(fetchSpy).toHaveBeenCalledTimes(2);
+    expect(fetchSpy).toHaveBeenCalledTimes(4);
+    expect(fetchSpy.mock.calls[0]?.[0].toString()).toContain("timeZone=America%2FLos_Angeles");
+    expect(fetchSpy.mock.calls[1]?.[0].toString()).toContain("pageToken=event-page-2");
 
     const logs = await app.db
       .select({

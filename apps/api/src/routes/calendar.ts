@@ -49,6 +49,20 @@ type GoogleCalendarLoadResult =
       };
     };
 
+type GoogleEventItem = {
+  id?: string;
+  summary?: string;
+  description?: string;
+  location?: string;
+  status?: string;
+  start?: { date?: string; dateTime?: string };
+  end?: { date?: string; dateTime?: string };
+};
+
+type GoogleEventLoadResult =
+  | { ok: true; items: GoogleEventItem[] }
+  | { ok: false; statusCode: number };
+
 type GoogleTokenAccount = {
   id: string;
   encryptedAccessToken: string | null;
@@ -173,39 +187,55 @@ async function requireGoogleAccessToken(
 }
 
 async function loadGoogleCalendars(accessToken: string): Promise<GoogleCalendarLoadResult> {
-
   try {
-    const response = await fetch("https://www.googleapis.com/calendar/v3/users/me/calendarList", {
-      headers: { Authorization: `Bearer ${accessToken}` }
-    });
-    if (!response.ok) {
-      return {
-        ok: false,
-        statusCode: 502,
-        body: {
-          error: "google_calendar_list_failed",
-          message: "Failed to load calendars from Google.",
-          statusCode: response.status,
-          details: await response.text()
-        }
-      };
-    }
-
-    const payload = (await response.json()) as {
-      items?: Array<{ id?: string; summary?: string; backgroundColor?: string }>;
-    };
     const fallbackColors = ["#8ec5b8", "#dca1b4", "#b7abd8"] as const;
-    const calendars = (payload.items ?? []).flatMap((item, index) => {
-      if (!item.id || !item.summary) {
-        return [];
+    const calendars: GoogleCalendarCandidate[] = [];
+    const seenPageTokens = new Set<string>();
+    let pageToken: string | undefined;
+
+    do {
+      const calendarsUrl = new URL(
+        "https://www.googleapis.com/calendar/v3/users/me/calendarList"
+      );
+      if (pageToken) calendarsUrl.searchParams.set("pageToken", pageToken);
+      const response = await fetch(calendarsUrl, {
+        headers: { Authorization: `Bearer ${accessToken}` }
+      });
+      if (!response.ok) {
+        return {
+          ok: false,
+          statusCode: 502,
+          body: {
+            error: "google_calendar_list_failed",
+            message: "Failed to load calendars from Google.",
+            statusCode: response.status,
+            details: await response.text()
+          }
+        };
       }
-      return [{
-        externalCalendarId: item.id,
-        displayName: item.summary,
-        color: item.backgroundColor ?? fallbackColors[index % fallbackColors.length]!,
-        sortOrder: index
-      }];
-    });
+
+      const payload = (await response.json()) as {
+        items?: Array<{ id?: string; summary?: string; backgroundColor?: string }>;
+        nextPageToken?: string;
+      };
+      for (const item of payload.items ?? []) {
+        if (!item.id || !item.summary) continue;
+        const index = calendars.length;
+        calendars.push({
+          externalCalendarId: item.id,
+          displayName: item.summary,
+          color: item.backgroundColor ?? fallbackColors[index % fallbackColors.length]!,
+          sortOrder: index
+        });
+      }
+
+      pageToken = payload.nextPageToken;
+      if (pageToken && seenPageTokens.has(pageToken)) {
+        throw new Error("Google Calendar returned a repeated calendar-list page token.");
+      }
+      if (pageToken) seenPageTokens.add(pageToken);
+    } while (pageToken);
+
     return { ok: true, calendars };
   } catch {
     return {
@@ -217,6 +247,48 @@ async function loadGoogleCalendars(accessToken: string): Promise<GoogleCalendarL
       }
     };
   }
+}
+
+async function loadGoogleEvents(input: {
+  accessToken: string;
+  externalCalendarId: string;
+  start: string;
+  end: string;
+  timezone: string;
+}): Promise<GoogleEventLoadResult> {
+  const items: GoogleEventItem[] = [];
+  const seenPageTokens = new Set<string>();
+  let pageToken: string | undefined;
+
+  do {
+    const eventsUrl = new URL(
+      `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(input.externalCalendarId)}/events`
+    );
+    eventsUrl.searchParams.set("singleEvents", "true");
+    eventsUrl.searchParams.set("orderBy", "startTime");
+    eventsUrl.searchParams.set("timeMin", input.start);
+    eventsUrl.searchParams.set("timeMax", input.end);
+    eventsUrl.searchParams.set("timeZone", input.timezone);
+    if (pageToken) eventsUrl.searchParams.set("pageToken", pageToken);
+
+    const response = await fetch(eventsUrl, {
+      headers: { Authorization: `Bearer ${input.accessToken}` }
+    });
+    if (!response.ok) return { ok: false, statusCode: response.status };
+
+    const payload = (await response.json()) as {
+      items?: GoogleEventItem[];
+      nextPageToken?: string;
+    };
+    items.push(...(payload.items ?? []));
+    pageToken = payload.nextPageToken;
+    if (pageToken && seenPageTokens.has(pageToken)) {
+      throw new Error("Google Calendar returned a repeated event page token.");
+    }
+    if (pageToken) seenPageTokens.add(pageToken);
+  } while (pageToken);
+
+  return { ok: true, items };
 }
 
 export const calendarRoutes: FastifyPluginAsync = async (app) => {
@@ -671,28 +743,25 @@ export const calendarRoutes: FastifyPluginAsync = async (app) => {
       const accessToken = token.accessToken;
 
       try {
-        const eventsUrl = new URL(
-          `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(source.externalCalendarId)}/events`
-        );
-        eventsUrl.searchParams.set("singleEvents", "true");
-        eventsUrl.searchParams.set("orderBy", "startTime");
-        eventsUrl.searchParams.set("timeMin", parsed.data.start);
-        eventsUrl.searchParams.set("timeMax", parsed.data.end);
-
-        const providerResponse = await fetch(eventsUrl, {
-          headers: {
-            Authorization: `Bearer ${accessToken}`
-          }
+        const providerResult = await loadGoogleEvents({
+          accessToken,
+          externalCalendarId: source.externalCalendarId,
+          start: parsed.data.start,
+          end: parsed.data.end,
+          timezone: parsed.data.timezone
         });
-
-        if (!providerResponse.ok) {
-          if (providerResponse.status === 401) {
+        if (!providerResult.ok) {
+          if (providerResult.statusCode === 401) {
             await app.db
               .update(connectedAccounts)
               .set({ reauthorizationRequired: true, updatedAt: new Date() })
               .where(eq(connectedAccounts.id, source.connectedAccountId));
           }
-          await logFetch(source.id, "error", `Google Calendar returned ${providerResponse.status}.`);
+          await logFetch(
+            source.id,
+            "error",
+            `Google Calendar returned ${providerResult.statusCode}.`
+          );
           warnings.push({
             code: "SOURCE_FETCH_FAILED",
             message: `Failed to fetch events for "${source.displayName}".`,
@@ -701,21 +770,10 @@ export const calendarRoutes: FastifyPluginAsync = async (app) => {
           continue;
         }
 
-        const payload = (await providerResponse.json()) as {
-          items?: Array<{
-            id?: string;
-            summary?: string;
-            description?: string;
-            location?: string;
-            status?: string;
-            start?: { date?: string; dateTime?: string };
-            end?: { date?: string; dateTime?: string };
-          }>;
-        };
         successfulProviderFetches += 1;
         await logFetch(source.id, "success");
 
-        for (const item of payload.items ?? []) {
+        for (const item of providerResult.items) {
           if (item.status === "cancelled") {
             continue;
           }

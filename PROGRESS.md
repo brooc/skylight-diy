@@ -174,6 +174,7 @@ This document tracks progress against the [v0.1 Implementation Plan](docs/v0.1-i
 - [x] Return an explicit empty degraded state when source fetch fails and no stale cache is available
 - [x] Refresh expiring Google access tokens once per connected account
 - [x] Persist refreshed credentials and mark revoked or unreadable refresh tokens for reconnect
+- [x] Follow Google pagination for calendar discovery and event reads
 
 ### 🚧 Step 13: Tablet polish (20%)
 
@@ -203,6 +204,6 @@ This document tracks progress against the [v0.1 Implementation Plan](docs/v0.1-i
 
 ## Next Priorities
 
-1. **Calendar completeness**: Add Google pagination, timezone/DST coverage, and explicit untracking for sources no longer wanted.
+1. **Calendar completeness**: Add timezone/DST coverage and explicit untracking for sources no longer wanted.
 2. **Manual v0.1 smoke pass**: Verify OAuth return, calendar selection, enable/disable, refresh, and event rendering in Docker.
 3. **Scope decision**: Keep calendar event creation as a post-v0.1 item unless it becomes required for release.
