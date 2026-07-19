@@ -1,9 +1,27 @@
 {
+  "id": "/",
   "name": "Daymark",
   "short_name": "Daymark",
   "start_url": "/today",
-  "display": "standalone",
-  "background_color": "#020617",
+  "scope": "/",
+  "display": "fullscreen",
+  "display_override": ["fullscreen", "standalone"],
+  "orientation": "landscape",
+  "description": "A shared family calendar and household dashboard.",
+  "background_color": "#f7f7f5",
   "theme_color": "#0f172a",
-  "icons": []
+  "icons": [
+    {
+      "src": "/icons/daymark-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/daymark-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
 }

@@ -62,11 +62,39 @@ function getErrorMessage(error: unknown, fallback: string): string {
     return fallback;
   }
   try {
-    const parsed = JSON.parse(error.message) as { message?: string; error?: string };
+    const parsed = JSON.parse(error.message) as {
+      message?: string;
+      error?: string;
+    };
     return parsed.message ?? parsed.error ?? fallback;
   } catch {
     return error.message || fallback;
   }
+}
+
+export function toSilkIntentUrl(authUrl: string): string {
+  const url = new URL(authUrl);
+  const scheme = url.protocol.replace(":", "");
+  return `intent://${url.host}${url.pathname}${url.search}#Intent;scheme=${scheme};package=com.amazon.cloud9;end`;
+}
+
+export function googleAuthLaunchTarget(
+  authUrl: string,
+  environment: { userAgent: string; standalone: boolean; fullyKiosk: boolean },
+): { href: string; label: string; opensExternalTab: boolean } {
+  const fireTablet = /Silk\//i.test(environment.userAgent);
+  if (environment.fullyKiosk || (fireTablet && !environment.standalone)) {
+    return {
+      href: toSilkIntentUrl(authUrl),
+      label: "Open Google in Silk",
+      opensExternalTab: false,
+    };
+  }
+  return {
+    href: authUrl,
+    label: "Continue with Google",
+    opensExternalTab: true,
+  };
 }
 
 function CalendarSourceCard({
@@ -74,7 +102,7 @@ function CalendarSourceCard({
   people,
   busySourceId,
   onPatch,
-  onUntrack
+  onUntrack,
 }: {
   source: CalendarSource;
   people: HouseholdResponse["people"];
@@ -89,7 +117,8 @@ function CalendarSourceCard({
   const normalizedColor = color.trim();
   const hasValidColor = /^#[0-9a-f]{6}$/i.test(normalizedColor);
   const hasChanges =
-    displayName.trim() !== source.displayName || normalizedColor !== (source.color ?? "#8ec5b8");
+    displayName.trim() !== source.displayName ||
+    normalizedColor !== (source.color ?? "#8ec5b8");
 
   useEffect(() => {
     setDisplayName(source.displayName);
@@ -106,7 +135,9 @@ function CalendarSourceCard({
             className="h-5 w-5 rounded-full border border-[#d8d6d1]"
             style={{ backgroundColor: source.color ?? "#8ec5b8" }}
           />
-          <div className="text-sm font-semibold text-slate-900">{source.displayName}</div>
+          <div className="text-sm font-semibold text-slate-900">
+            {source.displayName}
+          </div>
         </div>
         <button
           type="button"
@@ -121,7 +152,9 @@ function CalendarSourceCard({
             try {
               await onPatch(source.id, { enabled: !source.enabled });
             } catch (error) {
-              setSourceError(getErrorMessage(error, "Failed to update visibility."));
+              setSourceError(
+                getErrorMessage(error, "Failed to update visibility."),
+              );
             }
           }}
         >
@@ -131,7 +164,9 @@ function CalendarSourceCard({
 
       <div className="grid gap-2 md:grid-cols-[minmax(0,1fr)_96px_auto]">
         <label className="grid gap-1">
-          <span className="text-xs font-medium text-slate-600">Source name</span>
+          <span className="text-xs font-medium text-slate-600">
+            Source name
+          </span>
           <input
             value={displayName}
             disabled={isBusy}
@@ -152,17 +187,24 @@ function CalendarSourceCard({
         <div className="flex items-end">
           <button
             type="button"
-            disabled={isBusy || !hasChanges || displayName.trim().length === 0 || !hasValidColor}
+            disabled={
+              isBusy ||
+              !hasChanges ||
+              displayName.trim().length === 0 ||
+              !hasValidColor
+            }
             className="min-h-[38px] rounded-md border border-[#c7b8a2] bg-[#fff7ea] px-3 text-sm font-semibold text-slate-800 hover:bg-[#fcedd8] disabled:cursor-not-allowed disabled:opacity-60"
             onClick={async () => {
               setSourceError(null);
               try {
                 await onPatch(source.id, {
                   displayName: displayName.trim(),
-                  color: normalizedColor
+                  color: normalizedColor,
                 });
               } catch (error) {
-                setSourceError(getErrorMessage(error, "Failed to save source."));
+                setSourceError(
+                  getErrorMessage(error, "Failed to save source."),
+                );
               }
             }}
           >
@@ -172,7 +214,9 @@ function CalendarSourceCard({
       </div>
 
       <label className="grid gap-1 md:max-w-xs">
-        <span className="text-xs font-medium text-slate-600">Assigned person</span>
+        <span className="text-xs font-medium text-slate-600">
+          Assigned person
+        </span>
         <select
           value={source.personId ?? ""}
           disabled={isBusy}
@@ -180,9 +224,13 @@ function CalendarSourceCard({
           onChange={async (event) => {
             setSourceError(null);
             try {
-              await onPatch(source.id, { personId: event.target.value || null });
+              await onPatch(source.id, {
+                personId: event.target.value || null,
+              });
             } catch (error) {
-              setSourceError(getErrorMessage(error, "Failed to assign person."));
+              setSourceError(
+                getErrorMessage(error, "Failed to assign person."),
+              );
             }
           }}
         >
@@ -202,21 +250,25 @@ function CalendarSourceCard({
           className="min-h-[38px] rounded-md border border-rose-300 bg-white px-3 text-sm font-semibold text-rose-700 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-50"
           onClick={async () => {
             const confirmed = window.confirm(
-              `Stop tracking ${source.displayName}? It will no longer appear in Daymark, but you can add it again later.`
+              `Stop tracking ${source.displayName}? It will no longer appear in Daymark, but you can add it again later.`,
             );
             if (!confirmed) return;
             setSourceError(null);
             try {
               await onUntrack(source);
             } catch (error) {
-              setSourceError(getErrorMessage(error, "Failed to stop tracking calendar."));
+              setSourceError(
+                getErrorMessage(error, "Failed to stop tracking calendar."),
+              );
             }
           }}
         >
           {isBusy ? "Removing..." : "Stop tracking"}
         </button>
       </div>
-      {sourceError ? <p className="text-xs text-rose-700">{sourceError}</p> : null}
+      {sourceError ? (
+        <p className="text-xs text-rose-700">{sourceError}</p>
+      ) : null}
     </div>
   );
 }
@@ -226,48 +278,85 @@ export function GoogleCalendarSettings(): JSX.Element {
   const [status, setStatus] = useState<string | null>(null);
   const [busySourceId, setBusySourceId] = useState<string | null>(null);
   const [busyAccountId, setBusyAccountId] = useState<string | null>(null);
-  const [discoveredCalendars, setDiscoveredCalendars] = useState<DiscoveredCalendar[] | null>(null);
+  const [discoveredCalendars, setDiscoveredCalendars] = useState<
+    DiscoveredCalendar[] | null
+  >(null);
   const [activeAccountId, setActiveAccountId] = useState<string | null>(null);
   const [selectedCalendarIds, setSelectedCalendarIds] = useState<string[]>([]);
   const [calendarSearch, setCalendarSearch] = useState("");
   const [isDiscovering, setIsDiscovering] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
+  const [pendingGoogleAuthUrl, setPendingGoogleAuthUrl] = useState<
+    string | null
+  >(null);
 
   const accountsQuery = useQuery({
     queryKey: ["calendar-accounts"],
     queryFn: () => apiFetch<AccountsResponse>("/calendar/accounts"),
-    refetchOnMount: "always"
+    refetchOnMount: "always",
   });
   const sourcesQuery = useQuery({
     queryKey: ["calendar-sources"],
-    queryFn: () => apiFetch<SourcesResponse>("/calendar/sources")
+    queryFn: () => apiFetch<SourcesResponse>("/calendar/sources"),
   });
   const peopleQuery = useQuery({
     queryKey: ["household-people-for-calendar"],
-    queryFn: () => apiFetch<HouseholdResponse>("/household/current")
+    queryFn: () => apiFetch<HouseholdResponse>("/household/current"),
   });
   const oauthStatusQuery = useQuery({
     queryKey: ["google-oauth-status"],
-    queryFn: () => apiFetch<{ available: boolean; redirectUri: string | null }>("/integrations/google/status")
+    queryFn: () =>
+      apiFetch<{ available: boolean; redirectUri: string | null }>(
+        "/integrations/google/status",
+      ),
   });
 
   useEffect(() => {
     const url = new URL(window.location.href);
     const googleStatus = url.searchParams.get("google");
-    if (googleStatus !== "connected" && googleStatus !== "calendar_access_required") {
+    if (
+      googleStatus !== "connected" &&
+      googleStatus !== "calendar_access_required"
+    ) {
       return;
     }
     setStatus(
       googleStatus === "connected"
         ? "Google Calendar connected."
-        : "Google account identified, but Calendar access was not granted. Reconnect and allow read-only Calendar access."
+        : "Google account identified, but Calendar access was not granted. Reconnect and allow read-only Calendar access.",
     );
     void Promise.all([accountsQuery.refetch(), sourcesQuery.refetch()]);
     url.searchParams.delete("google");
-    window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
+    window.history.replaceState(
+      {},
+      "",
+      `${url.pathname}${url.search}${url.hash}`,
+    );
   }, []);
 
-  if (accountsQuery.isLoading || sourcesQuery.isLoading || peopleQuery.isLoading || oauthStatusQuery.isLoading) {
+  useEffect(() => {
+    const refreshAfterExternalAuth = () => {
+      if (document.visibilityState === "visible") {
+        void Promise.all([accountsQuery.refetch(), sourcesQuery.refetch()]);
+      }
+    };
+    document.addEventListener("visibilitychange", refreshAfterExternalAuth);
+    window.addEventListener("focus", refreshAfterExternalAuth);
+    return () => {
+      document.removeEventListener(
+        "visibilitychange",
+        refreshAfterExternalAuth,
+      );
+      window.removeEventListener("focus", refreshAfterExternalAuth);
+    };
+  }, []);
+
+  if (
+    accountsQuery.isLoading ||
+    sourcesQuery.isLoading ||
+    peopleQuery.isLoading ||
+    oauthStatusQuery.isLoading
+  ) {
     return <LoadingState label="Loading calendar settings..." />;
   }
   if (accountsQuery.isError) {
@@ -287,19 +376,41 @@ export function GoogleCalendarSettings(): JSX.Element {
   const sources = sourcesQuery.data?.sources ?? [];
   const people = peopleQuery.data?.people ?? [];
   const oauthAvailable = oauthStatusQuery.data?.available ?? false;
-  const visibleDiscoveredCalendars = (discoveredCalendars ?? []).filter((calendar) =>
-    calendar.displayName.toLocaleLowerCase().includes(calendarSearch.trim().toLocaleLowerCase())
+  const visibleDiscoveredCalendars = (discoveredCalendars ?? []).filter(
+    (calendar) =>
+      calendar.displayName
+        .toLocaleLowerCase()
+        .includes(calendarSearch.trim().toLocaleLowerCase()),
   );
-  const selectableVisibleCalendars = visibleDiscoveredCalendars.filter((calendar) => !calendar.tracked);
-  const activeAccount = accounts.find((account) => account.id === activeAccountId);
+  const selectableVisibleCalendars = visibleDiscoveredCalendars.filter(
+    (calendar) => !calendar.tracked,
+  );
+  const activeAccount = accounts.find(
+    (account) => account.id === activeAccountId,
+  );
+  const googleAuthTarget = pendingGoogleAuthUrl
+    ? googleAuthLaunchTarget(pendingGoogleAuthUrl, {
+        userAgent: navigator.userAgent,
+        standalone:
+          window.matchMedia?.("(display-mode: fullscreen)").matches === true ||
+          window.matchMedia?.("(display-mode: standalone)").matches === true,
+        fullyKiosk: "FullyKiosk" in window || "fully" in window,
+      })
+    : null;
   const startGoogleConnection = async (accountId?: string): Promise<void> => {
+    setPendingGoogleAuthUrl(null);
     try {
-      const suffix = accountId ? `?accountId=${encodeURIComponent(accountId)}` : "";
-      const result = await apiFetch<{ available: boolean; authUrl?: string; message?: string }>(
-        `/integrations/google/connect${suffix}`
-      );
+      const suffix = accountId
+        ? `?accountId=${encodeURIComponent(accountId)}`
+        : "";
+      const result = await apiFetch<{
+        available: boolean;
+        authUrl?: string;
+        message?: string;
+      }>(`/integrations/google/connect${suffix}`);
       if (result.authUrl) {
-        window.location.assign(result.authUrl);
+        setPendingGoogleAuthUrl(result.authUrl);
+        setStatus("Google is ready. Continue below to finish connecting.");
         return;
       }
       setStatus(result.message ?? "Google OAuth is unavailable.");
@@ -311,10 +422,13 @@ export function GoogleCalendarSettings(): JSX.Element {
     setIsDiscovering(true);
     setActiveAccountId(accountId);
     try {
-      const result = await apiFetch<DiscoveryResponse>("/calendar/sources/discover-from-google", {
-        method: "POST",
-        body: JSON.stringify({ accountId })
-      });
+      const result = await apiFetch<DiscoveryResponse>(
+        "/calendar/sources/discover-from-google",
+        {
+          method: "POST",
+          body: JSON.stringify({ accountId }),
+        },
+      );
       setDiscoveredCalendars(result.calendars);
       setSelectedCalendarIds([]);
       setCalendarSearch("");
@@ -326,17 +440,20 @@ export function GoogleCalendarSettings(): JSX.Element {
       setIsDiscovering(false);
     }
   };
-  const patchSource = async (sourceId: string, patch: SourcePatch): Promise<void> => {
+  const patchSource = async (
+    sourceId: string,
+    patch: SourcePatch,
+  ): Promise<void> => {
     setBusySourceId(sourceId);
     try {
       await apiFetch(`/calendar/sources/${sourceId}`, {
         method: "PATCH",
-        body: JSON.stringify(patch)
+        body: JSON.stringify(patch),
       });
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["calendar-sources"] }),
         queryClient.invalidateQueries({ queryKey: ["calendar-week"] }),
-        queryClient.invalidateQueries({ queryKey: ["calendar-week-schedule"] })
+        queryClient.invalidateQueries({ queryKey: ["calendar-week-schedule"] }),
       ]);
     } finally {
       setBusySourceId(null);
@@ -351,7 +468,7 @@ export function GoogleCalendarSettings(): JSX.Element {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["calendar-sources"] }),
         queryClient.invalidateQueries({ queryKey: ["calendar-week"] }),
-        queryClient.invalidateQueries({ queryKey: ["calendar-week-schedule"] })
+        queryClient.invalidateQueries({ queryKey: ["calendar-week-schedule"] }),
       ]);
     } finally {
       setBusySourceId(null);
@@ -362,7 +479,8 @@ export function GoogleCalendarSettings(): JSX.Element {
     <section className="grid gap-3 rounded-md border border-[#e0d6c7] bg-white p-4">
       <h2 className="text-lg font-semibold text-slate-900">Google Calendar</h2>
       <p className="text-sm text-slate-600">
-        Connect Google, choose which calendars Daymark should track, then configure them below.
+        Connect Google, choose which calendars Daymark should track, then
+        configure them below.
       </p>
       {status ? <p className="text-sm text-slate-700">{status}</p> : null}
       <div className="flex flex-wrap gap-2">
@@ -372,7 +490,9 @@ export function GoogleCalendarSettings(): JSX.Element {
           className="min-h-[44px] rounded-md bg-[#0f766e] px-3 py-2 text-sm font-semibold text-white hover:bg-[#0d5f59] disabled:cursor-not-allowed disabled:opacity-50"
           onClick={() => void startGoogleConnection()}
         >
-          {accounts.length > 0 ? "Add Google Account" : "Connect Google Account"}
+          {accounts.length > 0
+            ? "Add Google Account"
+            : "Connect Google Account"}
         </button>
       </div>
       {!oauthAvailable ? (
@@ -380,21 +500,49 @@ export function GoogleCalendarSettings(): JSX.Element {
           Google OAuth is not configured in environment variables yet.
         </p>
       ) : null}
+      {googleAuthTarget ? (
+        <div className="grid gap-1 rounded-md border border-amber-200 bg-amber-50 p-3">
+          <a
+            href={googleAuthTarget.href}
+            target={googleAuthTarget.opensExternalTab ? "_blank" : undefined}
+            rel={
+              googleAuthTarget.opensExternalTab
+                ? "noopener noreferrer external"
+                : undefined
+            }
+            className="justify-self-start rounded-md bg-amber-100 px-3 py-2 text-sm font-semibold text-amber-950"
+          >
+            {googleAuthTarget.label}
+          </a>
+          <p className="text-xs text-amber-800">
+            Complete Google access in Silk, then return to Daymark. Fully users
+            must allow other URL schemes.
+          </p>
+        </div>
+      ) : null}
       {accounts.length === 0 ? (
-        <p className="text-xs text-slate-600">Connect Google before choosing calendars.</p>
+        <p className="text-xs text-slate-600">
+          Connect Google before choosing calendars.
+        </p>
       ) : null}
       {discoveredCalendars ? (
         <div className="grid gap-3 rounded-md border border-[#d8ccba] bg-[#fffaf1] p-3">
           <div>
             <h3 className="text-sm font-semibold text-slate-900">
-              Choose calendars for {activeAccount?.email || activeAccount?.displayName || "Google account"}
+              Choose calendars for{" "}
+              {activeAccount?.email ||
+                activeAccount?.displayName ||
+                "Google account"}
             </h3>
             <p className="text-xs text-slate-600">
-              New calendars are not selected by default. Added calendars start enabled and unassigned.
+              New calendars are not selected by default. Added calendars start
+              enabled and unassigned.
             </p>
           </div>
           <label className="grid gap-1">
-            <span className="text-xs font-medium text-slate-600">Search calendars</span>
+            <span className="text-xs font-medium text-slate-600">
+              Search calendars
+            </span>
             <input
               type="search"
               value={calendarSearch}
@@ -408,8 +556,12 @@ export function GoogleCalendarSettings(): JSX.Element {
               type="button"
               className="rounded-md border border-[#c7b8a2] bg-white px-3 py-2 text-xs font-semibold text-slate-800"
               onClick={() => {
-                const visibleIds = selectableVisibleCalendars.map((calendar) => calendar.externalCalendarId);
-                setSelectedCalendarIds((current) => [...new Set([...current, ...visibleIds])]);
+                const visibleIds = selectableVisibleCalendars.map(
+                  (calendar) => calendar.externalCalendarId,
+                );
+                setSelectedCalendarIds((current) => [
+                  ...new Set([...current, ...visibleIds]),
+                ]);
               }}
             >
               Select all visible
@@ -418,16 +570,28 @@ export function GoogleCalendarSettings(): JSX.Element {
               type="button"
               className="rounded-md border border-[#c7b8a2] bg-white px-3 py-2 text-xs font-semibold text-slate-800"
               onClick={() => {
-                const visibleIds = new Set(selectableVisibleCalendars.map((calendar) => calendar.externalCalendarId));
-                setSelectedCalendarIds((current) => current.filter((id) => !visibleIds.has(id)));
+                const visibleIds = new Set(
+                  selectableVisibleCalendars.map(
+                    (calendar) => calendar.externalCalendarId,
+                  ),
+                );
+                setSelectedCalendarIds((current) =>
+                  current.filter((id) => !visibleIds.has(id)),
+                );
               }}
             >
               Clear visible
             </button>
           </div>
-          <div className="grid max-h-72 gap-2 overflow-y-auto" role="group" aria-label="Google calendars">
+          <div
+            className="grid max-h-72 gap-2 overflow-y-auto"
+            role="group"
+            aria-label="Google calendars"
+          >
             {visibleDiscoveredCalendars.length === 0 ? (
-              <p className="text-sm text-slate-600">No calendars match that search.</p>
+              <p className="text-sm text-slate-600">
+                No calendars match that search.
+              </p>
             ) : (
               visibleDiscoveredCalendars.map((calendar) => (
                 <label
@@ -436,12 +600,19 @@ export function GoogleCalendarSettings(): JSX.Element {
                 >
                   <input
                     type="checkbox"
-                    checked={calendar.tracked || selectedCalendarIds.includes(calendar.externalCalendarId)}
+                    checked={
+                      calendar.tracked ||
+                      selectedCalendarIds.includes(calendar.externalCalendarId)
+                    }
                     disabled={calendar.tracked}
                     onChange={(event) => {
-                      setSelectedCalendarIds((current) => event.target.checked
-                        ? [...current, calendar.externalCalendarId]
-                        : current.filter((id) => id !== calendar.externalCalendarId));
+                      setSelectedCalendarIds((current) =>
+                        event.target.checked
+                          ? [...current, calendar.externalCalendarId]
+                          : current.filter(
+                              (id) => id !== calendar.externalCalendarId,
+                            ),
+                      );
                     }}
                   />
                   <span
@@ -449,10 +620,13 @@ export function GoogleCalendarSettings(): JSX.Element {
                     className="h-4 w-4 shrink-0 rounded-full border border-[#d8d6d1]"
                     style={{ backgroundColor: calendar.color }}
                   />
-                  <span className="min-w-0 flex-1 truncate text-sm text-slate-900">{calendar.displayName}</span>
+                  <span className="min-w-0 flex-1 truncate text-sm text-slate-900">
+                    {calendar.displayName}
+                  </span>
                   {calendar.tracked ? (
                     <span className="text-xs font-medium text-slate-500">
-                      Already tracked · {calendar.enabled ? "Enabled" : "Disabled"}
+                      Already tracked ·{" "}
+                      {calendar.enabled ? "Enabled" : "Disabled"}
                     </span>
                   ) : null}
                 </label>
@@ -467,21 +641,32 @@ export function GoogleCalendarSettings(): JSX.Element {
               onClick={async () => {
                 setIsImporting(true);
                 try {
-                  const result = await apiFetch<{ imported: number }>("/calendar/sources/import-from-google", {
-                    method: "POST",
-                    body: JSON.stringify({
-                      accountId: activeAccountId,
-                      externalCalendarIds: selectedCalendarIds
-                    })
-                  });
-                  setStatus(`Added ${result.imported} calendar${result.imported === 1 ? "" : "s"}.`);
+                  const result = await apiFetch<{ imported: number }>(
+                    "/calendar/sources/import-from-google",
+                    {
+                      method: "POST",
+                      body: JSON.stringify({
+                        accountId: activeAccountId,
+                        externalCalendarIds: selectedCalendarIds,
+                      }),
+                    },
+                  );
+                  setStatus(
+                    `Added ${result.imported} calendar${result.imported === 1 ? "" : "s"}.`,
+                  );
                   setDiscoveredCalendars(null);
                   setActiveAccountId(null);
                   setSelectedCalendarIds([]);
                   await Promise.all([
-                    queryClient.invalidateQueries({ queryKey: ["calendar-sources"] }),
-                    queryClient.invalidateQueries({ queryKey: ["calendar-week"] }),
-                    queryClient.invalidateQueries({ queryKey: ["calendar-week-schedule"] })
+                    queryClient.invalidateQueries({
+                      queryKey: ["calendar-sources"],
+                    }),
+                    queryClient.invalidateQueries({
+                      queryKey: ["calendar-week"],
+                    }),
+                    queryClient.invalidateQueries({
+                      queryKey: ["calendar-week-schedule"],
+                    }),
                   ]);
                 } catch (error) {
                   setStatus(getErrorMessage(error, "Failed to add calendars."));
@@ -490,7 +675,9 @@ export function GoogleCalendarSettings(): JSX.Element {
                 }
               }}
             >
-              {isImporting ? "Adding calendars..." : `Add selected (${selectedCalendarIds.length})`}
+              {isImporting
+                ? "Adding calendars..."
+                : `Add selected (${selectedCalendarIds.length})`}
             </button>
             <button
               type="button"
@@ -508,7 +695,9 @@ export function GoogleCalendarSettings(): JSX.Element {
       ) : null}
 
       <div className="grid gap-2 rounded-md border border-[#ece6db] bg-[#fbf8f3] p-3">
-        <h3 className="text-sm font-semibold text-slate-900">Connected accounts</h3>
+        <h3 className="text-sm font-semibold text-slate-900">
+          Connected accounts
+        </h3>
         {accounts.length === 0 ? (
           <p className="text-sm text-slate-600">No connected accounts yet.</p>
         ) : (
@@ -527,12 +716,24 @@ export function GoogleCalendarSettings(): JSX.Element {
                   {account.email || "Reconnect Google to identify this account"}
                 </div>
                 <div className="mt-1 text-xs text-slate-500">
-                  {sources.filter((source) => source.connectedAccountId === account.id).length} tracked calendar
-                  {sources.filter((source) => source.connectedAccountId === account.id).length === 1 ? "" : "s"}
+                  {
+                    sources.filter(
+                      (source) => source.connectedAccountId === account.id,
+                    ).length
+                  }{" "}
+                  tracked calendar
+                  {sources.filter(
+                    (source) => source.connectedAccountId === account.id,
+                  ).length === 1
+                    ? ""
+                    : "s"}
                 </div>
-                {!account.calendarAccessGranted || account.reauthorizationRequired ? (
+                {!account.calendarAccessGranted ||
+                account.reauthorizationRequired ? (
                   <div className="mt-1 text-xs font-medium text-amber-700">
-                    {account.reauthorizationRequired ? "Reconnect required" : "Calendar access required"}
+                    {account.reauthorizationRequired
+                      ? "Reconnect required"
+                      : "Calendar access required"}
                   </div>
                 ) : null}
               </div>
@@ -551,7 +752,8 @@ export function GoogleCalendarSettings(): JSX.Element {
                     ? "Loading calendars..."
                     : "Choose calendars"}
                 </button>
-                {!account.calendarAccessGranted || account.reauthorizationRequired ? (
+                {!account.calendarAccessGranted ||
+                account.reauthorizationRequired ? (
                   <button
                     type="button"
                     disabled={!oauthAvailable}
@@ -572,7 +774,7 @@ export function GoogleCalendarSettings(): JSX.Element {
                       className="min-h-[40px] w-full rounded-md px-3 py-2 text-left text-sm font-semibold text-rose-700 hover:bg-rose-50 disabled:opacity-50"
                       onClick={async () => {
                         const confirmed = window.confirm(
-                          `Disconnect ${account.email || account.displayName || "this Google account"}? Its tracked calendars will be removed from Daymark.`
+                          `Disconnect ${account.email || account.displayName || "this Google account"}? Its tracked calendars will be removed from Daymark.`,
                         );
                         if (!confirmed) return;
                         setBusyAccountId(account.id);
@@ -581,25 +783,44 @@ export function GoogleCalendarSettings(): JSX.Element {
                             disconnected: boolean;
                             revocationSucceeded: boolean;
                             warning?: string | null;
-                          }>(`/integrations/google/accounts/${account.id}`, { method: "DELETE" });
-                          setStatus(result.warning || "Google Calendar disconnected.");
+                          }>(`/integrations/google/accounts/${account.id}`, {
+                            method: "DELETE",
+                          });
+                          setStatus(
+                            result.warning || "Google Calendar disconnected.",
+                          );
                           setDiscoveredCalendars(null);
                           setActiveAccountId(null);
                           setSelectedCalendarIds([]);
                           await Promise.all([
-                            queryClient.invalidateQueries({ queryKey: ["calendar-accounts"] }),
-                            queryClient.invalidateQueries({ queryKey: ["calendar-sources"] }),
-                            queryClient.invalidateQueries({ queryKey: ["calendar-week"] }),
-                            queryClient.invalidateQueries({ queryKey: ["calendar-week-schedule"] })
+                            queryClient.invalidateQueries({
+                              queryKey: ["calendar-accounts"],
+                            }),
+                            queryClient.invalidateQueries({
+                              queryKey: ["calendar-sources"],
+                            }),
+                            queryClient.invalidateQueries({
+                              queryKey: ["calendar-week"],
+                            }),
+                            queryClient.invalidateQueries({
+                              queryKey: ["calendar-week-schedule"],
+                            }),
                           ]);
                         } catch (error) {
-                          setStatus(getErrorMessage(error, "Failed to disconnect Google Calendar."));
+                          setStatus(
+                            getErrorMessage(
+                              error,
+                              "Failed to disconnect Google Calendar.",
+                            ),
+                          );
                         } finally {
                           setBusyAccountId(null);
                         }
                       }}
                     >
-                      {busyAccountId === account.id ? "Disconnecting..." : "Disconnect account"}
+                      {busyAccountId === account.id
+                        ? "Disconnecting..."
+                        : "Disconnect account"}
                     </button>
                   </div>
                 </details>
@@ -610,20 +831,28 @@ export function GoogleCalendarSettings(): JSX.Element {
       </div>
 
       <div className="grid gap-2 rounded-md border border-[#ece6db] bg-[#fbf8f3] p-3">
-        <h3 className="text-sm font-semibold text-slate-900">Calendar sources</h3>
+        <h3 className="text-sm font-semibold text-slate-900">
+          Calendar sources
+        </h3>
         <p className="text-xs text-slate-600">
-          Disable calendars temporarily, stop tracking calendars you no longer want, or assign them to a person.
+          Disable calendars temporarily, stop tracking calendars you no longer
+          want, or assign them to a person.
         </p>
         {sources.length === 0 ? (
-          <p className="text-sm text-slate-600">Import calendars to configure sources.</p>
+          <p className="text-sm text-slate-600">
+            Import calendars to configure sources.
+          </p>
         ) : (
           accounts.map((account) => {
             const accountSources = sources.filter(
-              (source) => source.connectedAccountId === account.id
+              (source) => source.connectedAccountId === account.id,
             );
             if (accountSources.length === 0) return null;
             return (
-              <div key={account.id} className="grid gap-2 rounded-md border border-[#e4dbcc] p-3">
+              <div
+                key={account.id}
+                className="grid gap-2 rounded-md border border-[#e4dbcc] p-3"
+              >
                 <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                   {account.email || account.displayName || "Google account"}
                 </div>

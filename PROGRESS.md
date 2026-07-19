@@ -199,6 +199,8 @@ This document tracks progress against the [v0.1 Implementation Plan](docs/v0.1-i
 - [x] Constrain Calendar to the tablet viewport so only its schedule pane scrolls
 - [x] Apply saved family-member colors across calendars, tasks, and rewards using pastel surfaces
 - [x] Support multiple Google accounts with account-scoped reconnect, calendar discovery, and import
+- [x] Launch Google OAuth from Fully Kiosk in Silk through an Android app intent
+- [x] Add an installable fullscreen landscape PWA shell with resilient screen wake lock handling
 - [x] Rename the responsive Week view to Agenda
 - [ ] Complete responsive 10-inch tablet landscape pass across all primary routes
 
