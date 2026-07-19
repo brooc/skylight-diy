@@ -343,8 +343,8 @@ export function TodayDashboard(): JSX.Element {
     : null;
 
   return (
-    <section className="grid gap-3">
-      <section className="relative overflow-hidden rounded-md border border-[#e7e7e5] bg-white">
+    <section className="grid gap-3 md:h-[calc(100dvh-1.5rem)] md:min-h-0">
+      <section className="relative flex min-h-0 flex-col overflow-hidden rounded-md border border-[#e7e7e5] bg-white">
         <header className="border-b border-[#ecebe8] px-3 pb-2 pt-3">
           <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
             <div className="flex flex-wrap items-center gap-x-5 gap-y-1">
@@ -528,7 +528,7 @@ export function TodayDashboard(): JSX.Element {
             />
           </div>
         ) : null}
-        <div className="max-h-[72vh] overflow-auto">
+        <div data-testid="dashboard-calendar-scroll" className="min-h-0 flex-1 overflow-auto">
           <div
             data-testid="dashboard-calendar-grid"
             data-calendar-start-hour={startHour}

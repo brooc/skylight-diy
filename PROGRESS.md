@@ -196,6 +196,7 @@ This document tracks progress against the [v0.1 Implementation Plan](docs/v0.1-i
 - [x] Merge shared Google event occurrences by iCalUID and render participating calendar color bands
 - [x] Keep multi-day events single-color unless they are actually shared across calendars
 - [x] Fit all seven Calendar days on an 8-inch landscape viewport with fluid day/time labels
+- [x] Constrain Calendar to the tablet viewport so only its schedule pane scrolls
 - [x] Rename the responsive Week view to Agenda
 - [ ] Complete responsive 10-inch tablet landscape pass across all primary routes
 

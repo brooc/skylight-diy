@@ -61,6 +61,16 @@ describe("TodayDashboard", () => {
     expect(calendarGrid).toHaveStyle({
       gridTemplateColumns: "clamp(52px, 6vw, 76px) repeat(7, minmax(0, 1fr))"
     });
+    expect(calendarGrid.closest("section")?.parentElement).toHaveClass(
+      "md:h-[calc(100dvh-1.5rem)]",
+      "md:min-h-0"
+    );
+    expect(screen.getByTestId("dashboard-calendar-scroll")).toHaveClass(
+      "min-h-0",
+      "flex-1",
+      "overflow-auto"
+    );
+    expect(screen.getByTestId("dashboard-calendar-scroll")).not.toHaveClass("max-h-[72vh]");
     expect(document.querySelector('[data-calendar-day-header="true"]')).toHaveClass(
       "text-[clamp(18px,2.5vw,34px)]"
     );
