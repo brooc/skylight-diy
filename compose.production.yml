@@ -107,5 +107,6 @@ services:
 
 volumes:
   daymark_postgres_data:
+    name: ${DAYMARK_POSTGRES_VOLUME:-daymark-production-data}
   tailscale_state:
   tailscale_socket:

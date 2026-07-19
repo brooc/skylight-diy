@@ -19,6 +19,7 @@ openssl rand -hex 32
 Edit `.env.production`:
 
 - Set `POSTGRES_PASSWORD` to another random hex value and put that same value in `DATABASE_URL`.
+- When migrating an existing Docker development install, set `DAYMARK_POSTGRES_VOLUME` to its PostgreSQL volume name before stopping it.
 - Set `TOKEN_ENCRYPTION_KEY` to the base64 output from the first command.
 - Set `SESSION_SECRET` to the hex output from the second command.
 - Leave the bootstrap `APP_BASE_URL` and `API_BASE_URL` values as `http://localhost:8080` for now.
@@ -29,8 +30,8 @@ Keep `.env.production` and the token encryption key with the database backups. T
 ## 2. Start Daymark and connect Tailscale
 
 ```bash
-docker compose -f compose.production.yml up -d --build
-docker compose -f compose.production.yml ps
+docker compose --env-file .env.production -f compose.production.yml up -d --build
+docker compose --env-file .env.production -f compose.production.yml ps
 curl http://127.0.0.1:8080/api/health
 ```
 
@@ -57,7 +58,7 @@ Copy the HTTPS address displayed in **Settings → Tablet access**, then update 
 Apply the settings:
 
 ```bash
-docker compose -f compose.production.yml up -d
+docker compose --env-file .env.production -f compose.production.yml up -d
 ```
 
 In Google Cloud Console, add the exact `GOOGLE_REDIRECT_URI` value to the OAuth client's authorized redirect URIs. Keep the localhost callback if local development is still used.
@@ -76,19 +77,19 @@ In Google Cloud Console, add the exact `GOOGLE_REDIRECT_URI` value to the OAuth 
 View logs:
 
 ```bash
-docker compose -f compose.production.yml logs -f --tail=200
+docker compose --env-file .env.production -f compose.production.yml logs -f --tail=200
 ```
 
 Update after pulling new code:
 
 ```bash
-docker compose -f compose.production.yml up -d --build
+docker compose --env-file .env.production -f compose.production.yml up -d --build
 ```
 
 Stop without deleting data:
 
 ```bash
-docker compose -f compose.production.yml down
+docker compose --env-file .env.production -f compose.production.yml down
 ```
 
 Do not add `--volumes` unless you intentionally want to delete the production database.
