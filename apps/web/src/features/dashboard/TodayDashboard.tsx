@@ -361,23 +361,34 @@ export function TodayDashboard(): JSX.Element {
               </div>
               {weatherQuery.data?.configured ? (
                 <div
-                  className="flex items-center gap-1.5 text-slate-700"
+                  className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50/90 py-1 pl-1 pr-3 text-slate-700 shadow-sm"
                   title={weatherQuery.data.locationName}
                   aria-label={`${currentWeather?.label ?? "Weather"}: high ${weatherQuery.data.highTemperature}°, low ${weatherQuery.data.lowTemperature}°`}
                 >
                   {currentWeather ? (
-                    <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-slate-800 shadow-sm">
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-800">
                       <img
                         src={currentWeather.src}
                         alt=""
                         aria-hidden="true"
-                        className="h-11 w-11 object-contain"
+                        className="h-9 w-9 object-contain"
                       />
                     </span>
                   ) : null}
-                  <div className="flex items-baseline gap-1 font-display text-2xl leading-none md:text-[28px]">
-                    <span>{weatherQuery.data.highTemperature}°</span>
-                    <span className="text-slate-400">{weatherQuery.data.lowTemperature}°</span>
+                  <div className="grid gap-0.5">
+                    <div className="text-[11px] font-semibold leading-none text-slate-500">
+                      {currentWeather?.label ?? "Weather"}
+                    </div>
+                    <div className="flex items-baseline gap-2 font-display text-xl leading-none">
+                      <span className="flex items-baseline gap-0.5">
+                        <span className="font-sans text-[9px] font-bold text-slate-400">H</span>
+                        <span>{weatherQuery.data.highTemperature}°</span>
+                      </span>
+                      <span className="flex items-baseline gap-0.5 text-slate-400">
+                        <span className="font-sans text-[9px] font-bold">L</span>
+                        <span>{weatherQuery.data.lowTemperature}°</span>
+                      </span>
+                    </div>
                   </div>
                 </div>
               ) : null}
