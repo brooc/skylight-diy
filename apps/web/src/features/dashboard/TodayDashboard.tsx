@@ -380,13 +380,13 @@ export function TodayDashboard(): JSX.Element {
                       {currentWeather?.label ?? "Weather"}
                     </div>
                     <div className="flex items-baseline gap-2 font-display text-xl leading-none">
-                      <span className="flex items-baseline gap-0.5">
-                        <span className="font-sans text-[9px] font-bold text-slate-400">H</span>
-                        <span>{weatherQuery.data.highTemperature}°</span>
-                      </span>
                       <span className="flex items-baseline gap-0.5 text-slate-400">
                         <span className="font-sans text-[9px] font-bold">L</span>
                         <span>{weatherQuery.data.lowTemperature}°</span>
+                      </span>
+                      <span className="flex items-baseline gap-0.5">
+                        <span className="font-sans text-[9px] font-bold text-slate-400">H</span>
+                        <span>{weatherQuery.data.highTemperature}°</span>
                       </span>
                     </div>
                   </div>
