@@ -80,6 +80,8 @@ export function TodayDashboard(): JSX.Element {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
+  const [isCalendarRefreshing, setIsCalendarRefreshing] = useState(false);
+  const [calendarRefreshError, setCalendarRefreshError] = useState<string | null>(null);
   const householdQuery = useQuery({
     queryKey: queryKeys.household,
     queryFn: () => apiFetch<HouseholdResponse>("/household/current")
@@ -99,13 +101,12 @@ export function TodayDashboard(): JSX.Element {
   const endDate = new Date(startOfToday);
   endDate.setDate(endDate.getDate() + 7);
   const end = endDate.toISOString();
+  const calendarQueryKey = ["calendar-week-schedule", start, end, timezone] as const;
+  const calendarEventsUrl = `/calendar/events?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}&timezone=${encodeURIComponent(timezone)}`;
 
   const calendarQuery = useQuery({
-    queryKey: ["calendar-week-schedule", start, end, timezone],
-    queryFn: () =>
-      apiFetch<CalendarResponse>(
-        `/calendar/events?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}&timezone=${encodeURIComponent(timezone)}`
-      )
+    queryKey: calendarQueryKey,
+    queryFn: () => apiFetch<CalendarResponse>(calendarEventsUrl)
   });
 
   if (householdQuery.isLoading || rewardsQuery.isLoading || mealsQuery.isLoading || calendarQuery.isLoading) {
@@ -242,12 +243,22 @@ export function TodayDashboard(): JSX.Element {
               </div>
               <button
                 type="button"
+                disabled={isCalendarRefreshing}
                 className="rounded-full bg-[#f6f7f9] px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-[#ebedf0]"
                 onClick={async () => {
-                  await queryClient.invalidateQueries({ queryKey: ["calendar-week-schedule"] });
+                  setIsCalendarRefreshing(true);
+                  setCalendarRefreshError(null);
+                  try {
+                    const refreshed = await apiFetch<CalendarResponse>(`${calendarEventsUrl}&refresh=true`);
+                    queryClient.setQueryData(calendarQueryKey, refreshed);
+                  } catch (error) {
+                    setCalendarRefreshError(error instanceof Error ? error.message : "Calendar refresh failed.");
+                  } finally {
+                    setIsCalendarRefreshing(false);
+                  }
                 }}
               >
-                Refresh
+                {isCalendarRefreshing ? "Refreshing…" : "Refresh"}
               </button>
               <div className="rounded-full bg-[#f6f7f9] px-4 py-2 text-sm font-semibold text-slate-700">
                 ⊘ Filter
@@ -258,9 +269,6 @@ export function TodayDashboard(): JSX.Element {
             </div>
           </div>
           <div className="flex flex-nowrap items-center gap-2 overflow-x-auto pb-1">
-            <div className="shrink-0 rounded-full border border-[#2f2f2f66] bg-[#fbfbf9] px-4 py-1 text-xl font-semibold text-slate-700">
-              🌴 Vacation 48 days
-            </div>
             <div className="shrink-0 rounded-full border border-[#d8d6d1] bg-[#fbfbf9] px-4 py-1 text-sm font-semibold text-slate-700">
               🍽 Tonight: {tonightMeal}
             </div>
@@ -288,10 +296,15 @@ export function TodayDashboard(): JSX.Element {
             ))}
           </div>
         </header>
-        {calendarQuery.data?.warnings.length ? (
+        {calendarRefreshError || calendarQuery.data?.warnings.length ? (
           <div className="border-b border-[#ecebe8] px-3 py-2">
             <DegradedStateBanner
-              message={calendarQuery.data.warnings.map((warning) => warning.message).join(" ")}
+              message={[
+                calendarRefreshError,
+                ...(calendarQuery.data?.warnings.map((warning) => warning.message) ?? [])
+              ]
+                .filter(Boolean)
+                .join(" ")}
             />
           </div>
         ) : null}
@@ -326,10 +339,9 @@ export function TodayDashboard(): JSX.Element {
                 (event) => day.index >= event.startIndex && day.index <= event.endIndex
               );
               const event = dayAllDayEvents[0];
-              const fallbackTitle = day.isToday ? "Camping Trip" : undefined;
               return (
                 <div key={`${day.dayKey}-all-day`} className="border-b border-r border-[#ecebe8] p-2">
-                  {event || fallbackTitle ? (
+                  {event ? (
                     <div
                       className="truncate rounded-full px-3 py-1 text-[14px] font-semibold text-slate-700"
                       style={{
@@ -338,7 +350,7 @@ export function TodayDashboard(): JSX.Element {
                           : event?.color ?? "#d6efd8"
                       }}
                     >
-                      {event?.title ?? fallbackTitle}
+                      {event.title}
                     </div>
                   ) : null}
                 </div>

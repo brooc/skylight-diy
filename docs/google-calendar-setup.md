@@ -69,9 +69,10 @@ Docker Compose reads the repo-root `.env` file and passes the Google OAuth varia
 2. Unlock Settings with the local admin PIN.
 3. Click **Connect Google**.
 4. Complete Google consent.
-5. After returning to Settings, click **Import calendars**.
-6. Enable/disable sources, rename/recolor them, and assign each source to a household person.
-7. Open Today or Week and press **Refresh** if events do not appear immediately.
+5. After returning to Settings, click **Choose calendars**.
+6. Search or browse the Google calendars, select only those Daymark should track, and click **Add selected**. New calendars are unselected by default and are added enabled and unassigned.
+7. Enable/disable tracked sources, rename/recolor them, and assign each source to a household person.
+8. Open Today or Week and press **Refresh** if events do not appear immediately.
 
 ## Expected Behavior
 
@@ -82,9 +83,11 @@ https://www.googleapis.com/auth/calendar.readonly
 ```
 
 - Calendar events remain owned by Google Calendar.
+- Settings identifies the connected account from Google Calendar's primary-calendar record and displays its calendar ID, which normally matches the account's primary email address.
+- Disconnect attempts to revoke the Google token, then removes the local connection, tracked calendar sources, and cached events. It does not delete events from Google Calendar.
 - The app stores replaceable display-cache data in Postgres for degraded/offline behavior.
 - v0.1 does not create, edit, or delete Google Calendar events.
-- Demo calendar sources are available before a real Google account is connected. Once a real Google token exists, Google import failures return an error instead of silently falling back to demo sources.
+- Calendar discovery requires a connected Google account and does not track anything by itself. Only explicitly selected calendars are imported. Discovery, import, and event-fetch failures return explicit errors or degraded empty states instead of displaying fabricated events.
 
 ## Troubleshooting
 
@@ -94,6 +97,6 @@ https://www.googleapis.com/auth/calendar.readonly
 - **redirect_uri_mismatch**: the Google OAuth client redirect URI must exactly match `GOOGLE_REDIRECT_URI`.
 - **invalid_oauth_state**: restart the app container to pick up the signed OAuth state flow, then start Connect Google again from Settings. Do not reuse an old Google consent tab.
 - **Access blocked or test-user error**: add your Google account under OAuth consent screen test users, or publish/verify the app for broader use.
-- **Import calendars fails after Google consent**: this is a real Google Calendar List API failure. Check that the Google Calendar API is enabled, the connected account is a consent-screen test user, and the OAuth client has the redirect URI above.
+- **Choose calendars fails after Google consent**: this is a real Google Calendar List API failure. Check that the Google Calendar API is enabled, the connected account is a consent-screen test user, and the OAuth client has the redirect URI above.
 - **Events do not show after import**: make sure at least one source is enabled, then press **Refresh** on Today or Week.
 - **Tokens fail after restore**: verify the restored `.env` uses the same `TOKEN_ENCRYPTION_KEY` as the original database.

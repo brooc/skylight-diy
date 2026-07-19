@@ -43,12 +43,25 @@ export function buildSourceFingerprint(
     id: string;
     enabled: boolean;
     externalCalendarId: string;
+    displayName?: string;
+    color?: string | null;
+    personId?: string | null;
+    personName?: string | null;
   }>
 ): string {
-  return sources
-    .map((source) => `${source.id}:${source.externalCalendarId}:${source.enabled ? "1" : "0"}`)
-    .sort()
-    .join(",");
+  return JSON.stringify(
+    sources
+      .map((source) => ({
+        id: source.id,
+        externalCalendarId: source.externalCalendarId,
+        enabled: source.enabled,
+        displayName: source.displayName ?? null,
+        color: source.color ?? null,
+        personId: source.personId ?? null,
+        personName: source.personName ?? null
+      }))
+      .sort((left, right) => left.id.localeCompare(right.id))
+  );
 }
 
 export async function readCalendarCache(

@@ -102,5 +102,7 @@ describe("calendar components", () => {
     await waitFor(() => {
       expect(fetchSpy).toHaveBeenCalledTimes(2);
     });
+    const refreshedUrl = String(fetchSpy.mock.calls[1]?.[0]);
+    expect(refreshedUrl).toContain("refresh=true");
   });
 });

@@ -31,7 +31,7 @@ describe("TodayDashboard", () => {
     await app.close();
   });
 
-  it("renders household status and demo schedule from the real API", async () => {
+  it("renders an honest empty calendar state and force-refreshes from the real API", async () => {
     const todayKey = new Date().toISOString().slice(0, 10);
     const meal = await app.inject({
       method: "POST",
@@ -45,16 +45,14 @@ describe("TodayDashboard", () => {
     expect(await screen.findByText("Test Household")).toBeInTheDocument();
     expect(await screen.findByText("🍽 Tonight: Taco night")).toBeInTheDocument();
     expect(await screen.findByText("No enabled calendar sources yet.")).toBeInTheDocument();
-    expect(await screen.findByText("Grocery Run")).toBeInTheDocument();
-    expect(await screen.findByText("Coffee With Diane")).toBeInTheDocument();
-    expect(await screen.findByText("Dog's Big Bath Day!")).toBeInTheDocument();
-    expect(await screen.findAllByText("Cousins Visit")).toHaveLength(2);
+    expect(screen.queryByText("Camping Trip")).not.toBeInTheDocument();
 
     const fetchSpy = vi.spyOn(globalThis, "fetch");
     const requestCount = fetchSpy.mock.calls.length;
     await userEvent.setup().click(screen.getByRole("button", { name: "Refresh" }));
     await screen.findByText("No enabled calendar sources yet.");
     expect(fetchSpy.mock.calls.length).toBeGreaterThan(requestCount);
+    expect(String(fetchSpy.mock.calls.at(-1)?.[0])).toContain("refresh=true");
   });
 
   it("opens add actions and navigates to the task quick-add route", async () => {

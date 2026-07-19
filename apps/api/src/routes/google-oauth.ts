@@ -1,5 +1,5 @@
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
-import { connectedAccounts, households } from "@daymark/db";
+import { calendarEventCache, connectedAccounts, households } from "@daymark/db";
 import { and, eq } from "drizzle-orm";
 import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
@@ -14,6 +14,10 @@ const callbackQuerySchema = z.object({
   state: z.string().optional(),
   error: z.string().optional(),
   error_description: z.string().optional()
+});
+
+const accountParamsSchema = z.object({
+  accountId: z.string().uuid()
 });
 
 function hasGoogleOauthConfig(): boolean {
@@ -185,6 +189,31 @@ export const googleOauthRoutes: FastifyPluginAsync = async (app) => {
       });
     }
 
+    const primaryCalendarResponse = await fetch(
+      "https://www.googleapis.com/calendar/v3/users/me/calendarList/primary",
+      {
+      headers: { Authorization: `Bearer ${tokenPayload.access_token}` }
+      }
+    ).catch(() => null);
+    if (!primaryCalendarResponse?.ok) {
+      return reply.status(502).send({
+        connected: false,
+        error: "google_primary_calendar_failed",
+        message: "Google connected, but Daymark could not access the primary calendar. Please reconnect and allow read-only Calendar access."
+      });
+    }
+    const primaryCalendar = (await primaryCalendarResponse.json()) as {
+      id?: string;
+      summary?: string;
+    };
+    if (!primaryCalendar.id) {
+      return reply.status(502).send({
+        connected: false,
+        error: "google_identity_missing",
+        message: "Google did not provide a primary calendar identifier. Please try connecting again."
+      });
+    }
+
     const [existingAccount] = await app.db
       .select()
       .from(connectedAccounts)
@@ -207,16 +236,20 @@ export const googleOauthRoutes: FastifyPluginAsync = async (app) => {
         ? new Date(Date.now() + tokenPayload.expires_in * 1000)
         : null;
     const scopes = tokenPayload.scope?.split(/\s+/).filter(Boolean) ?? [GOOGLE_CALENDAR_SCOPE];
+    const calendarAccessGranted = scopes.includes(GOOGLE_CALENDAR_SCOPE);
 
     if (existingAccount) {
       await app.db
         .update(connectedAccounts)
         .set({
+          providerAccountId: primaryCalendar.id,
+          displayName: primaryCalendar.summary || "Google Calendar",
+          email: primaryCalendar.id,
           encryptedAccessToken,
           encryptedRefreshToken: persistedRefreshToken ?? null,
           accessTokenExpiresAt: expiresAt,
           scopes,
-          reauthorizationRequired: false,
+          reauthorizationRequired: !calendarAccessGranted,
           updatedAt: new Date()
         })
         .where(eq(connectedAccounts.id, existingAccount.id));
@@ -224,16 +257,79 @@ export const googleOauthRoutes: FastifyPluginAsync = async (app) => {
       await app.db.insert(connectedAccounts).values({
         householdId: household.id,
         provider: "google",
-        providerAccountId: "google-primary",
-        displayName: "Google Calendar",
+        providerAccountId: primaryCalendar.id,
+        displayName: primaryCalendar.summary || "Google Calendar",
+        email: primaryCalendar.id,
         encryptedAccessToken,
         encryptedRefreshToken: persistedRefreshToken ?? null,
         accessTokenExpiresAt: expiresAt,
         scopes,
-        reauthorizationRequired: false
+        reauthorizationRequired: !calendarAccessGranted
       });
     }
 
-    return reply.redirect(`${env.APP_BASE_URL.replace(/\/$/, "")}/settings`);
+    const connectionStatus = calendarAccessGranted ? "connected" : "calendar_access_required";
+    return reply.redirect(
+      `${env.APP_BASE_URL.replace(/\/$/, "")}/settings?google=${connectionStatus}`
+    );
+  });
+
+  app.delete("/integrations/google/accounts/:accountId", async (request, reply) => {
+    if (!request.isAdminUnlocked()) {
+      return reply.status(401).send({ error: "admin_unlock_required" });
+    }
+
+    const parsedParams = accountParamsSchema.safeParse(request.params);
+    if (!parsedParams.success) {
+      return reply.status(400).send({ error: "invalid_account_id" });
+    }
+    const { accountId } = parsedParams.data;
+    const [household] = await app.db.select().from(households).limit(1);
+    if (!household) {
+      return reply.status(404).send({ error: "setup_not_completed" });
+    }
+    const [account] = await app.db
+      .select()
+      .from(connectedAccounts)
+      .where(
+        and(
+          eq(connectedAccounts.id, accountId),
+          eq(connectedAccounts.householdId, household.id),
+          eq(connectedAccounts.provider, "google")
+        )
+      )
+      .limit(1);
+    if (!account) {
+      return reply.status(404).send({ error: "connected_account_not_found" });
+    }
+
+    let revocationSucceeded = false;
+    const encryptedToken = account.encryptedRefreshToken ?? account.encryptedAccessToken;
+    if (encryptedToken) {
+      try {
+        const token = decryptToken(encryptedToken);
+        const revokeResponse = await fetch("https://oauth2.googleapis.com/revoke", {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: new URLSearchParams({ token })
+        });
+        revocationSucceeded = revokeResponse.ok;
+      } catch {
+        revocationSucceeded = false;
+      }
+    }
+
+    await app.db.transaction(async (tx) => {
+      await tx.delete(calendarEventCache).where(eq(calendarEventCache.householdId, household.id));
+      await tx.delete(connectedAccounts).where(eq(connectedAccounts.id, account.id));
+    });
+
+    return {
+      disconnected: true,
+      revocationSucceeded,
+      warning: revocationSucceeded
+        ? null
+        : "Daymark disconnected locally, but Google access could not be revoked. Remove Daymark from your Google Account permissions if needed."
+    };
   });
 };

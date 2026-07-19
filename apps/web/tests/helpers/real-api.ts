@@ -49,10 +49,17 @@ export async function unlockRealApiAdmin(app: FastifyInstance): Promise<string> 
 
 export function installRealApiFetch(
   app: FastifyInstance,
-  options?: { cookie?: string }
+  options?: {
+    cookie?: string;
+    externalFetch?: (input: Parameters<typeof fetch>[0], init?: RequestInit) => Promise<Response>;
+  }
 ): () => void {
   const originalFetch = globalThis.fetch;
   globalThis.fetch = (async (input, init) => {
+    const raw = typeof input === "string" || input instanceof URL ? input.toString() : input.url;
+    if (raw.startsWith("http://") || raw.startsWith("https://")) {
+      return options?.externalFetch ? options.externalFetch(input, init) : originalFetch(input, init);
+    }
     const request = typeof input === "string" || input instanceof URL ? null : input;
     const method = init?.method ?? request?.method ?? "GET";
     const payload = init?.body ?? (request ? await request.text() : undefined);

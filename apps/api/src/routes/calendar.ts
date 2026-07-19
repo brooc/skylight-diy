@@ -14,7 +14,8 @@ import { decryptToken } from "../modules/integrations/token-crypto";
 const eventsQuerySchema = z.object({
   start: z.string().datetime(),
   end: z.string().datetime(),
-  timezone: z.string().min(1)
+  timezone: z.string().min(1),
+  refresh: z.enum(["true", "false"]).optional().transform((value) => value === "true")
 });
 
 const patchSourceBodySchema = z.object({
@@ -23,6 +24,90 @@ const patchSourceBodySchema = z.object({
   displayName: z.string().trim().min(1).max(120).optional(),
   color: z.string().regex(/^#[0-9a-f]{6}$/i).nullable().optional()
 });
+
+const importSourcesBodySchema = z.object({
+  externalCalendarIds: z.array(z.string().min(1)).max(250)
+});
+
+type GoogleCalendarCandidate = {
+  externalCalendarId: string;
+  displayName: string;
+  color: string;
+  sortOrder: number;
+};
+
+type GoogleCalendarLoadResult =
+  | { ok: true; calendars: GoogleCalendarCandidate[] }
+  | {
+      ok: false;
+      statusCode: 400 | 502;
+      body: {
+        error: string;
+        message: string;
+        statusCode?: number;
+        details?: string;
+      };
+    };
+
+async function loadGoogleCalendars(encryptedAccessToken: string): Promise<GoogleCalendarLoadResult> {
+  let accessToken = "";
+  try {
+    accessToken = decryptToken(encryptedAccessToken);
+  } catch {
+    return {
+      ok: false,
+      statusCode: 400,
+      body: {
+        error: "google_token_decrypt_failed",
+        message: "Stored Google credentials could not be decrypted. Reconnect Google Calendar."
+      }
+    };
+  }
+
+  try {
+    const response = await fetch("https://www.googleapis.com/calendar/v3/users/me/calendarList", {
+      headers: { Authorization: `Bearer ${accessToken}` }
+    });
+    if (!response.ok) {
+      return {
+        ok: false,
+        statusCode: 502,
+        body: {
+          error: "google_calendar_list_failed",
+          message: "Failed to load calendars from Google.",
+          statusCode: response.status,
+          details: await response.text()
+        }
+      };
+    }
+
+    const payload = (await response.json()) as {
+      items?: Array<{ id?: string; summary?: string; backgroundColor?: string }>;
+    };
+    const fallbackColors = ["#8ec5b8", "#dca1b4", "#b7abd8"] as const;
+    const calendars = (payload.items ?? []).flatMap((item, index) => {
+      if (!item.id || !item.summary) {
+        return [];
+      }
+      return [{
+        externalCalendarId: item.id,
+        displayName: item.summary,
+        color: item.backgroundColor ?? fallbackColors[index % fallbackColors.length]!,
+        sortOrder: index
+      }];
+    });
+    return { ok: true, calendars };
+  } catch {
+    return {
+      ok: false,
+      statusCode: 502,
+      body: {
+        error: "google_calendar_list_request_failed",
+        message: "Unexpected error while loading calendars from Google."
+      }
+    };
+  }
+}
 
 export const calendarRoutes: FastifyPluginAsync = async (app) => {
   app.get("/calendar/accounts", async () => {
@@ -37,6 +122,7 @@ export const calendarRoutes: FastifyPluginAsync = async (app) => {
         provider: connectedAccounts.provider,
         displayName: connectedAccounts.displayName,
         email: connectedAccounts.email,
+        scopes: connectedAccounts.scopes,
         reauthorizationRequired: connectedAccounts.reauthorizationRequired,
         createdAt: connectedAccounts.createdAt
       })
@@ -44,7 +130,14 @@ export const calendarRoutes: FastifyPluginAsync = async (app) => {
       .where(eq(connectedAccounts.householdId, household.id))
       .orderBy(asc(connectedAccounts.createdAt));
 
-    return { accounts };
+    return {
+      accounts: accounts.map((account) => ({
+        ...account,
+        calendarAccessGranted: account.scopes.includes(
+          "https://www.googleapis.com/auth/calendar.readonly"
+        )
+      }))
+    };
   });
 
   app.get("/calendar/sources", async () => {
@@ -72,7 +165,7 @@ export const calendarRoutes: FastifyPluginAsync = async (app) => {
     return { sources };
   });
 
-  app.post("/calendar/sources/import-from-google", async (request, reply) => {
+  app.post("/calendar/sources/discover-from-google", async (request, reply) => {
     if (!request.isAdminUnlocked()) {
       return reply.status(401).send({ error: "admin_unlock_required" });
     }
@@ -82,119 +175,88 @@ export const calendarRoutes: FastifyPluginAsync = async (app) => {
       return reply.status(404).send({ error: "setup_not_completed" });
     }
 
-    let [account] = await app.db
+    const [account] = await app.db
       .select()
       .from(connectedAccounts)
       .where(and(eq(connectedAccounts.householdId, household.id), eq(connectedAccounts.provider, "google")))
       .limit(1);
 
     if (!account) {
-      [account] = await app.db
-        .insert(connectedAccounts)
-        .values({
-          householdId: household.id,
-          provider: "google",
-          providerAccountId: "demo-google-account",
-          displayName: "Demo Google Account",
-          email: "demo@local.invalid",
-          scopes: ["https://www.googleapis.com/auth/calendar.readonly"]
-        })
-        .returning();
+      return reply.status(409).send({
+        error: "google_account_not_connected",
+        message: "Connect Google Calendar before importing calendars."
+      });
     }
-    if (!account) {
-      return reply.status(500).send({ error: "failed_to_initialize_google_account" });
+    if (!account.encryptedAccessToken) {
+      return reply.status(409).send({
+        error: "google_account_not_connected",
+        message: "Reconnect Google Calendar before importing calendars."
+      });
     }
 
-    const demoSources = [
-      {
-        externalCalendarId: "family-primary",
-        displayName: "Family Calendar",
-        color: "#8ec5b8",
-        sortOrder: 0
-      },
-      {
-        externalCalendarId: "school-kids",
-        displayName: "School Events",
-        color: "#dca1b4",
-        sortOrder: 1
-      },
-      {
-        externalCalendarId: "activities",
-        displayName: "Activities",
-        color: "#b7abd8",
-        sortOrder: 2
-      }
-    ];
+    const loaded = await loadGoogleCalendars(account.encryptedAccessToken);
+    if (!loaded.ok) {
+      return reply.status(loaded.statusCode).send(loaded.body);
+    }
 
-    const demoSourceAt = (index: number) => demoSources[index % demoSources.length] ?? demoSources[0]!;
+    const trackedSources = await app.db
+      .select({
+        id: calendarSources.id,
+        externalCalendarId: calendarSources.externalCalendarId,
+        enabled: calendarSources.enabled
+      })
+      .from(calendarSources)
+      .where(eq(calendarSources.connectedAccountId, account.id));
+    const trackedByExternalId = new Map(
+      trackedSources.map((source) => [source.externalCalendarId, source])
+    );
 
-    let importCandidates: Array<{
-      externalCalendarId: string;
-      displayName: string;
-      color: string;
-      sortOrder: number;
-    }> = demoSources;
-
-    if (account.encryptedAccessToken) {
-      const fetchedGoogleSources: Array<{
-        externalCalendarId: string;
-        displayName: string;
-        color: string;
-        sortOrder: number;
-      }> = [];
-      let accessToken = "";
-      try {
-        accessToken = decryptToken(account.encryptedAccessToken);
-      } catch {
-        return reply.status(400).send({
-          error: "google_token_decrypt_failed",
-          message: "Stored Google credentials could not be decrypted. Reconnect Google Calendar."
-        });
-      }
-
-      try {
-        const response = await fetch("https://www.googleapis.com/calendar/v3/users/me/calendarList", {
-          headers: {
-            Authorization: `Bearer ${accessToken}`
-          }
-        });
-
-        if (!response.ok) {
-          const details = await response.text();
-          return reply.status(502).send({
-            error: "google_calendar_list_failed",
-            message: "Failed to import calendars from Google.",
-            statusCode: response.status,
-            details
-          });
-        }
-
-        const payload = (await response.json()) as {
-          items?: Array<{
-            id?: string;
-            summary?: string;
-            backgroundColor?: string;
-          }>;
+    return {
+      calendars: loaded.calendars.map((calendar) => {
+        const trackedSource = trackedByExternalId.get(calendar.externalCalendarId);
+        return {
+          ...calendar,
+          tracked: Boolean(trackedSource),
+          sourceId: trackedSource?.id ?? null,
+          enabled: trackedSource?.enabled ?? false
         };
-        for (const [index, item] of (payload.items ?? []).entries()) {
-          if (!item.id || !item.summary) {
-            continue;
-          }
-          fetchedGoogleSources.push({
-            externalCalendarId: item.id,
-            displayName: item.summary,
-            color: item.backgroundColor ?? demoSourceAt(index).color,
-            sortOrder: index
-          });
-        }
-        importCandidates = fetchedGoogleSources;
-      } catch {
-        return reply.status(502).send({
-          error: "google_calendar_list_request_failed",
-          message: "Unexpected error while importing calendars from Google."
-        });
-      }
+      })
+    };
+  });
+
+  app.post("/calendar/sources/import-from-google", async (request, reply) => {
+    if (!request.isAdminUnlocked()) {
+      return reply.status(401).send({ error: "admin_unlock_required" });
     }
+
+    const parsed = importSourcesBodySchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: "invalid_body", details: parsed.error.flatten() });
+    }
+
+    const [household] = await app.db.select().from(households).limit(1);
+    if (!household) {
+      return reply.status(404).send({ error: "setup_not_completed" });
+    }
+
+    const [account] = await app.db
+      .select()
+      .from(connectedAccounts)
+      .where(and(eq(connectedAccounts.householdId, household.id), eq(connectedAccounts.provider, "google")))
+      .limit(1);
+    if (!account?.encryptedAccessToken) {
+      return reply.status(409).send({
+        error: "google_account_not_connected",
+        message: "Connect or reconnect Google Calendar before adding calendars."
+      });
+    }
+
+    const loaded = await loadGoogleCalendars(account.encryptedAccessToken);
+    if (!loaded.ok) {
+      return reply.status(loaded.statusCode).send(loaded.body);
+    }
+    const selectedIds = new Set(parsed.data.externalCalendarIds);
+    const importCandidates = loaded.calendars.filter((calendar) => selectedIds.has(calendar.externalCalendarId));
 
     let imported = 0;
     for (const source of importCandidates) {
@@ -325,98 +387,6 @@ export const calendarRoutes: FastifyPluginAsync = async (app) => {
     }
 
     const rangeStart = new Date(parsed.data.start);
-    const startDay = new Date(rangeStart);
-    startDay.setHours(0, 0, 0, 0);
-    const toIsoAt = (dayOffset: number, hours = 0, minutes = 0): string => {
-      const value = new Date(startDay);
-      value.setDate(startDay.getDate() + dayOffset);
-      value.setHours(hours, minutes, 0, 0);
-      return value.toISOString();
-    };
-
-    const demoEvents = [
-      {
-        id: "evt-1",
-        sourceId: "demo-kiddo",
-        title: "Coffee With Diane",
-        start: toIsoAt(1, 9, 45),
-        end: toIsoAt(1, 11, 0),
-        isAllDay: false,
-        sourceName: "Kiddo",
-        color: "#f3cfd0"
-      },
-      {
-        id: "evt-2",
-        sourceId: "demo-parent",
-        title: "Pickup Dry Cleaning",
-        start: toIsoAt(2, 9, 30),
-        end: toIsoAt(2, 10, 15),
-        isAllDay: false,
-        sourceName: "Parent",
-        color: "#bee8ea"
-      },
-      {
-        id: "evt-3",
-        sourceId: "demo-kiddo",
-        title: "History Test",
-        start: toIsoAt(2, 10, 30),
-        end: toIsoAt(2, 11, 0),
-        isAllDay: false,
-        sourceName: "Kiddo",
-        color: "#f7d8d4"
-      },
-      {
-        id: "evt-4",
-        sourceId: "demo-parent",
-        title: "Birthday Party",
-        start: toIsoAt(3, 10, 30),
-        end: toIsoAt(3, 12, 0),
-        isAllDay: false,
-        sourceName: "Parent",
-        color: "#e4daf0"
-      },
-      {
-        id: "evt-5",
-        sourceId: "demo-parent",
-        title: "Grocery Run",
-        start: toIsoAt(0, 10, 0),
-        end: toIsoAt(0, 11, 30),
-        isAllDay: false,
-        sourceName: "Parent",
-        color: "#bee8ea"
-      },
-      {
-        id: "evt-6",
-        sourceId: "demo-family",
-        title: "Dog's Big Bath Day!",
-        start: toIsoAt(1, 11, 0),
-        end: toIsoAt(1, 12, 0),
-        isAllDay: false,
-        sourceName: "Parent, Kiddo",
-        color: "#d6efd8"
-      },
-      {
-        id: "evt-7",
-        sourceId: "demo-family",
-        title: "Camping Trip",
-        start: toIsoAt(0, 0, 0),
-        end: toIsoAt(1, 0, 0),
-        isAllDay: true,
-        sourceName: "Family",
-        color: "#d6efd8"
-      },
-      {
-        id: "evt-8",
-        sourceId: "demo-family",
-        title: "Cousins Visit",
-        start: toIsoAt(5, 0, 0),
-        end: toIsoAt(7, 0, 0),
-        isAllDay: true,
-        sourceName: "Family",
-        color: "#e4daf0"
-      }
-    ].sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
-
     const [household] = await app.db.select().from(households).limit(1);
     if (!household) {
       return {
@@ -469,7 +439,11 @@ export const calendarRoutes: FastifyPluginAsync = async (app) => {
       sourceRows.map((source) => ({
         id: source.id,
         enabled: source.enabled,
-        externalCalendarId: source.externalCalendarId
+        externalCalendarId: source.externalCalendarId,
+        displayName: source.displayName,
+        color: source.color,
+        personId: source.personId,
+        personName: source.personName
       }))
     );
     const cacheKey = buildCalendarCacheKey({
@@ -479,7 +453,7 @@ export const calendarRoutes: FastifyPluginAsync = async (app) => {
       sourceFingerprint
     });
     const cacheHit = await readCalendarCache(app.db, household.id, cacheKey);
-    if (cacheHit.status === "fresh") {
+    if (cacheHit.status === "fresh" && !parsed.data.refresh) {
       return {
         rangeStart: parsed.data.start,
         rangeEnd: parsed.data.end,
@@ -493,7 +467,7 @@ export const calendarRoutes: FastifyPluginAsync = async (app) => {
     }
 
     const warnings: Array<{ code: string; message: string; sourceId?: string }> = [];
-    const staleCachePayload = cacheHit.status === "stale" ? cacheHit.payload : null;
+    const fallbackCachePayload = cacheHit.status === "miss" ? null : cacheHit.payload;
     const googleEvents: Array<{
       id: string;
       sourceId: string;
@@ -652,16 +626,16 @@ export const calendarRoutes: FastifyPluginAsync = async (app) => {
       };
     }
 
-    if (staleCachePayload) {
+    if (fallbackCachePayload) {
       return {
         rangeStart: parsed.data.start,
         rangeEnd: parsed.data.end,
         timezone: parsed.data.timezone,
-        events: staleCachePayload.events,
-        sources: staleCachePayload.sources,
+        events: fallbackCachePayload.events,
+        sources: fallbackCachePayload.sources,
         cacheStatus: "stale",
         degraded: true,
-        warnings: [...staleCachePayload.warnings, ...warnings]
+        warnings: [...fallbackCachePayload.warnings, ...warnings]
       };
     }
 
@@ -672,8 +646,8 @@ export const calendarRoutes: FastifyPluginAsync = async (app) => {
       });
     } else {
       warnings.push({
-        code: "DEMO_CALENDAR_FALLBACK",
-        message: "Using demo calendar events while Google source fetch is unavailable."
+        code: "NO_CALENDAR_DATA",
+        message: "Calendar events are unavailable and no saved data is available yet."
       });
     }
 
@@ -681,7 +655,7 @@ export const calendarRoutes: FastifyPluginAsync = async (app) => {
       rangeStart: parsed.data.start,
       rangeEnd: parsed.data.end,
       timezone: parsed.data.timezone,
-      events: demoEvents,
+      events: [],
       sources,
       cacheStatus: "miss",
       degraded: true,

@@ -1,4 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import { apiFetch } from "../../api/client";
 import { DegradedStateBanner } from "../../components/DegradedStateBanner";
 import { ErrorState } from "../../components/ErrorState";
@@ -38,14 +39,15 @@ function toDayKey(value: string): string {
 
 export function CalendarWeekView(): JSX.Element {
   const queryClient = useQueryClient();
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [refreshError, setRefreshError] = useState<string | null>(null);
   const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
   const { start, end } = getWeekRange();
+  const queryKey = ["calendar-week", start, end, timezone] as const;
+  const eventsUrl = `/calendar/events?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}&timezone=${encodeURIComponent(timezone)}`;
   const calendarQuery = useQuery({
-    queryKey: ["calendar-week", start, end, timezone],
-    queryFn: () =>
-      apiFetch<CalendarResponse>(
-        `/calendar/events?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}&timezone=${encodeURIComponent(timezone)}`
-      )
+    queryKey,
+    queryFn: () => apiFetch<CalendarResponse>(eventsUrl)
   });
 
   if (calendarQuery.isLoading) {
@@ -89,19 +91,31 @@ export function CalendarWeekView(): JSX.Element {
         <div className="flex items-center gap-2">
           <button
             type="button"
+            disabled={isRefreshing}
             className="min-h-[40px] rounded-md border border-[#d8cbb8] bg-[#fff7ea] px-3 py-2 text-sm font-semibold text-slate-800 hover:bg-[#fcedd8]"
             onClick={async () => {
-              await queryClient.invalidateQueries({ queryKey: ["calendar-week"] });
+              setIsRefreshing(true);
+              setRefreshError(null);
+              try {
+                const refreshed = await apiFetch<CalendarResponse>(`${eventsUrl}&refresh=true`);
+                queryClient.setQueryData(queryKey, refreshed);
+              } catch (error) {
+                setRefreshError(error instanceof Error ? error.message : "Calendar refresh failed.");
+              } finally {
+                setIsRefreshing(false);
+              }
             }}
           >
-            Refresh
+            {isRefreshing ? "Refreshing…" : "Refresh"}
           </button>
           <CalendarStatusBadge cacheStatus={data.cacheStatus} />
         </div>
       </div>
 
-      {data.warnings.length > 0 ? (
-        <DegradedStateBanner message={data.warnings.map((item) => item.message).join(" ")} />
+      {refreshError || data.warnings.length > 0 ? (
+        <DegradedStateBanner
+          message={[refreshError, ...data.warnings.map((item) => item.message)].filter(Boolean).join(" ")}
+        />
       ) : null}
 
       <div className="overflow-x-auto rounded-md border border-[#e7e7e5] bg-white p-3">

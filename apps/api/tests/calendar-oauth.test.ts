@@ -45,7 +45,7 @@ describe("calendar and google integration routes", () => {
     await app.close();
   });
 
-  it("returns demo events with degraded warning when no sources are enabled", async () => {
+  it("returns an honest empty state when no sources are enabled", async () => {
     await setupHousehold(app);
     const start = new Date().toISOString();
     const end = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
@@ -57,7 +57,7 @@ describe("calendar and google integration routes", () => {
     expect(response.statusCode).toBe(200);
     const json = response.json();
     expect(json.degraded).toBe(true);
-    expect(json.events.length).toBeGreaterThan(0);
+    expect(json.events).toEqual([]);
     expect(json.warnings.some((warning: { code: string }) => warning.code === "NO_ENABLED_SOURCES")).toBe(
       true
     );
@@ -276,27 +276,32 @@ describe("calendar and google integration routes", () => {
   it("persists Google OAuth tokens for new and existing accounts", async () => {
     const setup = await setupHousehold(app);
     await withGoogleOauthConfig(async () => {
-      const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-        new Response(
-          JSON.stringify({
-            access_token: "access-token-1",
-            refresh_token: "refresh-token-1",
-            expires_in: 3600,
-            scope: "scope-a scope-b"
-          }),
-          {
-            status: 200,
-            headers: { "Content-Type": "application/json" }
-          }
-        )
-      );
+      const tokenResponses = [
+        {
+          access_token: "access-token-1",
+          refresh_token: "refresh-token-1",
+          expires_in: 3600,
+          scope: "https://www.googleapis.com/auth/calendar.readonly"
+        },
+        { access_token: "access-token-2" }
+      ];
+      vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+        const url = typeof input === "string" ? input : input.url;
+        const payload = url.includes("/calendarList/primary")
+          ? { id: "family@example.com", summary: "Family Gmail" }
+          : tokenResponses.shift();
+        return new Response(JSON.stringify(payload), {
+          status: 200,
+          headers: { "Content-Type": "application/json" }
+        });
+      });
 
       const created = await app.inject({
         method: "GET",
         url: `/api/integrations/google/callback?code=auth-code&state=${encodeURIComponent(createTestOauthState())}`
       });
       expect(created.statusCode).toBe(302);
-      expect(created.headers.location).toBe(`${env.APP_BASE_URL.replace(/\/$/, "")}/settings`);
+      expect(created.headers.location).toBe(`${env.APP_BASE_URL.replace(/\/$/, "")}/settings?google=connected`);
 
       const [account] = await app.db
         .select()
@@ -305,9 +310,10 @@ describe("calendar and google integration routes", () => {
         .limit(1);
       expect(account).toMatchObject({
         provider: "google",
-        providerAccountId: "google-primary",
-        displayName: "Google Calendar",
-        scopes: ["scope-a", "scope-b"],
+        providerAccountId: "family@example.com",
+        displayName: "Family Gmail",
+        email: "family@example.com",
+        scopes: ["https://www.googleapis.com/auth/calendar.readonly"],
         reauthorizationRequired: false
       });
 
@@ -315,13 +321,6 @@ describe("calendar and google integration routes", () => {
         .update(connectedAccounts)
         .set({ encryptedRefreshToken: "malformed-refresh-token" })
         .where(eq(connectedAccounts.id, account.id));
-      fetchSpy.mockResolvedValue(
-        new Response(JSON.stringify({ access_token: "access-token-2" }), {
-          status: 200,
-          headers: { "Content-Type": "application/json" }
-        })
-      );
-
       const updated = await app.inject({
         method: "GET",
         url: `/api/integrations/google/callback?code=auth-code&state=${encodeURIComponent(createTestOauthState())}`
@@ -333,17 +332,81 @@ describe("calendar and google integration routes", () => {
         .from(connectedAccounts)
         .where(eq(connectedAccounts.id, account.id))
         .limit(1);
-      expect(updatedAccount.scopes).toEqual(["https://www.googleapis.com/auth/calendar.readonly"]);
+      expect(updatedAccount.scopes).toEqual([
+        "https://www.googleapis.com/auth/calendar.readonly"
+      ]);
       expect(updatedAccount.encryptedRefreshToken).toBe("malformed-refresh-token");
     });
   });
 
-  it("imports demo sources for unlocked admin users", async () => {
+  it("disconnects Google locally, revokes its token, and removes calendar data", async () => {
+    const setup = await setupHousehold(app);
+    const [account] = await app.db
+      .insert(connectedAccounts)
+      .values({
+        householdId: setup.household.id,
+        provider: "google",
+        providerAccountId: "google-user-123",
+        displayName: "Family Gmail",
+        email: "family@example.com",
+        encryptedAccessToken: encryptToken("access-token"),
+        encryptedRefreshToken: encryptToken("refresh-token"),
+        scopes: ["openid", "email", "https://www.googleapis.com/auth/calendar.readonly"]
+      })
+      .returning();
+    await app.db.insert(calendarSources).values({
+      householdId: setup.household.id,
+      connectedAccountId: account.id,
+      provider: "google",
+      externalCalendarId: "family",
+      displayName: "Family",
+      enabled: true,
+      sortOrder: 0
+    });
+    await app.db.insert(calendarEventCache).values({
+      householdId: setup.household.id,
+      cacheKey: "disconnect-cache",
+      rangeStart: new Date("2026-06-01T00:00:00.000Z"),
+      rangeEnd: new Date("2026-06-08T00:00:00.000Z"),
+      timezone: "UTC",
+      sourceFingerprint: "source-fingerprint",
+      payloadJsonb: { events: [] },
+      fetchedAt: new Date(),
+      expiresAt: new Date(Date.now() + 60_000),
+      staleUntil: new Date(Date.now() + 120_000)
+    });
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(null, { status: 200 }));
+
+    const blocked = await app.inject({
+      method: "DELETE",
+      url: `/api/integrations/google/accounts/${account.id}`
+    });
+    expect(blocked.statusCode).toBe(401);
+
+    const { cookie } = await unlockAdmin(app);
+    const disconnected = await app.inject({
+      method: "DELETE",
+      url: `/api/integrations/google/accounts/${account.id}`,
+      headers: { cookie }
+    });
+    expect(disconnected.statusCode).toBe(200);
+    expect(disconnected.json()).toMatchObject({ disconnected: true, revocationSucceeded: true });
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "https://oauth2.googleapis.com/revoke",
+      expect.objectContaining({ method: "POST" })
+    );
+    expect(await app.db.select().from(connectedAccounts)).toHaveLength(0);
+    expect(await app.db.select().from(calendarSources)).toHaveLength(0);
+    expect(await app.db.select().from(calendarEventCache)).toHaveLength(0);
+  });
+
+  it("requires a connected Google account before importing sources", async () => {
     await setupHousehold(app);
 
     const blocked = await app.inject({
       method: "POST",
-      url: "/api/calendar/sources/import-from-google"
+      url: "/api/calendar/sources/import-from-google",
+      payload: { externalCalendarIds: [] }
     });
     expect(blocked.statusCode).toBe(401);
 
@@ -351,42 +414,47 @@ describe("calendar and google integration routes", () => {
     const imported = await app.inject({
       method: "POST",
       url: "/api/calendar/sources/import-from-google",
-      headers: { cookie }
+      headers: { cookie },
+      payload: { externalCalendarIds: [] }
     });
-    expect(imported.statusCode).toBe(200);
-    expect(imported.json().sources.length).toBeGreaterThan(0);
-
-    const repeated = await app.inject({
-      method: "POST",
-      url: "/api/calendar/sources/import-from-google",
-      headers: { cookie }
-    });
-    expect(repeated.statusCode).toBe(200);
-    expect(repeated.json().imported).toBe(0);
+    expect(imported.statusCode).toBe(409);
+    expect(imported.json()).toMatchObject({ error: "google_account_not_connected" });
   });
 
-  it("falls back to demo events when imported sources have no access token", async () => {
-    await setupHousehold(app);
-    const { cookie } = await unlockAdmin(app);
-    const imported = await app.inject({
-      method: "POST",
-      url: "/api/calendar/sources/import-from-google",
-      headers: { cookie }
+  it("returns no fabricated events when a source has no access token", async () => {
+    const setup = await setupHousehold(app);
+    const [account] = await app.db
+      .insert(connectedAccounts)
+      .values({
+        householdId: setup.household.id,
+        provider: "google",
+        providerAccountId: "google-1",
+        displayName: "Google",
+        scopes: ["https://www.googleapis.com/auth/calendar.readonly"]
+      })
+      .returning();
+    await app.db.insert(calendarSources).values({
+      householdId: setup.household.id,
+      connectedAccountId: account.id,
+      provider: "google",
+      externalCalendarId: "family",
+      displayName: "Family",
+      enabled: true,
+      sortOrder: 0
     });
-    expect(imported.statusCode).toBe(200);
 
     const response = await app.inject({
       method: "GET",
       url: calendarEventsUrl()
     });
     expect(response.statusCode).toBe(200);
-    expect(response.json().events.length).toBeGreaterThan(0);
+    expect(response.json().events).toEqual([]);
     expect(response.json().warnings.map((warning: { code: string }) => warning.code)).toEqual(
-      expect.arrayContaining(["SOURCE_MISSING_TOKEN", "DEMO_CALENDAR_FALLBACK"])
+      expect.arrayContaining(["SOURCE_MISSING_TOKEN", "NO_CALENDAR_DATA"])
     );
   });
 
-  it("falls back to demo events when a source token cannot be decrypted", async () => {
+  it("returns no fabricated events when a source token cannot be decrypted", async () => {
     const setup = await setupHousehold(app);
     const [account] = await app.db
       .insert(connectedAccounts)
@@ -416,8 +484,9 @@ describe("calendar and google integration routes", () => {
       url: calendarEventsUrl()
     });
     expect(response.statusCode).toBe(200);
+    expect(response.json().events).toEqual([]);
     expect(response.json().warnings.map((warning: { code: string }) => warning.code)).toEqual(
-      expect.arrayContaining(["SOURCE_TOKEN_DECRYPT_FAILED", "DEMO_CALENDAR_FALLBACK"])
+      expect.arrayContaining(["SOURCE_TOKEN_DECRYPT_FAILED", "NO_CALENDAR_DATA"])
     );
   });
 
@@ -450,7 +519,15 @@ describe("calendar and google integration routes", () => {
     const end = "2026-06-08T00:00:00.000Z";
     const timezone = "UTC";
     const sourceFingerprint = buildSourceFingerprint([
-      { id: source.id, enabled: true, externalCalendarId: "family" }
+      {
+        id: source.id,
+        enabled: true,
+        externalCalendarId: "family",
+        displayName: "Family",
+        color: "#8ec5b8",
+        personId: null,
+        personName: null
+      }
     ]);
     const cacheKey = buildCalendarCacheKey({
       rangeStart: start,
@@ -514,7 +591,7 @@ describe("calendar and google integration routes", () => {
     );
   });
 
-  it("imports Google calendar-list sources when an access token is available", async () => {
+  it("discovers without tracking and imports only selected Google calendars", async () => {
     const setup = await setupHousehold(app);
     const [account] = await app.db
       .insert(connectedAccounts)
@@ -528,7 +605,7 @@ describe("calendar and google integration routes", () => {
       })
       .returning();
     expect(account.id).toBeTruthy();
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+    vi.spyOn(globalThis, "fetch").mockImplementation(async () =>
       new Response(
         JSON.stringify({
           items: [
@@ -545,20 +622,34 @@ describe("calendar and google integration routes", () => {
     );
 
     const { cookie } = await unlockAdmin(app);
+    const discovered = await app.inject({
+      method: "POST",
+      url: "/api/calendar/sources/discover-from-google",
+      headers: { cookie }
+    });
+    expect(discovered.statusCode).toBe(200);
+    expect(discovered.json().calendars).toEqual([
+      expect.objectContaining({ externalCalendarId: "primary", displayName: "Family", tracked: false }),
+      expect.objectContaining({ externalCalendarId: "school", displayName: "School", tracked: false })
+    ]);
+    const beforeImport = await app.inject({ method: "GET", url: "/api/calendar/sources" });
+    expect(beforeImport.json().sources).toHaveLength(0);
+
     const imported = await app.inject({
       method: "POST",
       url: "/api/calendar/sources/import-from-google",
-      headers: { cookie }
+      headers: { cookie },
+      payload: { externalCalendarIds: ["school"] }
     });
     expect(imported.statusCode).toBe(200);
-    expect(imported.json().imported).toBe(2);
+    expect(imported.json().imported).toBe(1);
     expect(imported.json().sources.map((source: { displayName: string }) => source.displayName)).toEqual([
-      "Family",
       "School"
     ]);
+    expect(imported.json().sources[0]).toMatchObject({ enabled: true, personId: null });
   });
 
-  it("does not fall back to demo sources when Google calendar-list import fails for a real token", async () => {
+  it("returns an explicit error when Google calendar-list import fails", async () => {
     const setup = await setupHousehold(app);
     await app.db.insert(connectedAccounts).values({
       householdId: setup.household.id,
@@ -578,7 +669,8 @@ describe("calendar and google integration routes", () => {
     const imported = await app.inject({
       method: "POST",
       url: "/api/calendar/sources/import-from-google",
-      headers: { cookie }
+      headers: { cookie },
+      payload: { externalCalendarIds: ["primary"] }
     });
     expect(imported.statusCode).toBe(502);
     expect(imported.json()).toMatchObject({
@@ -609,7 +701,8 @@ describe("calendar and google integration routes", () => {
     const imported = await app.inject({
       method: "POST",
       url: "/api/calendar/sources/import-from-google",
-      headers: { cookie }
+      headers: { cookie },
+      payload: { externalCalendarIds: ["primary"] }
     });
     expect(imported.statusCode).toBe(400);
     expect(imported.json()).toMatchObject({
@@ -776,14 +869,13 @@ describe("calendar and google integration routes", () => {
         }
       ]
     };
-    const fetchSpy = vi
-      .spyOn(globalThis, "fetch")
-      .mockResolvedValue(
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(
+      async () =>
         new Response(JSON.stringify(providerPayload), {
           status: 200,
           headers: { "Content-Type": "application/json" }
         })
-      );
+    );
 
     const start = new Date("2026-06-01T00:00:00.000Z").toISOString();
     const end = new Date("2026-06-08T00:00:00.000Z").toISOString();
@@ -819,6 +911,14 @@ describe("calendar and google integration routes", () => {
     expect(second.json().events).toHaveLength(2);
     expect(fetchSpy).toHaveBeenCalledTimes(1);
 
+    const forced = await app.inject({
+      method: "GET",
+      url: `${url}&refresh=true`
+    });
+    expect(forced.statusCode).toBe(200);
+    expect(forced.json().cacheStatus).toBe("refreshed");
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+
     const logs = await app.db
       .select({
         calendarSourceId: calendarFetchLogs.calendarSourceId,
@@ -827,6 +927,11 @@ describe("calendar and google integration routes", () => {
       })
       .from(calendarFetchLogs);
     expect(logs).toEqual([
+      {
+        calendarSourceId: source.id,
+        status: "success",
+        errorMessage: null
+      },
       {
         calendarSourceId: source.id,
         status: "success",

@@ -155,8 +155,13 @@ This document tracks progress against the [v0.1 Implementation Plan](docs/v0.1-i
 ### ✅ Step 11: Google calendar source import (100%)
 
 - [x] Import calendars from Google Calendar List API when access token is available
-- [x] Fall back to demo source import when token/calendar list is unavailable
+- [x] Require a connected Google account before importing calendar sources
 - [x] Return explicit errors instead of demo fallback when real Google calendar-list import fails
+- [x] Discover calendars without tracking them and import only explicit user selections
+- [x] Keep new calendars unselected by default, then add selected calendars enabled and unassigned
+- [x] Reconcile connected-account state after returning from Google OAuth
+- [x] Store and display the connected Google account email and stable account ID
+- [x] Add confirmed Google disconnect with token revocation and local calendar cleanup
 
 ### ✅ Step 12: Google event read (100%)
 
@@ -166,7 +171,7 @@ This document tracks progress against the [v0.1 Implementation Plan](docs/v0.1-i
 - [x] Skip cancelled provider events
 - [x] Return empty refreshed results when Google has no events
 - [x] Add per-source fetch logs
-- [x] Fall back to demo events with warnings when source fetch fails and no stale cache is available
+- [x] Return an explicit empty degraded state when source fetch fails and no stale cache is available
 
 ### ⬜ Step 13: Tablet polish (0%)
 
@@ -188,12 +193,13 @@ Not started
 - **Frontend component lines**: ~842 lines
 - **Database tables**: 10/10 implemented
 - **Seed data**: Complete with demo household (PIN: 1234)
-- **Automated tests**: API integration tests (31) + web behavior tests (27)
+- **Automated tests**: API integration tests (40) + web behavior tests (31)
 - **Coverage**: API 94.26% statements/lines, web 94.45% statements/lines
 
 ## Next Priorities
 
-1. **Manual v0.1 smoke pass**: Run the operational checklist in Docker against the browser.
-2. **Real Google validation**: Configure OAuth credentials and verify connect/import/events against an actual account.
-3. **Tablet polish**: Soak test the current Daymark UI on the target tablet/browser.
-4. **Scope decision**: Keep calendar event creation as a post-v0.1 item unless it becomes required for release.
+1. **Calendar token reliability**: Refresh expired Google access tokens and expose reconnect-required state.
+2. **Calendar layout polish**: Place overlapping timed events side by side and contain event content within its column.
+3. **Calendar completeness**: Add Google pagination, timezone/DST coverage, and explicit untracking for sources no longer wanted.
+4. **Manual v0.1 smoke pass**: Verify OAuth return, calendar selection, enable/disable, refresh, and event rendering in Docker.
+5. **Scope decision**: Keep calendar event creation as a post-v0.1 item unless it becomes required for release.
