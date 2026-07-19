@@ -7,6 +7,7 @@ import {
   setupHousehold,
   unlockAdmin
 } from "./helpers/test-app";
+import { households, people } from "@daymark/db";
 
 describe("setup and session routes", () => {
   let app: FastifyInstance;
@@ -135,5 +136,80 @@ describe("setup and session routes", () => {
       payload: { pin: "2468" }
     });
     expect(newPin.statusCode).toBe(200);
+  });
+
+  it("requires admin unlock and manages family details and members", async () => {
+    await setupHousehold(app);
+
+    const blocked = await app.inject({
+      method: "PATCH",
+      url: "/api/household/current",
+      payload: { name: "Blocked update" }
+    });
+    expect(blocked.statusCode).toBe(401);
+
+    const { cookie } = await unlockAdmin(app);
+    const updatedHousehold = await app.inject({
+      method: "PATCH",
+      url: "/api/household/current",
+      headers: { cookie },
+      payload: { name: "The Daymarks", timezone: "America/New_York" }
+    });
+    expect(updatedHousehold.statusCode).toBe(200);
+    expect(updatedHousehold.json().household).toMatchObject({
+      name: "The Daymarks",
+      timezone: "America/New_York"
+    });
+
+    const created = await app.inject({
+      method: "POST",
+      url: "/api/household/people",
+      headers: { cookie },
+      payload: { displayName: "Grandma", role: "adult", color: "#ca8a04" }
+    });
+    expect(created.statusCode).toBe(201);
+    expect(created.json().person).toMatchObject({
+      displayName: "Grandma",
+      role: "adult",
+      color: "#ca8a04",
+      sortOrder: 2
+    });
+
+    const edited = await app.inject({
+      method: "PATCH",
+      url: `/api/household/people/${created.json().person.id}`,
+      headers: { cookie },
+      payload: { displayName: "Nana", color: "#a16207" }
+    });
+    expect(edited.statusCode).toBe(200);
+    expect(edited.json().person).toMatchObject({
+      displayName: "Nana",
+      role: "adult",
+      color: "#a16207"
+    });
+
+    expect((await app.db.select().from(households))[0]).toMatchObject({ name: "The Daymarks" });
+    expect(await app.db.select().from(people)).toHaveLength(3);
+  });
+
+  it("validates family settings payloads", async () => {
+    await setupHousehold(app);
+    const { cookie } = await unlockAdmin(app);
+
+    const badTimezone = await app.inject({
+      method: "PATCH",
+      url: "/api/household/current",
+      headers: { cookie },
+      payload: { timezone: "Not/A_Timezone" }
+    });
+    expect(badTimezone.statusCode).toBe(400);
+
+    const badMember = await app.inject({
+      method: "POST",
+      url: "/api/household/people",
+      headers: { cookie },
+      payload: { displayName: "", role: "pet", color: "orange" }
+    });
+    expect(badMember.statusCode).toBe(400);
   });
 });

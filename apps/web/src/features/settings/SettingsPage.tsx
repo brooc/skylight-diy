@@ -5,6 +5,7 @@ import { apiFetch } from "../../api/client";
 import { ErrorState } from "../../components/ErrorState";
 import { LoadingState } from "../../components/LoadingState";
 import { GoogleCalendarSettings } from "./GoogleCalendarSettings";
+import { FamilySettings } from "./FamilySettings";
 
 export function SettingsPage(): JSX.Element {
   const navigate = useNavigate();
@@ -61,6 +62,7 @@ export function SettingsPage(): JSX.Element {
         </button>
       </header>
       {lockError ? <ErrorState message={lockError} /> : null}
+      <FamilySettings />
       <GoogleCalendarSettings />
     </section>
   );

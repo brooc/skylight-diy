@@ -28,7 +28,12 @@ function mockSettingsRequests(unlocked: boolean): ReturnType<typeof vi.spyOn> {
     if (url.startsWith("/api/session/lock")) return mockJsonResponse({ unlocked: false });
     if (url.startsWith("/api/calendar/accounts")) return mockJsonResponse({ accounts: [] });
     if (url.startsWith("/api/calendar/sources")) return mockJsonResponse({ sources: [] });
-    if (url.startsWith("/api/household/current")) return mockJsonResponse({ household: {}, people: [] });
+    if (url.startsWith("/api/household/current")) {
+      return mockJsonResponse({
+        household: { name: "Test Household", timezone: "America/Los_Angeles" },
+        people: []
+      });
+    }
     if (url.startsWith("/api/integrations/google/status")) {
       return mockJsonResponse({ available: false, redirectUri: null });
     }
