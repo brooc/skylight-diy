@@ -265,7 +265,6 @@ export function ImportPlaceholder(): JSX.Element {
                           aria-label={`Remove ${item.title}`}
                           className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-slate-500 hover:bg-white hover:text-rose-700"
                           onClick={async () => {
-                            if (!window.confirm(`Remove ${item.title}?`)) return;
                             setActionError(null);
                             try {
                               await apiFetch(`/lists/${list.id}/items/${item.id}`, { method: "DELETE" });

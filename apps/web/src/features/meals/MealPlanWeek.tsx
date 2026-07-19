@@ -189,7 +189,6 @@ export function MealPlanWeek(): JSX.Element {
                           aria-label={`Remove ${entry.customTitle || entry.mealName || "meal"}`}
                           className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-slate-500 hover:bg-white hover:text-rose-700"
                           onClick={async () => {
-                            if (!window.confirm(`Remove ${entry.customTitle || entry.mealName || "this meal"}?`)) return;
                             setActionError(null);
                             try {
                               await apiFetch(`/meals/week/entries/${entry.id}`, { method: "DELETE" });

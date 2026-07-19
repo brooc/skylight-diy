@@ -130,7 +130,7 @@ This document tracks progress against the [v0.1 Implementation Plan](docs/v0.1-i
 - [x] Add automated API tests for current-week meals and entry creation
 - [x] Add automated web tests for quick-add meal flow visibility
 - [x] Make meal date labels household-timezone safe
-- [x] Add confirmed meal-entry deletion
+- [x] Add direct meal-entry deletion
 
 ### ✅ Step 8: Calendar provider foundation (100%)
 
