@@ -12,6 +12,9 @@ const personFieldsSchema = z.object({
 const updateHouseholdSchema = z
   .object({
     name: z.string().trim().min(1).max(120).optional(),
+    locationName: z.string().trim().min(1).max(120).nullable().optional(),
+    latitude: z.number().min(-90).max(90).nullable().optional(),
+    longitude: z.number().min(-180).max(180).nullable().optional(),
     timezone: z
       .string()
       .trim()
@@ -26,7 +29,21 @@ const updateHouseholdSchema = z
       }, "Invalid IANA timezone")
       .optional()
   })
-  .refine((value) => value.name !== undefined || value.timezone !== undefined);
+  .refine(
+    (value) =>
+      value.name !== undefined ||
+      value.timezone !== undefined ||
+      value.locationName !== undefined ||
+      value.latitude !== undefined ||
+      value.longitude !== undefined
+  )
+  .refine(
+    (value) =>
+      (value.latitude === undefined && value.longitude === undefined) ||
+      (value.latitude === null && value.longitude === null) ||
+      (typeof value.latitude === "number" && typeof value.longitude === "number"),
+    "Latitude and longitude must be provided together"
+  );
 
 const updatePersonSchema = personFieldsSchema.partial().refine(
   (value) => Object.keys(value).length > 0

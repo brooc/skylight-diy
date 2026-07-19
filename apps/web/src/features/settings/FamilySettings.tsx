@@ -13,7 +13,13 @@ type Person = {
 };
 
 type HouseholdResponse = {
-  household: { name: string; timezone: string };
+  household: {
+    name: string;
+    timezone: string;
+    locationName: string | null;
+    latitude: number | null;
+    longitude: number | null;
+  };
   people: Person[];
 };
 
@@ -35,6 +41,9 @@ export function FamilySettings(): JSX.Element {
   });
   const [name, setName] = useState("");
   const [timezone, setTimezone] = useState("");
+  const [locationName, setLocationName] = useState("");
+  const [latitude, setLatitude] = useState("");
+  const [longitude, setLongitude] = useState("");
   const [newMember, setNewMember] = useState(defaultMember);
   const [familyStatus, setFamilyStatus] = useState<string | null>(null);
   const [addStatus, setAddStatus] = useState<string | null>(null);
@@ -45,6 +54,9 @@ export function FamilySettings(): JSX.Element {
     if (familyQuery.data) {
       setName(familyQuery.data.household.name);
       setTimezone(familyQuery.data.household.timezone);
+      setLocationName(familyQuery.data.household.locationName ?? "");
+      setLatitude(familyQuery.data.household.latitude?.toString() ?? "");
+      setLongitude(familyQuery.data.household.longitude?.toString() ?? "");
     }
   }, [familyQuery.data]);
 
@@ -53,7 +65,8 @@ export function FamilySettings(): JSX.Element {
       queryClient.invalidateQueries({ queryKey: queryKeys.householdSettings }),
       queryClient.invalidateQueries({ queryKey: queryKeys.household }),
       queryClient.invalidateQueries({ queryKey: queryKeys.rewardBalances }),
-      queryClient.invalidateQueries({ queryKey: ["household-people-for-calendar"] })
+      queryClient.invalidateQueries({ queryKey: ["household-people-for-calendar"] }),
+      queryClient.invalidateQueries({ queryKey: ["current-weather"] })
     ]);
   };
 
@@ -69,7 +82,7 @@ export function FamilySettings(): JSX.Element {
       </div>
 
       <form
-        className="grid gap-3 rounded-xl bg-[#faf8f4] p-4 sm:grid-cols-[1fr_1fr_auto] sm:items-end"
+        className="grid gap-3 rounded-xl bg-[#faf8f4] p-4 sm:grid-cols-2 sm:items-end"
         onSubmit={async (event) => {
           event.preventDefault();
           setIsSavingFamily(true);
@@ -77,7 +90,13 @@ export function FamilySettings(): JSX.Element {
           try {
             await apiFetch("/household/current", {
               method: "PATCH",
-              body: JSON.stringify({ name, timezone })
+              body: JSON.stringify({
+                name,
+                timezone,
+                locationName: locationName.trim() || null,
+                latitude: latitude === "" ? null : Number(latitude),
+                longitude: longitude === "" ? null : Number(longitude)
+              })
             });
             await refreshFamilyConsumers();
             setFamilyStatus("Family details saved.");
@@ -108,14 +127,70 @@ export function FamilySettings(): JSX.Element {
             placeholder="America/Los_Angeles"
           />
         </label>
+        <label className="grid gap-1 text-sm font-semibold text-slate-700">
+          Weather location
+          <input
+            value={locationName}
+            onChange={(event) => setLocationName(event.target.value)}
+            className="min-h-[44px] rounded-lg border border-[#d8cbb8] bg-white px-3 font-normal text-slate-900"
+            placeholder="Home"
+          />
+        </label>
+        <div className="grid grid-cols-2 gap-2">
+          <label className="grid gap-1 text-sm font-semibold text-slate-700">
+            Latitude
+            <input
+              type="number"
+              min={-90}
+              max={90}
+              step="any"
+              value={latitude}
+              onChange={(event) => setLatitude(event.target.value)}
+              className="min-h-[44px] rounded-lg border border-[#d8cbb8] bg-white px-3 font-normal text-slate-900"
+            />
+          </label>
+          <label className="grid gap-1 text-sm font-semibold text-slate-700">
+            Longitude
+            <input
+              type="number"
+              min={-180}
+              max={180}
+              step="any"
+              value={longitude}
+              onChange={(event) => setLongitude(event.target.value)}
+              className="min-h-[44px] rounded-lg border border-[#d8cbb8] bg-white px-3 font-normal text-slate-900"
+            />
+          </label>
+        </div>
+        <button
+          type="button"
+          className="min-h-[44px] rounded-lg border border-[#d8cbb8] bg-white px-4 text-sm font-semibold text-slate-700"
+          onClick={() => {
+            if (!navigator.geolocation) {
+              setFamilyStatus("This device does not provide location access.");
+              return;
+            }
+            navigator.geolocation.getCurrentPosition(
+              (position) => {
+                setLatitude(position.coords.latitude.toFixed(5));
+                setLongitude(position.coords.longitude.toFixed(5));
+                setLocationName((value) => value || "Home");
+                setFamilyStatus("Location captured. Save family to apply it.");
+              },
+              () => setFamilyStatus("Location access was not available.")
+            );
+          }}
+        >
+          Use this device’s location
+        </button>
         <button
           type="submit"
           disabled={isSavingFamily}
-          className="min-h-[44px] rounded-lg bg-slate-900 px-4 text-sm font-semibold text-white disabled:opacity-60"
+          className="min-h-[44px] rounded-lg bg-slate-900 px-4 text-sm font-semibold text-white disabled:opacity-60 sm:justify-self-end"
         >
           {isSavingFamily ? "Saving…" : "Save family"}
         </button>
-        {familyStatus ? <p role="status" className="text-sm text-slate-600 sm:col-span-3">{familyStatus}</p> : null}
+        {familyStatus ? <p role="status" className="text-sm text-slate-600 sm:col-span-2">{familyStatus}</p> : null}
       </form>
 
       <div className="grid gap-3">

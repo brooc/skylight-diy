@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import {
   boolean,
   date,
+  doublePrecision,
   integer,
   jsonb,
   pgTable,
@@ -21,6 +22,9 @@ export const households = pgTable("households", {
   id: id(),
   name: text("name").notNull(),
   timezone: text("timezone").notNull().default("America/Los_Angeles"),
+  locationName: text("location_name"),
+  latitude: doublePrecision("latitude"),
+  longitude: doublePrecision("longitude"),
   adminPinHash: text("admin_pin_hash"),
   adminPinSetAt: timestamp("admin_pin_set_at", { withTimezone: true }),
   setupCompletedAt: timestamp("setup_completed_at", { withTimezone: true }),

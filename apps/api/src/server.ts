@@ -13,6 +13,7 @@ import { rewardsRoutes } from "./routes/rewards";
 import { sessionRoutes } from "./routes/session";
 import { setupRoutes } from "./routes/setup";
 import { listsRoutes } from "./routes/lists";
+import { weatherRoutes } from "./routes/weather";
 
 export function buildServer() {
   const app = Fastify({
@@ -39,6 +40,7 @@ export function buildServer() {
     api.register(listsRoutes, { prefix: "/api" });
     api.register(calendarRoutes, { prefix: "/api" });
     api.register(googleOauthRoutes, { prefix: "/api" });
+    api.register(weatherRoutes, { prefix: "/api" });
   });
 
   return app;

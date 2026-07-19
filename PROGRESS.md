@@ -96,6 +96,9 @@ This document tracks progress against the [v0.1 Implementation Plan](docs/v0.1-i
 - [x] Replace Today add action with quick-add menu (Tasks/Lists/Meals) instead of forced route jump
 - [x] Surface degraded calendar warnings in Today view
 - [x] Add Today calendar refresh control with cache status badge
+- [x] Add seven-day navigation, source/person filtering, and adaptive early/late hour ranges
+- [x] Hide routine healthy cache status and remove inactive/fake dashboard controls
+- [x] Add household location settings and live current weather
 - [ ] Implement component logic (in progress)
 
 ### 🚧 Step 6: Chores and rewards vertical slice (40%)
@@ -124,6 +127,8 @@ This document tracks progress against the [v0.1 Implementation Plan](docs/v0.1-i
 - [x] Wire Today dashboard to tonight's meal
 - [x] Add automated API tests for current-week meals and entry creation
 - [x] Add automated web tests for quick-add meal flow visibility
+- [x] Make meal date labels household-timezone safe
+- [x] Add confirmed meal-entry deletion
 
 ### ✅ Step 8: Calendar provider foundation (100%)
 
