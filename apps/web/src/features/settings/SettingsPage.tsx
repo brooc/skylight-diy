@@ -6,6 +6,7 @@ import { ErrorState } from "../../components/ErrorState";
 import { LoadingState } from "../../components/LoadingState";
 import { GoogleCalendarSettings } from "./GoogleCalendarSettings";
 import { FamilySettings } from "./FamilySettings";
+import { TailscaleSettings } from "./TailscaleSettings";
 
 export function SettingsPage(): JSX.Element {
   const navigate = useNavigate();
@@ -26,15 +27,18 @@ export function SettingsPage(): JSX.Element {
 
   if (!sessionQuery.data?.unlocked) {
     return (
-      <section className="grid gap-3 rounded-md border border-[#e0d6c7] bg-white p-4 md:max-w-md">
-        <h1 className="text-xl font-semibold text-slate-900">Settings locked</h1>
-        <p className="text-sm text-slate-600">Unlock with your local admin PIN to continue.</p>
-        <Link
-          to="/settings/unlock"
-          className="flex min-h-[44px] items-center justify-center rounded-md bg-[#0f766e] px-4 py-3 text-center text-sm font-semibold text-white"
-        >
-          Unlock settings
-        </Link>
+      <section className="grid gap-4">
+        <div className="grid gap-3 rounded-md border border-[#e0d6c7] bg-white p-4 md:max-w-md">
+          <h1 className="text-xl font-semibold text-slate-900">Settings locked</h1>
+          <p className="text-sm text-slate-600">Unlock with your local admin PIN to continue.</p>
+          <Link
+            to="/settings/unlock"
+            className="flex min-h-[44px] items-center justify-center rounded-md bg-[#0f766e] px-4 py-3 text-center text-sm font-semibold text-white"
+          >
+            Unlock settings
+          </Link>
+        </div>
+        <TailscaleSettings />
       </section>
     );
   }
@@ -62,6 +66,7 @@ export function SettingsPage(): JSX.Element {
         </button>
       </header>
       {lockError ? <ErrorState message={lockError} /> : null}
+      <TailscaleSettings />
       <FamilySettings />
       <GoogleCalendarSettings />
     </section>

@@ -1,3 +1,5 @@
+FROM tailscale/tailscale:stable AS tailscale-client
+
 FROM node:22-bookworm-slim AS workspace
 
 ENV PNPM_HOME="/pnpm"
@@ -19,6 +21,8 @@ RUN pnpm install --frozen-lockfile
 COPY . .
 
 FROM workspace AS api
+
+COPY --from=tailscale-client /usr/local/bin/tailscale /usr/local/bin/tailscale
 
 ENV NODE_ENV=production
 ENV HOST=0.0.0.0

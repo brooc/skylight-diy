@@ -1,6 +1,24 @@
 name: daymark-production
 
 services:
+  tailscale:
+    image: tailscale/tailscale:stable
+    hostname: daymark
+    restart: unless-stopped
+    env_file:
+      - ${DAYMARK_ENV_FILE:-.env.production}
+    environment:
+      TS_AUTH_ONCE: "true"
+      TS_HOSTNAME: daymark
+      TS_STATE_DIR: /var/lib/tailscale
+      TS_SOCKET: /var/run/tailscale/tailscaled.sock
+      TS_USERSPACE: "true"
+    volumes:
+      - tailscale_state:/var/lib/tailscale
+      - tailscale_socket:/var/run/tailscale
+    ports:
+      - "127.0.0.1:${DAYMARK_HTTP_PORT:-8080}:8080"
+
   postgres:
     image: postgres:16
     restart: unless-stopped
@@ -29,9 +47,14 @@ services:
       NODE_ENV: production
       HOST: 0.0.0.0
       PORT: 3000
+      TAILSCALE_SOCKET_PATH: /var/run/tailscale/tailscaled.sock
+    volumes:
+      - tailscale_socket:/var/run/tailscale
     depends_on:
       postgres:
         condition: service_healthy
+      tailscale:
+        condition: service_started
     healthcheck:
       test:
         [
@@ -53,8 +76,36 @@ services:
     depends_on:
       api:
         condition: service_healthy
-    ports:
-      - "127.0.0.1:${DAYMARK_HTTP_PORT:-8080}:8080"
+      tailscale:
+        condition: service_started
+    network_mode: service:tailscale
+
+  tailscale-serve:
+    image: tailscale/tailscale:stable
+    restart: unless-stopped
+    network_mode: service:tailscale
+    entrypoint: /bin/sh
+    command:
+      - -c
+      - |
+        while true; do
+          until tailscale --socket=/var/run/tailscale/tailscaled.sock ip -4 >/dev/null 2>&1; do
+            sleep 2
+          done
+          if tailscale --socket=/var/run/tailscale/tailscaled.sock serve --bg --yes 8080; then
+            exec tail -f /dev/null
+          fi
+          sleep 10
+        done
+    volumes:
+      - tailscale_socket:/var/run/tailscale
+    depends_on:
+      tailscale:
+        condition: service_started
+      web:
+        condition: service_started
 
 volumes:
   daymark_postgres_data:
+  tailscale_state:
+  tailscale_socket:

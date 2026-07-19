@@ -37,6 +37,9 @@ function mockSettingsRequests(unlocked: boolean): ReturnType<typeof vi.spyOn> {
     if (url.startsWith("/api/integrations/google/status")) {
       return mockJsonResponse({ available: false, redirectUri: null });
     }
+    if (url.startsWith("/api/integrations/tailscale/status")) {
+      return mockJsonResponse({ available: false, state: "unavailable" });
+    }
     return mockJsonResponse({}, 404);
   });
 }
@@ -92,6 +95,32 @@ describe("shell and settings", () => {
     expect(screen.getByRole("link", { name: "Unlock settings" })).toHaveAttribute(
       "href",
       "/settings/unlock"
+    );
+  });
+
+  it("shows Tailscale bootstrap sign-in without requiring settings unlock", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const url = typeof input === "string" ? input : input.url;
+      if (url.startsWith("/api/session/current")) return mockJsonResponse({ unlocked: false });
+      if (url.startsWith("/api/integrations/tailscale/status")) {
+        return mockJsonResponse({
+          available: true,
+          state: "NeedsLogin",
+          authUrl: "https://login.tailscale.com/a/test",
+          hostname: "daymark",
+          dnsName: null,
+          httpsUrl: null,
+          online: false
+        });
+      }
+      return mockJsonResponse({}, 404);
+    });
+    renderWithRoute("/settings", <SettingsPage />);
+
+    expect(await screen.findByText("Tablet access")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Sign in to Tailscale" })).toHaveAttribute(
+      "href",
+      "https://login.tailscale.com/a/test"
     );
   });
 

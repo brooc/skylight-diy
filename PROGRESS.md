@@ -101,6 +101,7 @@ This document tracks progress against the [v0.1 Implementation Plan](docs/v0.1-i
 - [x] Add household location settings and live current weather
 - [x] Replace raw weather coordinates with city search and show the city beside conditions
 - [x] Add local Meteocons condition artwork and today's forecast high/low
+- [x] Add containerized Tailscale with an automated Settings sign-in and private HTTPS bootstrap
 - [x] Add a Sunday/Monday first-day-of-week preference shared by Calendar and Week
 - [ ] Implement component logic (in progress)
 
@@ -202,6 +203,7 @@ This document tracks progress against the [v0.1 Implementation Plan](docs/v0.1-i
 - [x] Launch Google OAuth from Fully Kiosk in Silk through an Android app intent
 - [x] Add an installable fullscreen landscape PWA shell with resilient screen wake lock handling
 - [x] Add a private HTTPS production deployment path for Fire tablets with Tailscale Serve
+- [x] Containerize the Tailscale node and persist its identity with the production stack
 - [x] Rename the responsive Week view to Agenda
 - [ ] Complete responsive 10-inch tablet landscape pass across all primary routes
 
