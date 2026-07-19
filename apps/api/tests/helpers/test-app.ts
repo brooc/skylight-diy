@@ -23,6 +23,20 @@ type SetupResponse = {
   household: { id: string; name: string; timezone: string };
 };
 
+function assertTestDatabase(): void {
+  const databaseUrl = process.env.DATABASE_URL;
+  if (!databaseUrl) {
+    throw new Error("DATABASE_URL is required for integration tests.");
+  }
+
+  const databaseName = new URL(databaseUrl).pathname.replace(/^\//, "");
+  if (!/(^|[-_])test($|[-_])/i.test(databaseName)) {
+    throw new Error(
+      `Refusing to reset database "${databaseName}". Integration tests require a database name containing "test".`
+    );
+  }
+}
+
 export async function createTestApp(): Promise<FastifyInstance> {
   const app = buildServer();
   await app.ready();
@@ -30,6 +44,7 @@ export async function createTestApp(): Promise<FastifyInstance> {
 }
 
 export async function resetTestDb(app: FastifyInstance): Promise<void> {
+  assertTestDatabase();
   await app.db.execute(
     sql.raw(`TRUNCATE TABLE ${TABLES.join(", ")} RESTART IDENTITY CASCADE`)
   );
