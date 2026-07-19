@@ -6,6 +6,7 @@ import { ErrorState } from "../../components/ErrorState";
 import { LoadingState } from "../../components/LoadingState";
 import { CalendarDayView } from "./CalendarDayView";
 import { CalendarStatusBadge } from "./CalendarStatusBadge";
+import { dateKeyInTimeZone } from "./dateKeys";
 
 type CalendarResponse = {
   rangeStart: string;
@@ -31,10 +32,6 @@ function getWeekRange(now = new Date()): { start: string; end: string } {
   const end = new Date(start);
   end.setDate(start.getDate() + 7);
   return { start: start.toISOString(), end: end.toISOString() };
-}
-
-function toDayKey(value: string): string {
-  return new Date(value).toISOString().slice(0, 10);
 }
 
 export function CalendarWeekView(): JSX.Element {
@@ -65,14 +62,16 @@ export function CalendarWeekView(): JSX.Element {
 
   const eventsByDay = new Map<string, CalendarResponse["events"]>();
   for (const event of data.events) {
-    const key = toDayKey(event.start);
+    const key = event.isAllDay
+      ? event.start.slice(0, 10)
+      : dateKeyInTimeZone(event.start, timezone);
     eventsByDay.set(key, [...(eventsByDay.get(key) ?? []), event]);
   }
 
   const days = Array.from({ length: 7 }, (_, index) => {
     const date = new Date(start);
     date.setDate(date.getDate() + index);
-    const dayKey = date.toISOString().slice(0, 10);
+    const dayKey = dateKeyInTimeZone(date, timezone);
     return {
       dayKey,
       label: date.toLocaleDateString(undefined, {

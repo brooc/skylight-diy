@@ -6,6 +6,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vites
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { calendarSources, connectedAccounts, households } from "../../../packages/db/src/index";
 import { encryptToken } from "../../api/src/modules/integrations/token-crypto";
+import { dateKeyInTimeZone } from "../src/features/calendar/dateKeys";
 import { TodayDashboard } from "../src/features/dashboard/TodayDashboard";
 import { createTestQueryClient } from "./helpers/test-utils";
 import {
@@ -34,7 +35,7 @@ describe("TodayDashboard", () => {
   });
 
   it("renders an honest empty calendar state and force-refreshes from the real API", async () => {
-    const todayKey = new Date().toISOString().slice(0, 10);
+    const todayKey = dateKeyInTimeZone(new Date(), "America/Los_Angeles");
     const meal = await app.inject({
       method: "POST",
       url: "/api/meals/week/entries",

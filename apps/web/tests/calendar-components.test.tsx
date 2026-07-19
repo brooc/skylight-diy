@@ -6,6 +6,7 @@ import { CalendarDayView } from "../src/features/calendar/CalendarDayView";
 import { CalendarEventCard } from "../src/features/calendar/CalendarEventCard";
 import { CalendarStatusBadge } from "../src/features/calendar/CalendarStatusBadge";
 import { CalendarWeekView } from "../src/features/calendar/CalendarWeekView";
+import { dateKeyInTimeZone, shiftDateKey } from "../src/features/calendar/dateKeys";
 import { layoutTimedEvents } from "../src/features/calendar/layoutTimedEvents";
 import { createTestQueryClient, mockJsonResponse } from "./helpers/test-utils";
 
@@ -93,6 +94,22 @@ describe("calendar components", () => {
       { id: "early", column: 1, columnCount: 3 },
       { id: "peak", column: 2, columnCount: 3 }
     ]);
+  });
+
+  it("assigns timed and all-day events across DST boundaries without UTC day drift", () => {
+    expect(dateKeyInTimeZone("2026-03-08T07:30:00.000Z", "America/Los_Angeles")).toBe(
+      "2026-03-07"
+    );
+    expect(dateKeyInTimeZone("2026-03-08T10:30:00.000Z", "America/Los_Angeles")).toBe(
+      "2026-03-08"
+    );
+    expect(dateKeyInTimeZone("2026-11-01T06:30:00.000Z", "America/Los_Angeles")).toBe(
+      "2026-10-31"
+    );
+    expect(dateKeyInTimeZone("2026-11-01T10:30:00.000Z", "America/Los_Angeles")).toBe(
+      "2026-11-01"
+    );
+    expect(shiftDateKey("2026-03-09", -1)).toBe("2026-03-08");
   });
 
   it("renders week events, warnings, cache status, and refreshes the query", async () => {

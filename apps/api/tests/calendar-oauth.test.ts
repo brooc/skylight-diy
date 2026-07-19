@@ -73,6 +73,20 @@ describe("calendar and google integration routes", () => {
 
     const start = new Date("2026-06-01T00:00:00.000Z").toISOString();
     const end = new Date("2026-06-08T00:00:00.000Z").toISOString();
+    const invalidTimezone = await app.inject({
+      method: "GET",
+      url: `/api/calendar/events?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}&timezone=Not%2FA_Timezone`
+    });
+    expect(invalidTimezone.statusCode).toBe(400);
+    expect(invalidTimezone.json().error).toBe("invalid_calendar_query");
+
+    const reversedRange = await app.inject({
+      method: "GET",
+      url: `/api/calendar/events?start=${encodeURIComponent(end)}&end=${encodeURIComponent(start)}&timezone=UTC`
+    });
+    expect(reversedRange.statusCode).toBe(400);
+    expect(reversedRange.json().error).toBe("invalid_calendar_query");
+
     const response = await app.inject({
       method: "GET",
       url: `/api/calendar/events?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}&timezone=UTC`

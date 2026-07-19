@@ -3,8 +3,25 @@ import { and, eq, gte, lte } from "drizzle-orm";
 import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
 
-function toDateOnly(value: Date): string {
-  return value.toISOString().slice(0, 10);
+function dateKeyInTimeZone(value: Date, timeZone: string): string {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  }).formatToParts(value);
+  const values = new Map(parts.map((part) => [part.type, part.value]));
+  return `${values.get("year")}-${values.get("month")}-${values.get("day")}`;
+}
+
+function shiftDateKey(dateKey: string, days: number): string {
+  const [year, month, day] = dateKey.split("-").map(Number);
+  const shifted = new Date(Date.UTC(year!, month! - 1, day! + days));
+  return [
+    shifted.getUTCFullYear(),
+    String(shifted.getUTCMonth() + 1).padStart(2, "0"),
+    String(shifted.getUTCDate()).padStart(2, "0")
+  ].join("-");
 }
 
 const createMealEntryBodySchema = z.object({
@@ -20,12 +37,8 @@ export const mealsRoutes: FastifyPluginAsync = async (app) => {
       return { days: [] };
     }
 
-    const start = new Date();
-    const startDate = new Date(
-      Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), start.getUTCDate())
-    );
-    const endDate = new Date(startDate);
-    endDate.setUTCDate(startDate.getUTCDate() + 6);
+    const startDateKey = dateKeyInTimeZone(new Date(), household.timezone);
+    const endDateKey = shiftDateKey(startDateKey, 6);
 
     const entries = await app.db
       .select({
@@ -41,8 +54,8 @@ export const mealsRoutes: FastifyPluginAsync = async (app) => {
       .where(
         and(
           eq(mealPlanEntries.householdId, household.id),
-          gte(mealPlanEntries.plannedDate, toDateOnly(startDate)),
-          lte(mealPlanEntries.plannedDate, toDateOnly(endDate))
+          gte(mealPlanEntries.plannedDate, startDateKey),
+          lte(mealPlanEntries.plannedDate, endDateKey)
         )
       );
 
@@ -53,9 +66,7 @@ export const mealsRoutes: FastifyPluginAsync = async (app) => {
     }
 
     const days = Array.from({ length: 7 }, (_, index) => {
-      const day = new Date(startDate);
-      day.setUTCDate(startDate.getUTCDate() + index);
-      const dayKey = toDateOnly(day);
+      const dayKey = shiftDateKey(startDateKey, index);
       return {
         date: dayKey,
         entries: byDate.get(dayKey) ?? []

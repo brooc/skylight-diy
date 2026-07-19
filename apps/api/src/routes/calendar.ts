@@ -11,12 +11,24 @@ import {
 } from "../modules/calendar/cache";
 import { decryptToken, encryptToken } from "../modules/integrations/token-crypto";
 
-const eventsQuerySchema = z.object({
-  start: z.string().datetime(),
-  end: z.string().datetime(),
-  timezone: z.string().min(1),
-  refresh: z.enum(["true", "false"]).optional().transform((value) => value === "true")
-});
+const eventsQuerySchema = z
+  .object({
+    start: z.string().datetime(),
+    end: z.string().datetime(),
+    timezone: z.string().min(1).refine((timezone) => {
+      try {
+        new Intl.DateTimeFormat("en-US", { timeZone: timezone });
+        return true;
+      } catch {
+        return false;
+      }
+    }, "Invalid IANA timezone."),
+    refresh: z.enum(["true", "false"]).optional().transform((value) => value === "true")
+  })
+  .refine((query) => new Date(query.end).getTime() > new Date(query.start).getTime(), {
+    message: "End must be after start.",
+    path: ["end"]
+  });
 
 const patchSourceBodySchema = z.object({
   enabled: z.boolean().optional(),

@@ -7,6 +7,7 @@ import { queryKeys } from "../../api/queryKeys";
 import { ErrorState } from "../../components/ErrorState";
 import { LoadingState } from "../../components/LoadingState";
 import { CalendarStatusBadge } from "../calendar/CalendarStatusBadge";
+import { dateKeyInTimeZone, shiftDateKey } from "../calendar/dateKeys";
 import { layoutTimedEvents } from "../calendar/layoutTimedEvents";
 
 type RewardsResponse = {
@@ -118,7 +119,7 @@ export function TodayDashboard(): JSX.Element {
   if (mealsQuery.isError) return <ErrorState message={mealsQuery.error.message} />;
   if (calendarQuery.isError) return <ErrorState message={calendarQuery.error.message} />;
 
-  const todayKey = new Date().toISOString().slice(0, 10);
+  const todayKey = dateKeyInTimeZone(now, timezone);
   const todaysMeals = mealsQuery.data?.days.find((day) => day.date === todayKey)?.entries ?? [];
   const tonightMeal =
     todaysMeals.find((entry) => entry.slot === "dinner")?.customTitle ??
@@ -130,7 +131,7 @@ export function TodayDashboard(): JSX.Element {
     date.setDate(startOfToday.getDate() + index);
     return {
       index,
-      dayKey: date.toISOString().slice(0, 10),
+      dayKey: dateKeyInTimeZone(date, timezone),
       weekday: date.toLocaleDateString(undefined, { weekday: "short" }),
       dayNumber: date.getDate(),
       isToday: date.toDateString() === now.toDateString()
@@ -162,7 +163,7 @@ export function TodayDashboard(): JSX.Element {
     .map((event, index) => {
       const startDate = new Date(event.start);
       const endDate = new Date(event.end);
-      const dayKey = startDate.toISOString().slice(0, 10);
+      const dayKey = dateKeyInTimeZone(startDate, timezone);
       const dayIndex = days.find((day) => day.dayKey === dayKey)?.index ?? -1;
       const startHour = startDate.getHours() + startDate.getMinutes() / 60;
       const durationHours = Math.max(
@@ -214,12 +215,8 @@ export function TodayDashboard(): JSX.Element {
   const allDayEvents = (calendarQuery.data?.events ?? [])
     .filter((event) => event.isAllDay)
     .map((event, index) => {
-      const startDate = new Date(event.start);
-      const endDate = new Date(event.end);
-      const startKey = startDate.toISOString().slice(0, 10);
-      const rawEndDate = new Date(endDate);
-      rawEndDate.setDate(rawEndDate.getDate() - 1);
-      const endKey = rawEndDate.toISOString().slice(0, 10);
+      const startKey = event.start.slice(0, 10);
+      const endKey = shiftDateKey(event.end.slice(0, 10), -1);
       const startIndex = days.find((day) => day.dayKey === startKey)?.index ?? 0;
       const endIndex = days.find((day) => day.dayKey === endKey)?.index ?? startIndex;
 

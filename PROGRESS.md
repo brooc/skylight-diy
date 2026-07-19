@@ -175,6 +175,8 @@ This document tracks progress against the [v0.1 Implementation Plan](docs/v0.1-i
 - [x] Refresh expiring Google access tokens once per connected account
 - [x] Persist refreshed credentials and mark revoked or unreadable refresh tokens for reconnect
 - [x] Follow Google pagination for calendar discovery and event reads
+- [x] Validate event ranges and IANA timezones before provider requests
+- [x] Keep timed and all-day events on the correct local date across UTC and DST boundaries
 
 ### 🚧 Step 13: Tablet polish (20%)
 
@@ -199,11 +201,11 @@ This document tracks progress against the [v0.1 Implementation Plan](docs/v0.1-i
 - **Frontend component lines**: ~842 lines
 - **Database tables**: 10/10 implemented
 - **Seed data**: Complete with demo household (PIN: 1234)
-- **Automated tests**: API integration tests (42) + web behavior tests (34)
+- **Automated tests**: API integration tests (42) + web behavior tests (35)
 - **Coverage**: API 94.26% statements/lines, web 94.45% statements/lines
 
 ## Next Priorities
 
-1. **Calendar completeness**: Add timezone/DST coverage and explicit untracking for sources no longer wanted.
+1. **Calendar completeness**: Add explicit untracking for sources no longer wanted.
 2. **Manual v0.1 smoke pass**: Verify OAuth return, calendar selection, enable/disable, refresh, and event rendering in Docker.
 3. **Scope decision**: Keep calendar event creation as a post-v0.1 item unless it becomes required for release.
