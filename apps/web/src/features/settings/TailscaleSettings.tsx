@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiFetch } from "../../api/client";
 
 interface TailscaleStatus {
@@ -13,12 +13,19 @@ interface TailscaleStatus {
   serveEnableUrl: string | null;
 }
 
-export function TailscaleSettings(): JSX.Element | null {
+export function TailscaleSettings({ canReset = false }: { canReset?: boolean }): JSX.Element | null {
+  const queryClient = useQueryClient();
   const statusQuery = useQuery({
     queryKey: ["tailscale-status"],
     queryFn: () => apiFetch<TailscaleStatus>("/integrations/tailscale/status"),
     refetchInterval: 3_000,
     retry: false
+  });
+  const resetMutation = useMutation({
+    mutationFn: () => apiFetch<{ reset: boolean }>("/integrations/tailscale/reset", { method: "POST" }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["tailscale-status"] });
+    }
   });
 
   const status = statusQuery.data;
@@ -80,6 +87,35 @@ export function TailscaleSettings(): JSX.Element | null {
           Private access is being configured. This status will update automatically.
         </p>
       )}
+
+      {canReset && status.online ? (
+        <div className="grid gap-2 border-t border-[#ece4d8] pt-3">
+          <button
+            type="button"
+            disabled={resetMutation.isPending}
+            className="min-h-[44px] rounded-md border border-red-200 bg-red-50 px-4 py-2 text-sm font-semibold text-red-800 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
+            onClick={() => resetMutation.mutate()}
+          >
+            {resetMutation.isPending ? "Resetting Tailscale..." : "Log out & reset Tailscale"}
+          </button>
+          <p className="text-xs text-slate-500">
+            Clears only this Daymark device connection and private HTTPS configuration. Family and calendar data are not changed.
+          </p>
+          <a
+            href="https://login.tailscale.com/admin/dns"
+            target="_blank"
+            rel="noreferrer"
+            className="text-sm font-semibold text-[#0f766e] underline underline-offset-2"
+          >
+            Manage tailnet-wide HTTPS approval
+          </a>
+          {resetMutation.isError ? (
+            <p role="alert" className="text-sm text-red-700">
+              {resetMutation.error.message || "Tailscale reset failed."}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
     </section>
   );
 }

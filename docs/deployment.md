@@ -74,6 +74,8 @@ In Google Cloud Console, add the exact `GOOGLE_REDIRECT_URI` value to the OAuth 
 
 ## Operations
 
+To replay or replace the Tailscale connection, unlock Daymark Settings and select **Log out & reset Tailscale** in the **Tablet access** card. This clears only the Daymark node login and Serve configuration; household, calendar, meal, list, and task data are unchanged. Tailnet-wide HTTPS approval is managed separately from the Tailscale admin console's DNS page.
+
 View logs:
 
 ```bash

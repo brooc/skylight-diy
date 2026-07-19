@@ -40,6 +40,9 @@ function mockSettingsRequests(unlocked: boolean): ReturnType<typeof vi.spyOn> {
     if (url.startsWith("/api/integrations/tailscale/status")) {
       return mockJsonResponse({ available: false, state: "unavailable" });
     }
+    if (url.startsWith("/api/integrations/tailscale/reset")) {
+      return mockJsonResponse({ reset: true });
+    }
     return mockJsonResponse({}, 404);
   });
 }
@@ -163,6 +166,55 @@ describe("shell and settings", () => {
     expect(await screen.findByText("today route")).toBeInTheDocument();
     expect(fetchSpy).toHaveBeenCalledWith(
       "/api/session/lock",
+      expect.objectContaining({ method: "POST" })
+    );
+  });
+
+  it("lets an unlocked admin reset only the Tailscale connection", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const url = typeof input === "string" ? input : input.url;
+      if (url.startsWith("/api/session/current")) return mockJsonResponse({ unlocked: true });
+      if (url.startsWith("/api/integrations/tailscale/status")) {
+        return mockJsonResponse({
+          available: true,
+          state: "Running",
+          authUrl: null,
+          hostname: "daymark",
+          dnsName: "daymark.example.ts.net",
+          httpsUrl: "https://daymark.example.ts.net",
+          online: true,
+          serveState: "ready",
+          serveEnableUrl: null
+        });
+      }
+      if (url.startsWith("/api/integrations/tailscale/reset")) {
+        return mockJsonResponse({ reset: true });
+      }
+      if (url.startsWith("/api/calendar/accounts")) return mockJsonResponse({ accounts: [] });
+      if (url.startsWith("/api/calendar/sources")) return mockJsonResponse({ sources: [] });
+      if (url.startsWith("/api/household/current")) {
+        return mockJsonResponse({
+          household: { name: "Test Household", timezone: "America/Los_Angeles" },
+          people: []
+        });
+      }
+      if (url.startsWith("/api/integrations/google/status")) {
+        return mockJsonResponse({ available: false, redirectUri: null });
+      }
+      return mockJsonResponse({}, 404);
+    });
+    renderWithRoute("/settings", <SettingsPage />);
+
+    await userEvent.setup().click(
+      await screen.findByRole("button", { name: "Log out & reset Tailscale" })
+    );
+
+    expect(
+      screen.getByRole("link", { name: "Manage tailnet-wide HTTPS approval" })
+    ).toHaveAttribute("href", "https://login.tailscale.com/admin/dns");
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "/api/integrations/tailscale/reset",
       expect.objectContaining({ method: "POST" })
     );
   });

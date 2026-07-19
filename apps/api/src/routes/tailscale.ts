@@ -124,4 +124,34 @@ export const tailscaleRoutes: FastifyPluginAsync = async (app) => {
       return unavailableStatus;
     }
   });
+
+  app.post("/integrations/tailscale/reset", async (request, reply) => {
+    if (!request.isAdminUnlocked()) {
+      return reply.status(401).send({ error: "admin_unlock_required" });
+    }
+    if (!env.TAILSCALE_SOCKET_PATH) {
+      return reply.status(503).send({ error: "tailscale_unavailable" });
+    }
+
+    const socketArg = `--socket=${env.TAILSCALE_SOCKET_PATH}`;
+    try {
+      await execFileAsync("tailscale", [socketArg, "serve", "reset"], {
+        timeout: 5_000,
+        maxBuffer: 1024 * 1024
+      });
+    } catch (error) {
+      app.log.info({ err: error }, "Tailscale Serve was already reset or unavailable");
+    }
+
+    try {
+      await execFileAsync("tailscale", [socketArg, "logout"], {
+        timeout: 10_000,
+        maxBuffer: 1024 * 1024
+      });
+      return { reset: true };
+    } catch (error) {
+      app.log.warn({ err: error }, "Unable to log out Tailscale");
+      return reply.status(503).send({ error: "tailscale_reset_failed" });
+    }
+  });
 };
