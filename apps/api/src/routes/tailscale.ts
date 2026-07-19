@@ -69,20 +69,26 @@ async function readRawTailscaleStatus(socketPath: string): Promise<TailscaleStat
 async function logOutAndWaitForLogin(socketPath: string): Promise<boolean> {
   const socketArg = `--socket=${socketPath}`;
 
-  for (let attempt = 0; attempt < 12; attempt += 1) {
+  for (let logoutAttempt = 0; logoutAttempt < 3; logoutAttempt += 1) {
     try {
-      const status = await readRawTailscaleStatus(socketPath);
-      if (status.BackendState === "NeedsLogin" && safeString(status.AuthURL)) return true;
-
       await execFileAsync("tailscale", [socketArg, "logout"], {
         timeout: 10_000,
         maxBuffer: 1024 * 1024
       });
     } catch {
-      // Logout restarts containerboot and briefly removes the shared socket. Retry until
-      // the daemon has returned with a new interactive login URL.
+      // Logout may still have been accepted if the daemon briefly dropped the local API
+      // connection. Poll this attempt before deciding whether another logout is needed.
     }
-    await wait(1_500);
+
+    for (let pollAttempt = 0; pollAttempt < 20; pollAttempt += 1) {
+      await wait(1_500);
+      try {
+        const status = await readRawTailscaleStatus(socketPath);
+        if (status.BackendState === "NeedsLogin" && safeString(status.AuthURL)) return true;
+      } catch {
+        // The local daemon can briefly make its socket unavailable during the transition.
+      }
+    }
   }
 
   return false;

@@ -19,6 +19,8 @@ export function TailscaleSettings({ canReset = false }: { canReset?: boolean }):
     queryKey: ["tailscale-status"],
     queryFn: () => apiFetch<TailscaleStatus>("/integrations/tailscale/status"),
     refetchInterval: 3_000,
+    refetchIntervalInBackground: true,
+    refetchOnWindowFocus: "always",
     retry: false
   });
   const resetMutation = useMutation({

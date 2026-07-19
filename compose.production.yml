@@ -5,6 +5,33 @@ services:
     image: tailscale/tailscale:stable
     hostname: daymark
     restart: unless-stopped
+    entrypoint: /bin/sh
+    command:
+      - -c
+      - |
+        set -u
+        tailscaled \
+          --socket=/var/run/tailscale/tailscaled.sock \
+          --statedir=/var/lib/tailscale \
+          --tun=userspace-networking &
+        daemon_pid=$$!
+        cleanup() {
+          kill "$$daemon_pid" 2>/dev/null || true
+          wait "$$daemon_pid" 2>/dev/null || true
+        }
+        trap cleanup INT TERM EXIT
+        until tailscale --socket=/var/run/tailscale/tailscaled.sock status --json >/dev/null 2>&1; do
+          sleep 1
+        done
+        while kill -0 "$$daemon_pid" 2>/dev/null; do
+          state="$$(tailscale --socket=/var/run/tailscale/tailscaled.sock status --json 2>/dev/null | sed -n 's/.*"BackendState": *"\([^"]*\)".*/\1/p')"
+          if [ "$$state" = "NeedsLogin" ]; then
+            tailscale --socket=/var/run/tailscale/tailscaled.sock up --accept-dns=false --hostname=daymark || true
+          else
+            sleep 2
+          fi
+        done
+        wait "$$daemon_pid"
     env_file:
       - ${DAYMARK_ENV_FILE:-.env.production}
     environment:
