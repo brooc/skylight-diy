@@ -16,8 +16,6 @@ services:
     volumes:
       - tailscale_state:/var/lib/tailscale
       - tailscale_socket:/var/run/tailscale
-    ports:
-      - "127.0.0.1:${DAYMARK_HTTP_PORT:-8080}:8080"
 
   postgres:
     image: postgres:16
@@ -78,7 +76,8 @@ services:
         condition: service_healthy
       tailscale:
         condition: service_started
-    network_mode: service:tailscale
+    ports:
+      - "127.0.0.1:${DAYMARK_HTTP_PORT:-8080}:8080"
 
   tailscale-serve:
     image: tailscale/tailscale:stable
@@ -92,7 +91,7 @@ services:
           until tailscale --socket=/var/run/tailscale/tailscaled.sock ip -4 >/dev/null 2>&1; do
             sleep 2
           done
-          if tailscale --socket=/var/run/tailscale/tailscaled.sock serve --bg --yes 8080; then
+          if tailscale --socket=/var/run/tailscale/tailscaled.sock serve --bg --yes http://web:8080; then
             exec tail -f /dev/null
           fi
           sleep 10
