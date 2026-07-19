@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
@@ -137,13 +137,16 @@ describe("TodayDashboard", () => {
     expect(secondCard).toHaveAttribute("data-layout-columns", "2");
     expect(secondCard).toHaveStyle({ left: "calc(50% + 4px)" });
     expect(halfHourCard).toHaveAttribute("data-event-density", "compact");
-    expect(halfHourCard).toHaveStyle({ top: "41px", height: "35px" });
+    expect(halfHourCard).toHaveStyle({ top: "48px", height: "42px" });
+    expect(within(halfHourCard!).getByText(/12:30–1:00/)).toBeInTheDocument();
     expect(document.querySelectorAll('[data-half-hour-line="true"]').length).toBeGreaterThan(0);
 
     await userEvent.setup().click(halfHourCard!);
     expect(await screen.findByRole("dialog")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Half-hour alignment" })).toBeInTheDocument();
     expect(screen.getByText(/12:30 PM - 1:00 PM/)).toBeInTheDocument();
+    expect(screen.getByText("Calendar event")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Close event details" })).toBeInTheDocument();
   });
 
   it("opens add actions and navigates to the task quick-add route", async () => {

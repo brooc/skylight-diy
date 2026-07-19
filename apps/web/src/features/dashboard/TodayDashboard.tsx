@@ -245,7 +245,7 @@ export function TodayDashboard(): JSX.Element {
   const startHour = 6;
   const endHour = 22;
   const hourSlots = Array.from({ length: endHour - startHour + 1 }, (_, i) => startHour + i);
-  const slotHeight = 82;
+  const slotHeight = 96;
 
   return (
     <section className="grid gap-3">
@@ -423,7 +423,6 @@ export function TodayDashboard(): JSX.Element {
                         };
                         const columnWidth = 100 / layout.columnCount;
                         const isCompact = event.durationHours <= 1 || layout.columnCount > 1;
-                        const showTime = event.durationHours >= 0.75;
                         const showOwner = event.durationHours >= 1.5 && layout.columnCount === 1;
                         return (
                           <button
@@ -435,7 +434,7 @@ export function TodayDashboard(): JSX.Element {
                             data-event-density={isCompact ? "compact" : "comfortable"}
                             aria-label={`${event.title}, ${event.timeLabel}, ${event.sourceName}`}
                             title={`${event.title} · ${event.timeLabel} · ${event.sourceName}`}
-                            className="absolute z-10 min-w-0 overflow-hidden rounded-xl px-2 py-1.5 text-left text-slate-800 transition-shadow hover:shadow-md focus:outline-none focus:ring-2 focus:ring-sky-500"
+                            className="absolute z-10 min-w-0 overflow-hidden rounded-xl px-2 py-1 text-left text-slate-800 transition-shadow hover:shadow-md focus:outline-none focus:ring-2 focus:ring-sky-500"
                             onClick={() => setSelectedEvent(event)}
                             style={{
                               top: offset,
@@ -450,11 +449,9 @@ export function TodayDashboard(): JSX.Element {
                             <div className={`${isCompact ? "text-[13px]" : "text-[16px]"} break-normal font-semibold leading-tight`}>
                               {event.title}
                             </div>
-                            {showTime ? (
-                              <div className={`${isCompact ? "text-[11px]" : "text-[13px]"} mt-0.5 whitespace-nowrap leading-tight text-slate-700`}>
-                                {event.compactTimeLabel}
-                              </div>
-                            ) : null}
+                            <div className={`${isCompact ? "text-[10px]" : "text-[13px]"} mt-0.5 whitespace-nowrap leading-none text-slate-700`}>
+                              {event.compactTimeLabel}
+                            </div>
                             {showOwner && event.ownerInitial ? (
                               <div className="absolute bottom-2 right-2 flex items-center gap-1">
                                 {event.ownerCount > 1 ? (
@@ -518,25 +515,62 @@ export function TodayDashboard(): JSX.Element {
             role="dialog"
             aria-modal="true"
             aria-labelledby="calendar-event-detail-title"
-            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/35 p-4"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 p-4 backdrop-blur-[2px]"
             onClick={() => setSelectedEvent(null)}
           >
             <div
-              className="w-full max-w-md rounded-md bg-white p-5 shadow-xl"
+              className="relative w-full max-w-md overflow-hidden rounded-3xl border border-white/70 bg-white shadow-[0_24px_80px_rgba(15,23,42,0.28)]"
               onClick={(event) => event.stopPropagation()}
             >
-              <h2 id="calendar-event-detail-title" className="text-xl font-semibold text-slate-900">
-                {selectedEvent.title}
-              </h2>
-              <p className="mt-2 text-sm text-slate-700">{selectedEvent.timeLabel}</p>
-              <p className="mt-1 text-sm text-slate-600">{selectedEvent.sourceName}</p>
-              <button
-                type="button"
-                className="mt-4 min-h-[40px] rounded-md bg-slate-900 px-4 text-sm font-semibold text-white"
-                onClick={() => setSelectedEvent(null)}
-              >
-                Close
-              </button>
+              <div className="h-2" style={{ backgroundColor: selectedEvent.color }} />
+              <div className="p-6 sm:p-7">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                      <span
+                        aria-hidden="true"
+                        className="h-2.5 w-2.5 rounded-full"
+                        style={{ backgroundColor: selectedEvent.color }}
+                      />
+                      Calendar event
+                    </div>
+                    <h2 id="calendar-event-detail-title" className="font-display text-3xl leading-tight text-slate-950">
+                      {selectedEvent.title}
+                    </h2>
+                  </div>
+                  <button
+                    type="button"
+                    aria-label="Close event details"
+                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-100 text-xl text-slate-600 transition-colors hover:bg-slate-200 hover:text-slate-900"
+                    onClick={() => setSelectedEvent(null)}
+                  >
+                    ×
+                  </button>
+                </div>
+                <div className="mt-6 grid gap-3 rounded-2xl bg-slate-50 p-4">
+                  <div className="flex items-center gap-3">
+                    <span aria-hidden="true" className="flex h-9 w-9 items-center justify-center rounded-full bg-white text-base shadow-sm">◷</span>
+                    <div>
+                      <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Time</div>
+                      <div className="font-medium text-slate-800">{selectedEvent.timeLabel}</div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span aria-hidden="true" className="flex h-9 w-9 items-center justify-center rounded-full bg-white text-base shadow-sm">▦</span>
+                    <div>
+                      <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Calendar</div>
+                      <div className="font-medium text-slate-800">{selectedEvent.sourceName}</div>
+                    </div>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  className="mt-6 min-h-[44px] w-full rounded-xl bg-slate-900 px-4 text-sm font-semibold text-white transition-colors hover:bg-slate-700"
+                  onClick={() => setSelectedEvent(null)}
+                >
+                  Done
+                </button>
+              </div>
             </div>
           </div>
         ) : null}
