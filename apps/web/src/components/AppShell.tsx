@@ -6,7 +6,7 @@ const links: Array<{ to: string; label: string; icon: string }> = [
   { to: "/import", label: "Lists", icon: "▤" },
   { to: "/chores", label: "Tasks", icon: "✓" },
   { to: "/meals", label: "Meals", icon: "◫" },
-  { to: "/week", label: "Week", icon: "▦" },
+  { to: "/week", label: "Agenda", icon: "▦" },
   { to: "/settings", label: "Settings", icon: "⚙" }
 ];
 

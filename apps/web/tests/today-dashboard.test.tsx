@@ -56,6 +56,18 @@ describe("TodayDashboard", () => {
     renderTodayDashboard();
 
     expect(await screen.findByText("Test Household")).toBeInTheDocument();
+    const calendarGrid = screen.getByTestId("dashboard-calendar-grid");
+    expect(calendarGrid).toHaveClass("min-w-[720px]");
+    expect(calendarGrid).toHaveStyle({
+      gridTemplateColumns: "clamp(52px, 6vw, 76px) repeat(7, minmax(0, 1fr))"
+    });
+    expect(document.querySelector('[data-calendar-day-header="true"]')).toHaveClass(
+      "text-[clamp(18px,2.5vw,34px)]"
+    );
+    expect(document.querySelector('[data-calendar-hour-label="true"]')).toHaveClass(
+      "text-[clamp(15px,1.7vw,28px)]",
+      "whitespace-nowrap"
+    );
     expect(await screen.findByText("🍽 Tonight: Taco night")).toBeInTheDocument();
     expect(await screen.findByText("No enabled calendar sources yet.")).toBeInTheDocument();
     expect(screen.queryByText("Camping Trip")).not.toBeInTheDocument();

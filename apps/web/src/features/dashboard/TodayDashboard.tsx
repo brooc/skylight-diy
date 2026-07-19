@@ -533,21 +533,21 @@ export function TodayDashboard(): JSX.Element {
             data-testid="dashboard-calendar-grid"
             data-calendar-start-hour={startHour}
             data-calendar-end-hour={endHour}
-            className="grid"
+            className="grid min-w-[720px]"
             style={{
-              gridTemplateColumns: `76px repeat(${days.length}, minmax(180px, 1fr))`,
-              minWidth: `${76 + days.length * 180}px`
+              gridTemplateColumns: `clamp(52px, 6vw, 76px) repeat(${days.length}, minmax(0, 1fr))`
             }}
           >
             <div className="sticky top-0 z-20 border-b border-r border-[#ecebe8] bg-white" />
             {days.map((day) => (
               <div
                 key={day.dayKey}
-                className="sticky top-0 z-20 flex items-center gap-1.5 border-b border-r border-[#ecebe8] bg-white px-3 py-2.5 font-display text-[26px] leading-none text-slate-900 md:text-[34px]"
+                data-calendar-day-header="true"
+                className="sticky top-0 z-20 flex items-center gap-1 border-b border-r border-[#ecebe8] bg-white px-1.5 py-2 font-display text-[clamp(18px,2.5vw,34px)] leading-none text-slate-900 md:px-2 xl:gap-1.5 xl:px-3 xl:py-2.5"
               >
                 <span>{day.weekday}</span>
                 {day.isToday ? (
-                  <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#ff6b55] text-[19px] text-white">
+                  <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-[#ff6b55] text-[14px] text-white xl:h-8 xl:w-8 xl:text-[19px]">
                     {day.dayNumber}
                   </span>
                 ) : (
@@ -566,7 +566,7 @@ export function TodayDashboard(): JSX.Element {
                 <div key={`${day.dayKey}-all-day`} className="border-b border-r border-[#ecebe8] p-2">
                   {event ? (
                     <div
-                      className="truncate rounded-full px-3 py-1 text-[14px] font-semibold text-slate-700"
+                      className="truncate rounded-full px-1.5 py-1 text-[11px] font-semibold text-slate-700 md:px-2 md:text-[12px] xl:px-3 xl:text-[14px]"
                       style={{
                         background: eventBandBackground(event.colors, event.color)
                       }}
@@ -581,10 +581,13 @@ export function TodayDashboard(): JSX.Element {
             {hourSlots.map((hour) => (
               <Fragment key={`row-${hour}`}>
                 <div
-                  className="border-r border-[#ecebe8] px-3 py-2 text-slate-500"
+                  className="border-r border-[#ecebe8] px-1.5 py-2 text-slate-500 md:px-2 xl:px-3"
                   style={{ height: slotHeight }}
                 >
-                  <div className="font-display text-[22px] leading-[0.95] md:text-[30px]">
+                  <div
+                    data-calendar-hour-label="true"
+                    className="whitespace-nowrap font-display text-[clamp(15px,1.7vw,28px)] leading-none"
+                  >
                     {formatHourLabel(hour)}
                   </div>
                 </div>

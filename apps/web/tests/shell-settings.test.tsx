@@ -65,6 +65,7 @@ describe("shell and settings", () => {
     expect(screen.getByText("current page")).toBeInTheDocument();
     expect(screen.getAllByRole("link", { name: /Calendar/ })).toHaveLength(2);
     expect(screen.getAllByRole("link", { name: /Tasks/ })).toHaveLength(2);
+    expect(screen.getAllByRole("link", { name: /Agenda/ })).toHaveLength(2);
     expect(screen.getAllByRole("link", { name: /Settings/ })).toHaveLength(2);
   });
 

@@ -175,7 +175,7 @@ describe("calendar components", () => {
 
     renderWeekView();
 
-    expect(await screen.findByText("Week calendar")).toBeInTheDocument();
+    expect(await screen.findByText("Agenda")).toBeInTheDocument();
     expect(await screen.findByText("History Test")).toBeInTheDocument();
     expect(screen.getByText("Google is taking a nap.")).toBeInTheDocument();
     expect(screen.getByText("Showing saved data")).toBeInTheDocument();

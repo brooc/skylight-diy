@@ -195,6 +195,8 @@ This document tracks progress against the [v0.1 Implementation Plan](docs/v0.1-i
 - [x] Align quarter/half-hour starts, add half-hour guides, and make compact events readable on tap
 - [x] Merge shared Google event occurrences by iCalUID and render participating calendar color bands
 - [x] Keep multi-day events single-color unless they are actually shared across calendars
+- [x] Fit all seven Calendar days on an 8-inch landscape viewport with fluid day/time labels
+- [x] Rename the responsive Week view to Agenda
 - [ ] Complete responsive 10-inch tablet landscape pass across all primary routes
 
 ### 🚧 Step 14: Documentation and cleanup (60%)

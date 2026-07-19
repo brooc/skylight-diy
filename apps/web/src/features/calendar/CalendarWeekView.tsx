@@ -114,7 +114,7 @@ export function CalendarWeekView(): JSX.Element {
   return (
     <section className="grid gap-4">
       <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-[#e7e7e5] bg-white p-4">
-        <h1 className="font-display text-3xl text-slate-900">Week calendar</h1>
+        <h1 className="font-display text-3xl text-slate-900">Agenda</h1>
         <div className="flex items-center gap-2">
           <button
             type="button"
