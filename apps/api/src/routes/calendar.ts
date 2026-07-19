@@ -1,6 +1,6 @@
 import { calendarFetchLogs, calendarSources, connectedAccounts, households, people } from "@daymark/db";
 import { and, asc, eq } from "drizzle-orm";
-import type { FastifyPluginAsync } from "fastify";
+import type { FastifyInstance, FastifyPluginAsync } from "fastify";
 import { z } from "zod";
 import { env } from "../env";
 import {
@@ -9,7 +9,7 @@ import {
   readCalendarCache,
   writeCalendarCache
 } from "../modules/calendar/cache";
-import { decryptToken } from "../modules/integrations/token-crypto";
+import { decryptToken, encryptToken } from "../modules/integrations/token-crypto";
 
 const eventsQuerySchema = z.object({
   start: z.string().datetime(),
@@ -49,20 +49,130 @@ type GoogleCalendarLoadResult =
       };
     };
 
-async function loadGoogleCalendars(encryptedAccessToken: string): Promise<GoogleCalendarLoadResult> {
-  let accessToken = "";
+type GoogleTokenAccount = {
+  id: string;
+  encryptedAccessToken: string | null;
+  encryptedRefreshToken: string | null;
+  accessTokenExpiresAt: Date | null;
+  scopes: string[];
+};
+
+type GoogleAccessTokenResult =
+  | { ok: true; accessToken: string; refreshed: boolean }
+  | { ok: false; error: string; message: string; reauthorizationRequired: boolean };
+
+const GOOGLE_TOKEN_REFRESH_MARGIN_MS = 60_000;
+
+async function requireGoogleAccessToken(
+  app: FastifyInstance,
+  account: GoogleTokenAccount
+): Promise<GoogleAccessTokenResult> {
+  const tokenIsFresh =
+    !account.accessTokenExpiresAt ||
+    account.accessTokenExpiresAt.getTime() > Date.now() + GOOGLE_TOKEN_REFRESH_MARGIN_MS;
+  if (account.encryptedAccessToken && tokenIsFresh) {
+    try {
+      return {
+        ok: true,
+        accessToken: decryptToken(account.encryptedAccessToken),
+        refreshed: false
+      };
+    } catch {
+      // A usable refresh token can still recover a malformed access token.
+    }
+  }
+
+  const markReauthorizationRequired = async (): Promise<void> => {
+    await app.db
+      .update(connectedAccounts)
+      .set({ reauthorizationRequired: true, updatedAt: new Date() })
+      .where(eq(connectedAccounts.id, account.id));
+  };
+  if (!account.encryptedRefreshToken || !env.GOOGLE_CLIENT_ID || !env.GOOGLE_CLIENT_SECRET) {
+    await markReauthorizationRequired();
+    return {
+      ok: false,
+      error: "google_reauthorization_required",
+      message: "Reconnect Google Calendar to continue syncing.",
+      reauthorizationRequired: true
+    };
+  }
+
+  let refreshToken = "";
   try {
-    accessToken = decryptToken(encryptedAccessToken);
+    refreshToken = decryptToken(account.encryptedRefreshToken);
+  } catch {
+    await markReauthorizationRequired();
+    return {
+      ok: false,
+      error: "google_refresh_token_decrypt_failed",
+      message: "Stored Google refresh credentials are unreadable. Reconnect Google Calendar.",
+      reauthorizationRequired: true
+    };
+  }
+
+  try {
+    const response = await fetch("https://oauth2.googleapis.com/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        client_id: env.GOOGLE_CLIENT_ID,
+        client_secret: env.GOOGLE_CLIENT_SECRET,
+        refresh_token: refreshToken,
+        grant_type: "refresh_token"
+      })
+    });
+    if (!response.ok) {
+      await markReauthorizationRequired();
+      return {
+        ok: false,
+        error: "google_token_refresh_failed",
+        message: "Google authorization expired or was revoked. Reconnect Google Calendar.",
+        reauthorizationRequired: true
+      };
+    }
+
+    const payload = (await response.json()) as {
+      access_token?: string;
+      expires_in?: number;
+      scope?: string;
+    };
+    if (!payload.access_token) {
+      await markReauthorizationRequired();
+      return {
+        ok: false,
+        error: "google_token_refresh_failed",
+        message: "Google did not return a refreshed access token. Reconnect Google Calendar.",
+        reauthorizationRequired: true
+      };
+    }
+
+    const expiresAt = typeof payload.expires_in === "number"
+      ? new Date(Date.now() + payload.expires_in * 1000)
+      : null;
+    const refreshedScopes = payload.scope?.split(/\s+/).filter(Boolean);
+    await app.db
+      .update(connectedAccounts)
+      .set({
+        encryptedAccessToken: encryptToken(payload.access_token),
+        accessTokenExpiresAt: expiresAt,
+        scopes: refreshedScopes?.length ? refreshedScopes : account.scopes,
+        reauthorizationRequired: false,
+        updatedAt: new Date()
+      })
+      .where(eq(connectedAccounts.id, account.id));
+    return { ok: true, accessToken: payload.access_token, refreshed: true };
   } catch {
     return {
       ok: false,
-      statusCode: 400,
-      body: {
-        error: "google_token_decrypt_failed",
-        message: "Stored Google credentials could not be decrypted. Reconnect Google Calendar."
-      }
+      error: "google_token_refresh_request_failed",
+      message: "Google token refresh could not be reached. Daymark will retry later.",
+      reauthorizationRequired: false
     };
   }
+}
+
+async function loadGoogleCalendars(accessToken: string): Promise<GoogleCalendarLoadResult> {
 
   try {
     const response = await fetch("https://www.googleapis.com/calendar/v3/users/me/calendarList", {
@@ -187,15 +297,27 @@ export const calendarRoutes: FastifyPluginAsync = async (app) => {
         message: "Connect Google Calendar before importing calendars."
       });
     }
-    if (!account.encryptedAccessToken) {
+    if (!account.encryptedAccessToken && !account.encryptedRefreshToken) {
       return reply.status(409).send({
         error: "google_account_not_connected",
         message: "Reconnect Google Calendar before importing calendars."
       });
     }
 
-    const loaded = await loadGoogleCalendars(account.encryptedAccessToken);
+    const token = await requireGoogleAccessToken(app, account);
+    if (!token.ok) {
+      return reply
+        .status(token.reauthorizationRequired ? 409 : 502)
+        .send({ error: token.error, message: token.message });
+    }
+    const loaded = await loadGoogleCalendars(token.accessToken);
     if (!loaded.ok) {
+      if (loaded.body.statusCode === 401) {
+        await app.db
+          .update(connectedAccounts)
+          .set({ reauthorizationRequired: true, updatedAt: new Date() })
+          .where(eq(connectedAccounts.id, account.id));
+      }
       return reply.status(loaded.statusCode).send(loaded.body);
     }
 
@@ -244,15 +366,27 @@ export const calendarRoutes: FastifyPluginAsync = async (app) => {
       .from(connectedAccounts)
       .where(and(eq(connectedAccounts.householdId, household.id), eq(connectedAccounts.provider, "google")))
       .limit(1);
-    if (!account?.encryptedAccessToken) {
+    if (!account || (!account.encryptedAccessToken && !account.encryptedRefreshToken)) {
       return reply.status(409).send({
         error: "google_account_not_connected",
         message: "Connect or reconnect Google Calendar before adding calendars."
       });
     }
 
-    const loaded = await loadGoogleCalendars(account.encryptedAccessToken);
+    const token = await requireGoogleAccessToken(app, account);
+    if (!token.ok) {
+      return reply
+        .status(token.reauthorizationRequired ? 409 : 502)
+        .send({ error: token.error, message: token.message });
+    }
+    const loaded = await loadGoogleCalendars(token.accessToken);
     if (!loaded.ok) {
+      if (loaded.body.statusCode === 401) {
+        await app.db
+          .update(connectedAccounts)
+          .set({ reauthorizationRequired: true, updatedAt: new Date() })
+          .where(eq(connectedAccounts.id, account.id));
+      }
       return reply.status(loaded.statusCode).send(loaded.body);
     }
     const selectedIds = new Set(parsed.data.externalCalendarIds);
@@ -416,7 +550,10 @@ export const calendarRoutes: FastifyPluginAsync = async (app) => {
         enabled: calendarSources.enabled,
         personId: calendarSources.personId,
         personName: people.displayName,
-        encryptedAccessToken: connectedAccounts.encryptedAccessToken
+        encryptedAccessToken: connectedAccounts.encryptedAccessToken,
+        encryptedRefreshToken: connectedAccounts.encryptedRefreshToken,
+        accessTokenExpiresAt: connectedAccounts.accessTokenExpiresAt,
+        accountScopes: connectedAccounts.scopes
       })
       .from(calendarSources)
       .leftJoin(people, eq(calendarSources.personId, people.id))
@@ -481,6 +618,7 @@ export const calendarRoutes: FastifyPluginAsync = async (app) => {
       color: string | null;
     }> = [];
     let successfulProviderFetches = 0;
+    const accountTokens = new Map<string, GoogleAccessTokenResult>();
 
     const logFetch = async (
       sourceId: string,
@@ -498,7 +636,7 @@ export const calendarRoutes: FastifyPluginAsync = async (app) => {
     };
 
     for (const source of enabledSources) {
-      if (!source.encryptedAccessToken) {
+      if (!source.encryptedAccessToken && !source.encryptedRefreshToken) {
         await logFetch(source.id, "skipped", "Source is missing an access token.");
         warnings.push({
           code: "SOURCE_MISSING_TOKEN",
@@ -508,18 +646,29 @@ export const calendarRoutes: FastifyPluginAsync = async (app) => {
         continue;
       }
 
-      let accessToken = "";
-      try {
-        accessToken = decryptToken(source.encryptedAccessToken);
-      } catch {
-        await logFetch(source.id, "error", "Stored access token could not be decrypted.");
+      let token = accountTokens.get(source.connectedAccountId);
+      if (!token) {
+        token = await requireGoogleAccessToken(app, {
+          id: source.connectedAccountId,
+          encryptedAccessToken: source.encryptedAccessToken,
+          encryptedRefreshToken: source.encryptedRefreshToken,
+          accessTokenExpiresAt: source.accessTokenExpiresAt,
+          scopes: source.accountScopes ?? []
+        });
+        accountTokens.set(source.connectedAccountId, token);
+      }
+      if (!token.ok) {
+        await logFetch(source.id, "error", token.message);
         warnings.push({
-          code: "SOURCE_TOKEN_DECRYPT_FAILED",
-          message: `Could not decrypt token for "${source.displayName}".`,
+          code: token.reauthorizationRequired
+            ? "SOURCE_REAUTHORIZATION_REQUIRED"
+            : "SOURCE_TOKEN_REFRESH_FAILED",
+          message: `${token.message} Source: "${source.displayName}".`,
           sourceId: source.id
         });
         continue;
       }
+      const accessToken = token.accessToken;
 
       try {
         const eventsUrl = new URL(
@@ -537,6 +686,12 @@ export const calendarRoutes: FastifyPluginAsync = async (app) => {
         });
 
         if (!providerResponse.ok) {
+          if (providerResponse.status === 401) {
+            await app.db
+              .update(connectedAccounts)
+              .set({ reauthorizationRequired: true, updatedAt: new Date() })
+              .where(eq(connectedAccounts.id, source.connectedAccountId));
+          }
           await logFetch(source.id, "error", `Google Calendar returned ${providerResponse.status}.`);
           warnings.push({
             code: "SOURCE_FETCH_FAILED",

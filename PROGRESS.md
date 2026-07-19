@@ -172,6 +172,8 @@ This document tracks progress against the [v0.1 Implementation Plan](docs/v0.1-i
 - [x] Return empty refreshed results when Google has no events
 - [x] Add per-source fetch logs
 - [x] Return an explicit empty degraded state when source fetch fails and no stale cache is available
+- [x] Refresh expiring Google access tokens once per connected account
+- [x] Persist refreshed credentials and mark revoked or unreadable refresh tokens for reconnect
 
 ### ⬜ Step 13: Tablet polish (0%)
 
@@ -193,13 +195,12 @@ Not started
 - **Frontend component lines**: ~842 lines
 - **Database tables**: 10/10 implemented
 - **Seed data**: Complete with demo household (PIN: 1234)
-- **Automated tests**: API integration tests (40) + web behavior tests (31)
+- **Automated tests**: API integration tests (42) + web behavior tests (31)
 - **Coverage**: API 94.26% statements/lines, web 94.45% statements/lines
 
 ## Next Priorities
 
-1. **Calendar token reliability**: Refresh expired Google access tokens and expose reconnect-required state.
-2. **Calendar layout polish**: Place overlapping timed events side by side and contain event content within its column.
-3. **Calendar completeness**: Add Google pagination, timezone/DST coverage, and explicit untracking for sources no longer wanted.
-4. **Manual v0.1 smoke pass**: Verify OAuth return, calendar selection, enable/disable, refresh, and event rendering in Docker.
-5. **Scope decision**: Keep calendar event creation as a post-v0.1 item unless it becomes required for release.
+1. **Calendar layout polish**: Place overlapping timed events side by side and contain event content within its column.
+2. **Calendar completeness**: Add Google pagination, timezone/DST coverage, and explicit untracking for sources no longer wanted.
+3. **Manual v0.1 smoke pass**: Verify OAuth return, calendar selection, enable/disable, refresh, and event rendering in Docker.
+4. **Scope decision**: Keep calendar event creation as a post-v0.1 item unless it becomes required for release.

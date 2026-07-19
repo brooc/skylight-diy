@@ -259,7 +259,9 @@ export function GoogleCalendarSettings(): JSX.Element {
   }
 
   const accounts = accountsQuery.data?.accounts ?? [];
-  const calendarReadyAccounts = accounts.filter((account) => account.calendarAccessGranted);
+  const calendarReadyAccounts = accounts.filter(
+    (account) => account.calendarAccessGranted && !account.reauthorizationRequired
+  );
   const sources = sourcesQuery.data?.sources ?? [];
   const people = peopleQuery.data?.people ?? [];
   const oauthAvailable = oauthStatusQuery.data?.available ?? false;
@@ -485,8 +487,10 @@ export function GoogleCalendarSettings(): JSX.Element {
                 <div className="truncate text-slate-600">
                   {account.email || "Reconnect Google to identify this account"}
                 </div>
-                {!account.calendarAccessGranted ? (
-                  <div className="mt-1 text-xs font-medium text-amber-700">Calendar access required</div>
+                {!account.calendarAccessGranted || account.reauthorizationRequired ? (
+                  <div className="mt-1 text-xs font-medium text-amber-700">
+                    {account.reauthorizationRequired ? "Reconnect required" : "Calendar access required"}
+                  </div>
                 ) : null}
               </div>
               <button

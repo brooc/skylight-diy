@@ -86,6 +86,7 @@ https://www.googleapis.com/auth/calendar.readonly
 - Settings identifies the connected account from Google Calendar's primary-calendar record and displays its calendar ID, which normally matches the account's primary email address.
 - Disconnect attempts to revoke the Google token, then removes the local connection, tracked calendar sources, and cached events. It does not delete events from Google Calendar.
 - The app stores replaceable display-cache data in Postgres for degraded/offline behavior.
+- Daymark refreshes expiring Google access tokens automatically. If Google rejects the refresh token, Settings marks the account as requiring reconnection and disables calendar discovery until it is reconnected.
 - v0.1 does not create, edit, or delete Google Calendar events.
 - Calendar discovery requires a connected Google account and does not track anything by itself. Only explicitly selected calendars are imported. Discovery, import, and event-fetch failures return explicit errors or degraded empty states instead of displaying fabricated events.
 

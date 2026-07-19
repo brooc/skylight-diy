@@ -90,7 +90,7 @@ describe("GoogleCalendarSettings", () => {
     renderWithProviders(<GoogleCalendarSettings />, { route: "/settings" });
     expect(await screen.findByRole("button", { name: "Reconnect Google" })).toBeEnabled();
     expect(screen.getByRole("button", { name: "Choose calendars" })).toBeDisabled();
-    expect(screen.getByText("Calendar access required")).toBeInTheDocument();
+    expect(screen.getByText("Reconnect required")).toBeInTheDocument();
     expect(
       screen.getByText("Reconnect Google and allow read-only Calendar access before choosing calendars.")
     ).toBeInTheDocument();

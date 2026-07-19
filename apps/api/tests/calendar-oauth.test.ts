@@ -15,7 +15,7 @@ import {
   buildCalendarCacheKey,
   buildSourceFingerprint
 } from "../src/modules/calendar/cache";
-import { encryptToken } from "../src/modules/integrations/token-crypto";
+import { decryptToken, encryptToken } from "../src/modules/integrations/token-crypto";
 import {
   buildCookieHeader,
   createTestApp,
@@ -486,7 +486,7 @@ describe("calendar and google integration routes", () => {
     expect(response.statusCode).toBe(200);
     expect(response.json().events).toEqual([]);
     expect(response.json().warnings.map((warning: { code: string }) => warning.code)).toEqual(
-      expect.arrayContaining(["SOURCE_TOKEN_DECRYPT_FAILED", "NO_CALENDAR_DATA"])
+      expect.arrayContaining(["SOURCE_REAUTHORIZATION_REQUIRED", "NO_CALENDAR_DATA"])
     );
   });
 
@@ -704,9 +704,9 @@ describe("calendar and google integration routes", () => {
       headers: { cookie },
       payload: { externalCalendarIds: ["primary"] }
     });
-    expect(imported.statusCode).toBe(400);
+    expect(imported.statusCode).toBe(409);
     expect(imported.json()).toMatchObject({
-      error: "google_token_decrypt_failed"
+      error: "google_reauthorization_required"
     });
   });
 
@@ -993,6 +993,119 @@ describe("calendar and google integration routes", () => {
       })
       .from(calendarFetchLogs);
     expect(logs).toEqual([{ calendarSourceId: source.id, status: "success" }]);
+  });
+
+  it("refreshes an expired Google token once for every source on the account", async () => {
+    await withGoogleOauthConfig(async () => {
+      const setup = await setupHousehold(app);
+      const [account] = await app.db
+        .insert(connectedAccounts)
+        .values({
+          householdId: setup.household.id,
+          provider: "google",
+          providerAccountId: "google-1",
+          displayName: "Google",
+          encryptedAccessToken: encryptToken("expired-access-token"),
+          encryptedRefreshToken: encryptToken("refresh-token"),
+          accessTokenExpiresAt: new Date(Date.now() - 60_000),
+          scopes: ["https://www.googleapis.com/auth/calendar.readonly"]
+        })
+        .returning();
+      await app.db.insert(calendarSources).values([
+        {
+          householdId: setup.household.id,
+          connectedAccountId: account.id,
+          provider: "google",
+          externalCalendarId: "family",
+          displayName: "Family",
+          enabled: true,
+          sortOrder: 0
+        },
+        {
+          householdId: setup.household.id,
+          connectedAccountId: account.id,
+          provider: "google",
+          externalCalendarId: "school",
+          displayName: "School",
+          enabled: true,
+          sortOrder: 1
+        }
+      ]);
+      let refreshCalls = 0;
+      let eventCalls = 0;
+      vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+        const url = input.toString();
+        if (url === "https://oauth2.googleapis.com/token") {
+          refreshCalls += 1;
+          return new Response(JSON.stringify({
+            access_token: "refreshed-access-token",
+            expires_in: 3600
+          }), {
+            status: 200,
+            headers: { "Content-Type": "application/json" }
+          });
+        }
+        eventCalls += 1;
+        return new Response(JSON.stringify({ items: [] }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" }
+        });
+      });
+
+      const response = await app.inject({ method: "GET", url: calendarEventsUrl() });
+      expect(response.statusCode).toBe(200);
+      expect(response.json()).toMatchObject({ cacheStatus: "refreshed", degraded: false });
+      expect(refreshCalls).toBe(1);
+      expect(eventCalls).toBe(2);
+
+      const [updatedAccount] = await app.db
+        .select()
+        .from(connectedAccounts)
+        .where(eq(connectedAccounts.id, account.id));
+      expect(decryptToken(updatedAccount.encryptedAccessToken!)).toBe("refreshed-access-token");
+      expect(updatedAccount.accessTokenExpiresAt!.getTime()).toBeGreaterThan(Date.now());
+      expect(updatedAccount.reauthorizationRequired).toBe(false);
+    });
+  });
+
+  it("marks the Google account for reconnect when token refresh is rejected", async () => {
+    await withGoogleOauthConfig(async () => {
+      const setup = await setupHousehold(app);
+      const [account] = await app.db
+        .insert(connectedAccounts)
+        .values({
+          householdId: setup.household.id,
+          provider: "google",
+          providerAccountId: "google-1",
+          displayName: "Google",
+          encryptedAccessToken: encryptToken("expired-access-token"),
+          encryptedRefreshToken: encryptToken("revoked-refresh-token"),
+          accessTokenExpiresAt: new Date(Date.now() - 60_000),
+          scopes: ["https://www.googleapis.com/auth/calendar.readonly"]
+        })
+        .returning();
+      await app.db.insert(calendarSources).values({
+        householdId: setup.household.id,
+        connectedAccountId: account.id,
+        provider: "google",
+        externalCalendarId: "family",
+        displayName: "Family",
+        enabled: true,
+        sortOrder: 0
+      });
+      vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("invalid_grant", { status: 400 }));
+
+      const response = await app.inject({ method: "GET", url: calendarEventsUrl() });
+      expect(response.statusCode).toBe(200);
+      expect(response.json().warnings.map((warning: { code: string }) => warning.code)).toEqual(
+        expect.arrayContaining(["SOURCE_REAUTHORIZATION_REQUIRED", "NO_CALENDAR_DATA"])
+      );
+      const [updatedAccount] = await app.db
+        .select()
+        .from(connectedAccounts)
+        .where(eq(connectedAccounts.id, account.id));
+      expect(updatedAccount.reauthorizationRequired).toBe(true);
+    });
   });
 });
 
