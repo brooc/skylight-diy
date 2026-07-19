@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseTailscaleStatus } from "../src/routes/tailscale";
+import { findServeEnableUrl, parseTailscaleStatus } from "../src/routes/tailscale";
 
 describe("Tailscale status", () => {
   it("exposes the login URL while the node needs authentication", () => {
@@ -16,7 +16,9 @@ describe("Tailscale status", () => {
       hostname: "daymark",
       dnsName: null,
       httpsUrl: null,
-      online: false
+      online: false,
+      serveState: "pending",
+      serveEnableUrl: null
     });
   });
 
@@ -47,5 +49,14 @@ describe("Tailscale status", () => {
         AuthURL: "https://example.com/not-tailscale"
       }).authUrl
     ).toBeNull();
+  });
+
+  it("extracts only the Tailscale Serve approval URL", () => {
+    expect(
+      findServeEnableUrl(
+        "To enable, visit:\nhttps://login.tailscale.com/f/serve?node=example123\n"
+      )
+    ).toBe("https://login.tailscale.com/f/serve?node=example123");
+    expect(findServeEnableUrl("https://example.com/f/serve?node=unsafe")).toBeNull();
   });
 });

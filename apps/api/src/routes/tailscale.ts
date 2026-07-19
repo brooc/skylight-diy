@@ -23,6 +23,8 @@ export interface TailscaleStatus {
   dnsName: string | null;
   httpsUrl: string | null;
   online: boolean;
+  serveState: "pending" | "disabled" | "ready";
+  serveEnableUrl: string | null;
 }
 
 function safeString(value: unknown): string | null {
@@ -43,8 +45,54 @@ export function parseTailscaleStatus(value: TailscaleStatusJson): TailscaleStatu
     hostname,
     dnsName,
     httpsUrl: dnsName ? `https://${dnsName}` : null,
-    online: value.Self?.Online === true || state === "Running"
+    online: value.Self?.Online === true || state === "Running",
+    serveState: "pending",
+    serveEnableUrl: null
   };
+}
+
+export function findServeEnableUrl(output: string): string | null {
+  const match = output.match(/https:\/\/login\.tailscale\.com\/f\/serve\?[^\s]+/);
+  return match?.[0] ?? null;
+}
+
+async function addServeStatus(status: TailscaleStatus): Promise<TailscaleStatus> {
+  if (!status.online || !env.TAILSCALE_SOCKET_PATH || !env.TAILSCALE_SERVE_TARGET) {
+    return status;
+  }
+
+  const baseArgs = [`--socket=${env.TAILSCALE_SOCKET_PATH}`, "serve"];
+  try {
+    const { stdout } = await execFileAsync("tailscale", [...baseArgs, "status", "--json"], {
+      timeout: 5_000,
+      maxBuffer: 1024 * 1024
+    });
+    const serveConfig = JSON.parse(stdout) as Record<string, unknown>;
+    if (Object.keys(serveConfig).length > 0) {
+      return { ...status, serveState: "ready" };
+    }
+  } catch {
+    // A missing Serve configuration is handled by the idempotent setup attempt below.
+  }
+
+  try {
+    await execFileAsync(
+      "tailscale",
+      [...baseArgs, "--bg", "--yes", env.TAILSCALE_SERVE_TARGET],
+      { timeout: 5_000, maxBuffer: 1024 * 1024 }
+    );
+    return { ...status, serveState: "ready" };
+  } catch (error) {
+    const processError = error as { stdout?: string; stderr?: string };
+    const enableUrl = findServeEnableUrl(
+      `${processError.stdout ?? ""}\n${processError.stderr ?? ""}`
+    );
+    return {
+      ...status,
+      serveState: enableUrl ? "disabled" : "pending",
+      serveEnableUrl: enableUrl
+    };
+  }
 }
 
 const unavailableStatus: TailscaleStatus = {
@@ -54,7 +102,9 @@ const unavailableStatus: TailscaleStatus = {
   hostname: null,
   dnsName: null,
   httpsUrl: null,
-  online: false
+  online: false,
+  serveState: "pending",
+  serveEnableUrl: null
 };
 
 export const tailscaleRoutes: FastifyPluginAsync = async (app) => {
@@ -67,7 +117,8 @@ export const tailscaleRoutes: FastifyPluginAsync = async (app) => {
         [`--socket=${env.TAILSCALE_SOCKET_PATH}`, "status", "--json"],
         { timeout: 5_000, maxBuffer: 1024 * 1024 }
       );
-      return parseTailscaleStatus(JSON.parse(stdout) as TailscaleStatusJson);
+      const status = parseTailscaleStatus(JSON.parse(stdout) as TailscaleStatusJson);
+      return await addServeStatus(status);
     } catch (error) {
       app.log.warn({ err: error }, "Unable to read Tailscale status");
       return unavailableStatus;

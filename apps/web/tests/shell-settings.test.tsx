@@ -110,7 +110,9 @@ describe("shell and settings", () => {
           hostname: "daymark",
           dnsName: null,
           httpsUrl: null,
-          online: false
+          online: false,
+          serveState: "pending",
+          serveEnableUrl: null
         });
       }
       return mockJsonResponse({}, 404);
@@ -121,6 +123,34 @@ describe("shell and settings", () => {
     expect(screen.getByRole("link", { name: "Sign in to Tailscale" })).toHaveAttribute(
       "href",
       "https://login.tailscale.com/a/test"
+    );
+  });
+
+  it("shows the one-time HTTPS approval on the same locked Settings page", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const url = typeof input === "string" ? input : input.url;
+      if (url.startsWith("/api/session/current")) return mockJsonResponse({ unlocked: false });
+      if (url.startsWith("/api/integrations/tailscale/status")) {
+        return mockJsonResponse({
+          available: true,
+          state: "Running",
+          authUrl: null,
+          hostname: "daymark",
+          dnsName: "daymark.example.ts.net",
+          httpsUrl: "https://daymark.example.ts.net",
+          online: true,
+          serveState: "disabled",
+          serveEnableUrl: "https://login.tailscale.com/f/serve?node=test"
+        });
+      }
+      return mockJsonResponse({}, 404);
+    });
+    renderWithRoute("/settings", <SettingsPage />);
+
+    expect(await screen.findByText(/One-time approval is needed/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Enable private HTTPS" })).toHaveAttribute(
+      "href",
+      "https://login.tailscale.com/f/serve?node=test"
     );
   });
 

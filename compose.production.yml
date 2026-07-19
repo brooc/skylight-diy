@@ -46,6 +46,7 @@ services:
       HOST: 0.0.0.0
       PORT: 3000
       TAILSCALE_SOCKET_PATH: /var/run/tailscale/tailscaled.sock
+      TAILSCALE_SERVE_TARGET: http://web:8080
     volumes:
       - tailscale_socket:/var/run/tailscale
     depends_on:

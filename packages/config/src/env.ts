@@ -12,6 +12,7 @@ const baseEnvSchema = z.object({
   GOOGLE_CLIENT_SECRET: z.string().optional(),
   GOOGLE_REDIRECT_URI: z.string().url().optional(),
   TAILSCALE_SOCKET_PATH: z.string().min(1).optional(),
+  TAILSCALE_SERVE_TARGET: z.string().url().optional(),
   CALENDAR_CACHE_FRESH_TTL_SECONDS: z.coerce.number().int().positive().default(300),
   CALENDAR_CACHE_STALE_TTL_SECONDS: z.coerce.number().int().positive().default(86400)
 });
