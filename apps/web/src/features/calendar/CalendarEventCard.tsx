@@ -1,3 +1,5 @@
+import { eventBandBackground, softenEventColor } from "./eventAppearance";
+
 type CalendarEvent = {
   id: string;
   title: string;
@@ -5,7 +7,10 @@ type CalendarEvent = {
   end: string;
   isAllDay: boolean;
   sourceName?: string;
+  sourceNames?: string[];
   color?: string;
+  colors?: string[];
+  shared?: boolean;
 };
 
 export function CalendarEventCard({
@@ -15,26 +20,48 @@ export function CalendarEventCard({
   event: CalendarEvent;
   compact?: boolean;
 }): JSX.Element {
-  const isHexColor = Boolean(event.color && /^#[0-9a-f]{6}$/i.test(event.color));
-  const softBackground = isHexColor ? `${event.color}22` : "#eef7f7";
-  const softBorder = isHexColor ? `${event.color}44` : "#d7ece8";
+  const sourceNames = event.sourceNames?.length
+    ? event.sourceNames
+    : event.sourceName
+      ? [event.sourceName]
+      : [];
+  const sourceColors = (event.colors?.length ? event.colors : [event.color])
+    .filter((color): color is string => Boolean(color))
+    .map((color) => softenEventColor(color, "#eef7f7"));
+  const primaryColor = event.colors?.[0] ?? event.color;
+  const isHexColor = Boolean(primaryColor && /^#[0-9a-f]{6}$/i.test(primaryColor));
+  const softBackground = softenEventColor(primaryColor, "#eef7f7");
+  const softBorder = isHexColor ? `${primaryColor}44` : "#d7ece8";
+  const background = event.shared
+    ? eventBandBackground(sourceColors, softBackground)
+    : softBackground;
 
   return (
     <article
       className={`min-w-0 rounded-md border ${compact ? "p-2" : "p-3"}`}
-      style={{ backgroundColor: softBackground, borderColor: softBorder }}
+      data-event-shared={event.shared ? "true" : "false"}
+      style={{ background, borderColor: softBorder }}
     >
       <div className={`min-w-0 gap-1 ${compact ? "grid" : "flex items-center justify-between gap-2"}`}>
         <h3 className="min-w-0 break-words text-sm font-semibold leading-tight text-slate-900">
           {event.title}
         </h3>
-        {event.sourceName ? (
+        {sourceNames.length ? (
           <div className="flex min-w-0 items-center gap-1.5">
-            <span
-              className="h-2.5 w-2.5 shrink-0 rounded-full"
-              style={{ backgroundColor: event.color ?? "#64748b" }}
-            />
-            <span className="min-w-0 truncate text-xs text-slate-600">{event.sourceName}</span>
+            <span className="flex shrink-0 -space-x-0.5">
+              {(event.colors?.length ? event.colors : [event.color ?? "#64748b"]).map(
+                (color, index) => (
+                  <span
+                    key={`${color}-${index}`}
+                    className="h-2.5 w-2.5 rounded-full border border-white"
+                    style={{ backgroundColor: color }}
+                  />
+                )
+              )}
+            </span>
+            <span className="min-w-0 truncate text-xs text-slate-600">
+              {sourceNames.join(" · ")}
+            </span>
           </div>
         ) : null}
       </div>

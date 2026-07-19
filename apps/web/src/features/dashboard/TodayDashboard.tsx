@@ -14,6 +14,7 @@ import {
   startOfWeekDateKey
 } from "../calendar/dateKeys";
 import { layoutTimedEvents } from "../calendar/layoutTimedEvents";
+import { eventBandBackground, softenEventColor } from "../calendar/eventAppearance";
 
 type RewardsResponse = {
   balances: Array<{
@@ -52,7 +53,10 @@ type CalendarResponse = {
     end: string;
     isAllDay: boolean;
     sourceName?: string;
+    sourceNames?: string[];
     color?: string;
+    colors?: string[];
+    shared?: boolean;
   }>;
 };
 
@@ -77,7 +81,9 @@ type RenderEvent = {
   timeLabel: string;
   compactTimeLabel: string;
   sourceName: string;
+  sourceNames: string[];
   color: string;
+  colors: string[];
   ownerInitial?: string;
   ownerCount: number;
   striped: boolean;
@@ -228,6 +234,27 @@ export function TodayDashboard(): JSX.Element {
   const fallbackColorAt = (index: number) =>
     fallbackEventPalette[index % fallbackEventPalette.length] ?? fallbackEventPalette[0]!;
 
+  const eventSourceNames = (event: CalendarResponse["events"][number]): string[] =>
+    event.sourceNames?.length ? event.sourceNames : [event.sourceName ?? "Calendar"];
+  const eventColors = (
+    event: CalendarResponse["events"][number],
+    index: number
+  ): string[] => {
+    const sourceNames = eventSourceNames(event);
+    const providerColors = event.colors?.length ? event.colors : [event.color];
+    const colors = sourceNames.map((sourceName, sourceIndex) => {
+      const lowerSourceName = sourceName.toLowerCase();
+      const personColor = Array.from(personColorByName.entries()).find(([name]) =>
+        lowerSourceName.includes(name)
+      )?.[1];
+      return (
+        personColor?.soft ??
+        softenEventColor(providerColors[sourceIndex] ?? event.color, fallbackColorAt(index + sourceIndex))
+      );
+    });
+    return Array.from(new Set(colors));
+  };
+
   const mappedEvents: RenderEvent[] = (calendarQuery.data?.events ?? [])
     .filter((event) => !event.isAllDay)
     .map((event, index) => {
@@ -240,14 +267,15 @@ export function TodayDashboard(): JSX.Element {
         0.5,
         (endDate.getTime() - startDate.getTime()) / (60 * 60 * 1000)
       );
-      const sourceName = (event.sourceName ?? "").toLowerCase();
-      const matchedPersonColor = Array.from(personColorByName.entries()).find(([name]) =>
-        sourceName.includes(name)
-      )?.[1];
+      const sourceNames = eventSourceNames(event);
+      const lowerSourceNames = sourceNames.map((name) => name.toLowerCase());
       const matchedPeople = balances.filter((person) =>
-        sourceName.includes(person.displayName.toLowerCase())
+        lowerSourceNames.some((sourceName) =>
+          sourceName.includes(person.displayName.toLowerCase())
+        )
       );
       const owner = matchedPeople[0];
+      const colors = eventColors(event, index);
 
       return {
         id: event.id,
@@ -257,27 +285,26 @@ export function TodayDashboard(): JSX.Element {
         title: event.title,
         timeLabel: formatEventTime(startDate, endDate),
         compactTimeLabel: formatCompactEventTime(startDate, endDate),
-        sourceName: event.sourceName ?? "Calendar",
+        sourceName: sourceNames.join(", "),
+        sourceNames,
         ownerInitial: owner?.displayName.slice(0, 1).toUpperCase(),
-        ownerCount: matchedPeople.length,
-        striped: matchedPeople.length > 1,
-        color:
-          matchedPersonColor?.soft ??
-          (event.color && /^#[0-9a-f]{6}$/i.test(event.color)
-            ? `${event.color}30`
-            : fallbackColorAt(index))
+        ownerCount: Math.max(matchedPeople.length, sourceNames.length),
+        striped: Boolean(event.shared && colors.length > 1),
+        color: colors[0] ?? fallbackColorAt(index),
+        colors
       };
     })
     .filter((event) => event.dayIndex >= 0);
 
   const availableCalendarFilters = Array.from(
     new Set(
-      (calendarQuery.data?.events ?? []).map((event) => event.sourceName ?? "Calendar")
+      (calendarQuery.data?.events ?? []).flatMap(eventSourceNames)
     )
   ).sort((a, b) => a.localeCompare(b));
-  const eventMatchesFilter = (sourceName: string) =>
-    selectedCalendarFilters.length === 0 || selectedCalendarFilters.includes(sourceName);
-  const scheduleEvents = mappedEvents.filter((event) => eventMatchesFilter(event.sourceName));
+  const eventMatchesFilter = (sourceNames: string[]) =>
+    selectedCalendarFilters.length === 0 ||
+    sourceNames.some((sourceName) => selectedCalendarFilters.includes(sourceName));
+  const scheduleEvents = mappedEvents.filter((event) => eventMatchesFilter(event.sourceNames));
   const timedEventLayout = new Map(
     days.flatMap((day) =>
       layoutTimedEvents(
@@ -298,18 +325,22 @@ export function TodayDashboard(): JSX.Element {
       const endKey = shiftDateKey(event.end.slice(0, 10), -1);
       const startIndex = days.find((day) => day.dayKey === startKey)?.index ?? 0;
       const endIndex = days.find((day) => day.dayKey === endKey)?.index ?? startIndex;
+      const sourceNames = eventSourceNames(event);
+      const colors = eventColors(event, index);
 
       return {
         id: event.id,
         title: event.title,
         startIndex: Math.max(0, startIndex),
         endIndex: Math.max(startIndex, endIndex),
-        striped: endIndex > startIndex,
-        color: ["#d6efd8", "#f7d8d4", "#e4daf0", "#bee8ea"][index % 4],
-        sourceName: event.sourceName ?? "Calendar"
+        striped: Boolean(event.shared && colors.length > 1),
+        color: colors[0] ?? fallbackColorAt(index),
+        colors,
+        sourceName: sourceNames.join(", "),
+        sourceNames
       };
     })
-    .filter((event) => eventMatchesFilter(event.sourceName));
+    .filter((event) => eventMatchesFilter(event.sourceNames));
   const { startHour, endHour } = calendarHourRange(scheduleEvents);
   const hourSlots = Array.from({ length: endHour - startHour + 1 }, (_, i) => startHour + i);
   const slotHeight = 96;
@@ -516,9 +547,7 @@ export function TodayDashboard(): JSX.Element {
                     <div
                       className="truncate rounded-full px-3 py-1 text-[14px] font-semibold text-slate-700"
                       style={{
-                        background: event?.striped
-                          ? "repeating-linear-gradient(125deg, #d6efd8 0 36px, #f7d8d4 36px 72px, #bee8ea 72px 108px, #e4daf0 108px 144px)"
-                          : event?.color ?? "#d6efd8"
+                        background: eventBandBackground(event.colors, event.color)
                       }}
                     >
                       {event.title}
@@ -579,6 +608,7 @@ export function TodayDashboard(): JSX.Element {
                             data-layout-column={layout.column}
                             data-layout-columns={layout.columnCount}
                             data-event-density={isCompact ? "compact" : "comfortable"}
+                            data-event-shared={event.striped ? "true" : "false"}
                             aria-label={`${event.title}, ${event.timeLabel}, ${event.sourceName}`}
                             title={`${event.title} · ${event.timeLabel} · ${event.sourceName}`}
                             className="absolute z-10 min-w-0 overflow-hidden rounded-xl px-2 py-1 text-left text-slate-800 transition-shadow hover:shadow-md focus:outline-none focus:ring-2 focus:ring-sky-500"
@@ -588,9 +618,7 @@ export function TodayDashboard(): JSX.Element {
                               height,
                               left: `calc(${layout.column * columnWidth}% + 4px)`,
                               width: `calc(${columnWidth}% - 8px)`,
-                              background: event.striped
-                                ? "repeating-linear-gradient(125deg, #d6efd8 0 38px, #f7d8d4 38px 76px, #bee8ea 76px 114px, #e4daf0 114px 152px)"
-                                : event.color
+                              background: eventBandBackground(event.colors, event.color)
                             }}
                           >
                             <div className={`${isCompact ? "text-[13px]" : "text-[16px]"} break-normal font-semibold leading-tight`}>
@@ -669,7 +697,10 @@ export function TodayDashboard(): JSX.Element {
               className="relative w-full max-w-md overflow-hidden rounded-3xl border border-white/70 bg-white shadow-[0_24px_80px_rgba(15,23,42,0.28)]"
               onClick={(event) => event.stopPropagation()}
             >
-              <div className="h-2" style={{ backgroundColor: selectedEvent.color }} />
+              <div
+                className="h-2"
+                style={{ background: eventBandBackground(selectedEvent.colors, selectedEvent.color) }}
+              />
               <div className="p-6 sm:p-7">
                 <div className="flex items-start justify-between gap-4">
                   <div>
@@ -705,8 +736,12 @@ export function TodayDashboard(): JSX.Element {
                   <div className="flex items-center gap-3">
                     <span aria-hidden="true" className="flex h-9 w-9 items-center justify-center rounded-full bg-white text-base shadow-sm">▦</span>
                     <div>
-                      <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Calendar</div>
-                      <div className="font-medium text-slate-800">{selectedEvent.sourceName}</div>
+                      <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                        {selectedEvent.sourceNames.length > 1 ? "Calendars" : "Calendar"}
+                      </div>
+                      <div className="font-medium text-slate-800">
+                        {selectedEvent.sourceNames.join(" · ")}
+                      </div>
                     </div>
                   </div>
                 </div>

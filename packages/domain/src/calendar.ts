@@ -3,7 +3,9 @@ export type CalendarCacheStatus = "fresh" | "refreshed" | "stale" | "miss";
 export type DisplayCalendarEvent = {
   id: string;
   sourceId: string;
+  sourceIds?: string[];
   sourceName: string;
+  sourceNames?: string[];
   title: string;
   description?: string;
   location?: string;
@@ -11,6 +13,8 @@ export type DisplayCalendarEvent = {
   end: string;
   isAllDay: boolean;
   color?: string;
+  colors?: string[];
+  shared?: boolean;
 };
 
 export type CalendarDisplaySource = {

@@ -180,6 +180,79 @@ describe("TodayDashboard", () => {
     expect(screen.getByRole("button", { name: "Close event details" })).toBeInTheDocument();
   });
 
+  it("merges a shared Google occurrence and renders its calendar color bands", async () => {
+    const [household] = await app.db.select().from(households).limit(1);
+    const [account] = await app.db
+      .insert(connectedAccounts)
+      .values({
+        householdId: household.id,
+        provider: "google",
+        providerAccountId: "google-shared-event-test",
+        displayName: "Google Calendar",
+        encryptedAccessToken: encryptToken("test-access-token"),
+        scopes: ["https://www.googleapis.com/auth/calendar.readonly"]
+      })
+      .returning();
+    await app.db.insert(calendarSources).values([
+      {
+        householdId: household.id,
+        connectedAccountId: account.id,
+        provider: "google",
+        externalCalendarId: "parent@example.com",
+        displayName: "Parent",
+        color: "#8bc58b",
+        enabled: true,
+        sortOrder: 0
+      },
+      {
+        householdId: household.id,
+        connectedAccountId: account.id,
+        provider: "google",
+        externalCalendarId: "kiddo@example.com",
+        displayName: "Kiddo",
+        color: "#ee8ea4",
+        enabled: true,
+        sortOrder: 1
+      }
+    ]);
+
+    const eventStart = new Date();
+    eventStart.setHours(14, 0, 0, 0);
+    const eventEnd = new Date(eventStart);
+    eventEnd.setHours(15, 0, 0, 0);
+
+    restoreFetch?.();
+    restoreFetch = installRealApiFetch(app, {
+      externalFetch: async () =>
+        new Response(
+          JSON.stringify({
+            items: [
+              {
+                id: "provider-specific-copy",
+                iCalUID: "shared-stay@example.com",
+                summary: "Stay at Carmel Valley",
+                start: { dateTime: eventStart.toISOString() },
+                end: { dateTime: eventEnd.toISOString() }
+              }
+            ]
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } }
+        )
+    });
+
+    renderTodayDashboard();
+
+    const sharedEventTitles = await screen.findAllByText("Stay at Carmel Valley");
+    expect(sharedEventTitles).toHaveLength(1);
+    const sharedEvent = sharedEventTitles[0]?.closest("button");
+    expect(sharedEvent).toHaveAttribute("data-event-shared", "true");
+    expect(sharedEvent?.getAttribute("style")).toContain("linear-gradient");
+
+    await userEvent.setup().click(sharedEvent!);
+    expect(await screen.findByText("Parent · Kiddo")).toBeInTheDocument();
+    expect(screen.getByText("Calendars")).toBeInTheDocument();
+  });
+
   it("opens add actions and navigates to the task quick-add route", async () => {
     renderTodayDashboard();
     const user = userEvent.setup();

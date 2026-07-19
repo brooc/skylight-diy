@@ -44,6 +44,20 @@ describe("calendar components", () => {
         />
         <CalendarEventCard
           event={{
+            id: "shared",
+            title: "Stay at Carmel Valley",
+            start: "2026-06-02T16:30:00.000Z",
+            end: "2026-06-02T17:15:00.000Z",
+            isAllDay: false,
+            sourceName: "Parent, Kiddo",
+            sourceNames: ["Parent", "Kiddo"],
+            color: "#8bc58b",
+            colors: ["#8bc58b", "#ee8ea4"],
+            shared: true
+          }}
+        />
+        <CalendarEventCard
+          event={{
             id: "all-day",
             title: "Camping Trip",
             start: "2026-06-02",
@@ -61,7 +75,14 @@ describe("calendar components", () => {
 
     expect(screen.getByText("Pickup Dry Cleaning")).toBeInTheDocument();
     expect(screen.getByText("Parent")).toBeInTheDocument();
+    expect(screen.getByText("Parent · Kiddo")).toBeInTheDocument();
+    const sharedCard = screen.getByText("Stay at Carmel Valley").closest("article");
+    expect(sharedCard).toHaveAttribute("data-event-shared", "true");
+    expect(sharedCard?.getAttribute("style")).toContain("linear-gradient");
     expect(screen.getByText("Camping Trip")).toBeInTheDocument();
+    expect(screen.getByText("Camping Trip").closest("article")?.getAttribute("style")).not.toContain(
+      "linear-gradient"
+    );
     expect(screen.getByText("All day")).toBeInTheDocument();
     expect(screen.getByText("Wed, Jun 3")).toBeInTheDocument();
     expect(screen.getByText("No events")).toBeInTheDocument();

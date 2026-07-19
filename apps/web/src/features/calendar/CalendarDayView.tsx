@@ -7,7 +7,10 @@ type CalendarEvent = {
   end: string;
   isAllDay: boolean;
   sourceName?: string;
+  sourceNames?: string[];
   color?: string;
+  colors?: string[];
+  shared?: boolean;
 };
 
 export function CalendarDayView({

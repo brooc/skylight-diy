@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildSourceFingerprint } from "../src/modules/calendar/cache";
+import { mergeSharedEvents } from "../src/modules/calendar/merge-shared-events";
 
 describe("calendar cache fingerprint", () => {
   const source = {
@@ -25,5 +26,48 @@ describe("calendar cache fingerprint", () => {
     expect(buildSourceFingerprint([source])).not.toBe(
       buildSourceFingerprint([{ ...source, [field]: `${source[field]}-changed` }])
     );
+  });
+});
+
+describe("shared calendar events", () => {
+  const base = {
+    id: "source-1:event-1",
+    iCalUID: "shared-event@example.com",
+    sourceId: "source-1",
+    sourceName: "Parent",
+    title: "Stay at Carmel Valley",
+    start: "2026-07-20T16:00:00.000Z",
+    end: "2026-07-20T17:00:00.000Z",
+    isAllDay: false,
+    color: "#f3cfd0"
+  };
+
+  it("merges the same occurrence across calendars and preserves participant colors", () => {
+    const events = mergeSharedEvents([
+      base,
+      {
+        ...base,
+        id: "source-2:event-2",
+        sourceId: "source-2",
+        sourceName: "Kiddo",
+        color: "#bee8ea"
+      }
+    ]);
+
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({
+      shared: true,
+      sourceNames: ["Parent", "Kiddo"],
+      colors: ["#f3cfd0", "#bee8ea"]
+    });
+  });
+
+  it("keeps unrelated simultaneous events separate", () => {
+    expect(
+      mergeSharedEvents([
+        base,
+        { ...base, id: "source-2:event-2", iCalUID: "different@example.com" }
+      ])
+    ).toHaveLength(2);
   });
 });

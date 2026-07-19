@@ -17,6 +17,10 @@ import {
   writeCalendarCache
 } from "../modules/calendar/cache";
 import { decryptToken, encryptToken } from "../modules/integrations/token-crypto";
+import {
+  mergeSharedEvents,
+  type SourceCalendarEvent
+} from "../modules/calendar/merge-shared-events";
 
 const eventsQuerySchema = z
   .object({
@@ -70,6 +74,7 @@ type GoogleCalendarLoadResult =
 
 type GoogleEventItem = {
   id?: string;
+  iCalUID?: string;
   summary?: string;
   description?: string;
   location?: string;
@@ -722,18 +727,7 @@ export const calendarRoutes: FastifyPluginAsync = async (app) => {
 
     const warnings: Array<{ code: string; message: string; sourceId?: string }> = [];
     const fallbackCachePayload = cacheHit.status === "miss" ? null : cacheHit.payload;
-    const googleEvents: Array<{
-      id: string;
-      sourceId: string;
-      title: string;
-      description?: string;
-      location?: string;
-      start: string;
-      end: string;
-      isAllDay: boolean;
-      sourceName: string;
-      color: string | null;
-    }> = [];
+    const sourceEvents: SourceCalendarEvent[] = [];
     let successfulProviderFetches = 0;
     const accountTokens = new Map<string, GoogleAccessTokenResult>();
 
@@ -828,8 +822,9 @@ export const calendarRoutes: FastifyPluginAsync = async (app) => {
             continue;
           }
           const isAllDay = Boolean(item.start?.date && !item.start?.dateTime);
-          googleEvents.push({
+          sourceEvents.push({
             id: `${source.id}:${item.id ?? start}`,
+            iCalUID: item.iCalUID,
             sourceId: source.id,
             title: item.summary || "Untitled event",
             description: item.description,
@@ -852,7 +847,7 @@ export const calendarRoutes: FastifyPluginAsync = async (app) => {
     }
 
     if (successfulProviderFetches > 0) {
-      googleEvents.sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
+      const googleEvents = mergeSharedEvents(sourceEvents);
       const payload = {
         rangeStart: parsed.data.start,
         rangeEnd: parsed.data.end,

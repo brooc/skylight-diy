@@ -29,7 +29,10 @@ type CalendarResponse = {
     end: string;
     isAllDay: boolean;
     sourceName?: string;
+    sourceNames?: string[];
     color?: string;
+    colors?: string[];
+    shared?: boolean;
   }>;
   cacheStatus: "fresh" | "refreshed" | "stale" | "miss";
   degraded: boolean;

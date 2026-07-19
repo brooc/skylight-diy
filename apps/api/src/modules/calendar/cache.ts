@@ -7,7 +7,9 @@ type CachePayload = {
   timezone: string;
   events: Array<{
     id: string;
+    iCalUID?: string;
     sourceId: string;
+    sourceIds?: string[];
     title: string;
     description?: string;
     location?: string;
@@ -15,7 +17,10 @@ type CachePayload = {
     end: string;
     isAllDay: boolean;
     sourceName?: string;
+    sourceNames?: string[];
     color?: string | null;
+    colors?: string[];
+    shared?: boolean;
   }>;
   sources: Array<{
     id: string;
