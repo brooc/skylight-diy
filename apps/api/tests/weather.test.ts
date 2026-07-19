@@ -43,7 +43,11 @@ describe("weather route", () => {
       new Response(
         JSON.stringify({
           current: { temperature_2m: 79.6, weather_code: 1, is_day: 1 },
-          current_units: { temperature_2m: "°F" }
+          current_units: { temperature_2m: "°F" },
+          daily: {
+            temperature_2m_max: [82.4],
+            temperature_2m_min: [55.6]
+          }
         }),
         { status: 200, headers: { "Content-Type": "application/json" } }
       )
@@ -54,11 +58,16 @@ describe("weather route", () => {
       configured: true,
       locationName: "Los Angeles",
       temperature: 80,
+      highTemperature: 82,
+      lowTemperature: 56,
       temperatureUnit: "°F",
       weatherCode: 1,
       isDay: true
     });
     expect(String(fetchSpy.mock.calls[0]?.[0])).toContain("api.open-meteo.com/v1/forecast");
+    expect(String(fetchSpy.mock.calls[0]?.[0])).toContain(
+      "daily=temperature_2m_max%2Ctemperature_2m_min"
+    );
   });
 
   it("searches for cities while keeping coordinates internal", async () => {

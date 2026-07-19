@@ -82,6 +82,38 @@ describe("TodayDashboard", () => {
     ).toHaveLength(1);
   });
 
+  it("shows a local weather icon with today's high and low", async () => {
+    await app.db.update(households).set({
+      locationName: "Campbell",
+      latitude: 37.2872,
+      longitude: -121.95
+    });
+    restoreFetch?.();
+    restoreFetch = installRealApiFetch(app, {
+      externalFetch: async () =>
+        new Response(
+          JSON.stringify({
+            current: { temperature_2m: 59, weather_code: 2, is_day: 0 },
+            current_units: { temperature_2m: "°F" },
+            daily: {
+              temperature_2m_max: [82],
+              temperature_2m_min: [56]
+            }
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } }
+        )
+    });
+
+    renderTodayDashboard();
+
+    const weather = await screen.findByLabelText("Partly cloudy: high 82°, low 56°");
+    expect(within(weather).getByText("82°")).toBeInTheDocument();
+    expect(within(weather).getByText("56°")).toBeInTheDocument();
+    expect(weather.querySelector("img")?.getAttribute("src")).toContain(
+      "partly-cloudy-night"
+    );
+  });
+
   it("renders overlapping events in separate contained columns", async () => {
     const [household] = await app.db.select().from(households).limit(1);
     const [account] = await app.db

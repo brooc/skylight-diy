@@ -100,6 +100,7 @@ This document tracks progress against the [v0.1 Implementation Plan](docs/v0.1-i
 - [x] Hide routine healthy cache status and remove inactive/fake dashboard controls
 - [x] Add household location settings and live current weather
 - [x] Replace raw weather coordinates with city search and show the city beside conditions
+- [x] Add local Meteocons condition artwork and today's forecast high/low
 - [x] Add a Sunday/Monday first-day-of-week preference shared by Calendar and Week
 - [ ] Implement component logic (in progress)
 

@@ -9,6 +9,10 @@ type OpenMeteoResponse = {
     is_day?: number;
   };
   current_units?: { temperature_2m?: string };
+  daily?: {
+    temperature_2m_max?: number[];
+    temperature_2m_min?: number[];
+  };
 };
 
 type GeocodingResponse = {
@@ -65,6 +69,7 @@ export const weatherRoutes: FastifyPluginAsync = async (app) => {
     url.searchParams.set("latitude", String(household.latitude));
     url.searchParams.set("longitude", String(household.longitude));
     url.searchParams.set("current", "temperature_2m,weather_code,is_day");
+    url.searchParams.set("daily", "temperature_2m_max,temperature_2m_min");
     url.searchParams.set("temperature_unit", "fahrenheit");
     url.searchParams.set("timezone", "auto");
 
@@ -74,7 +79,9 @@ export const weatherRoutes: FastifyPluginAsync = async (app) => {
       const payload = (await response.json()) as OpenMeteoResponse;
       if (
         typeof payload.current?.temperature_2m !== "number" ||
-        typeof payload.current.weather_code !== "number"
+        typeof payload.current.weather_code !== "number" ||
+        typeof payload.daily?.temperature_2m_max?.[0] !== "number" ||
+        typeof payload.daily.temperature_2m_min?.[0] !== "number"
       ) {
         return reply.status(502).send({ error: "weather_provider_invalid_response" });
       }
@@ -82,6 +89,8 @@ export const weatherRoutes: FastifyPluginAsync = async (app) => {
         configured: true,
         locationName: household.locationName ?? "Home",
         temperature: Math.round(payload.current.temperature_2m),
+        highTemperature: Math.round(payload.daily.temperature_2m_max[0]),
+        lowTemperature: Math.round(payload.daily.temperature_2m_min[0]),
         temperatureUnit: payload.current_units?.temperature_2m ?? "°F",
         weatherCode: payload.current.weather_code,
         isDay: payload.current.is_day !== 0

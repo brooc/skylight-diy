@@ -63,6 +63,9 @@ importers:
 
   apps/web:
     dependencies:
+      '@meteocons/svg':
+        specifier: ^0.1.0
+        version: 0.1.0
       '@tanstack/react-query':
         specifier: ^5.59.0
         version: 5.100.14(react@18.3.1)
@@ -939,6 +942,9 @@ packages:
 
   '@libsql/core@0.17.3':
     resolution: {integrity: sha512-2UjK1i7JBkMduJo4WdvvBxMMvVJ31pArBZNONyz/GCJJAH+1UHat2X6vn10S/WpY5fKzIT98WqYFl2vzWRLOfg==}
+
+  '@meteocons/svg@0.1.0':
+    resolution: {integrity: sha512-Z/40RR6YzIjdN8qLUzRcZDaEYHfekU5rnHTH45EDVZQF1NyldIRpiFprcUKduIv4VK0kd6Uy+OOya4NWwuc2Bg==}
 
   '@nodelib/fs.scandir@2.1.5':
     resolution: {integrity: sha512-vq24Bq3ym5HEQm2NKCr3yXDwjc7vTsEThRDnkp2DK9p1uqLR+DHurm/NOTo0KG7HYHU7eppKZj3MyqYuMBf62g==}
@@ -3088,6 +3094,8 @@ snapshots:
   '@libsql/core@0.17.3':
     dependencies:
       js-base64: 3.7.8
+
+  '@meteocons/svg@0.1.0': {}
 
   '@nodelib/fs.scandir@2.1.5':
     dependencies:

@@ -15,6 +15,7 @@ import {
 } from "../calendar/dateKeys";
 import { layoutTimedEvents } from "../calendar/layoutTimedEvents";
 import { eventBandBackground, softenEventColor } from "../calendar/eventAppearance";
+import { weatherIconForCode } from "../weather/weatherIcons";
 
 type RewardsResponse = {
   balances: Array<{
@@ -37,6 +38,8 @@ type WeatherResponse =
       configured: true;
       locationName: string;
       temperature: number;
+      highTemperature: number;
+      lowTemperature: number;
       temperatureUnit: string;
       weatherCode: number;
       isDay: boolean;
@@ -108,15 +111,6 @@ function formatCompactEventTime(start: Date, end: Date): string {
       .toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
       .replace(/\s?[AP]M$/i, "");
   return `${compact(start)}–${compact(end)}`;
-}
-
-function weatherGlyph(code: number, isDay: boolean): string {
-  if (code === 0) return isDay ? "☀" : "☾";
-  if (code <= 3) return "☁";
-  if (code === 45 || code === 48) return "≋";
-  if (code >= 71 && code <= 77) return "❄";
-  if (code >= 95) return "ϟ";
-  return "☂";
 }
 
 export function calendarHourRange(
@@ -344,6 +338,9 @@ export function TodayDashboard(): JSX.Element {
   const { startHour, endHour } = calendarHourRange(scheduleEvents);
   const hourSlots = Array.from({ length: endHour - startHour + 1 }, (_, i) => startHour + i);
   const slotHeight = 96;
+  const currentWeather = weatherQuery.data?.configured
+    ? weatherIconForCode(weatherQuery.data.weatherCode, weatherQuery.data.isDay)
+    : null;
 
   return (
     <section className="grid gap-3">
@@ -364,11 +361,24 @@ export function TodayDashboard(): JSX.Element {
               </div>
               {weatherQuery.data?.configured ? (
                 <div
-                  className="text-2xl leading-none text-slate-500 md:text-[28px]"
+                  className="flex items-center gap-1.5 text-slate-700"
                   title={weatherQuery.data.locationName}
+                  aria-label={`${currentWeather?.label ?? "Weather"}: high ${weatherQuery.data.highTemperature}°, low ${weatherQuery.data.lowTemperature}°`}
                 >
-                  {weatherGlyph(weatherQuery.data.weatherCode, weatherQuery.data.isDay)}{" "}
-                  {weatherQuery.data.temperature}°
+                  {currentWeather ? (
+                    <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-slate-800 shadow-sm">
+                      <img
+                        src={currentWeather.src}
+                        alt=""
+                        aria-hidden="true"
+                        className="h-11 w-11 object-contain"
+                      />
+                    </span>
+                  ) : null}
+                  <div className="flex items-baseline gap-1 font-display text-2xl leading-none md:text-[28px]">
+                    <span>{weatherQuery.data.highTemperature}°</span>
+                    <span className="text-slate-400">{weatherQuery.data.lowTemperature}°</span>
+                  </div>
                 </div>
               ) : null}
             </div>
