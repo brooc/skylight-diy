@@ -227,6 +227,7 @@ export function GoogleCalendarSettings(): JSX.Element {
   const [busySourceId, setBusySourceId] = useState<string | null>(null);
   const [busyAccountId, setBusyAccountId] = useState<string | null>(null);
   const [discoveredCalendars, setDiscoveredCalendars] = useState<DiscoveredCalendar[] | null>(null);
+  const [activeAccountId, setActiveAccountId] = useState<string | null>(null);
   const [selectedCalendarIds, setSelectedCalendarIds] = useState<string[]>([]);
   const [calendarSearch, setCalendarSearch] = useState("");
   const [isDiscovering, setIsDiscovering] = useState(false);
@@ -283,9 +284,6 @@ export function GoogleCalendarSettings(): JSX.Element {
   }
 
   const accounts = accountsQuery.data?.accounts ?? [];
-  const calendarReadyAccounts = accounts.filter(
-    (account) => account.calendarAccessGranted && !account.reauthorizationRequired
-  );
   const sources = sourcesQuery.data?.sources ?? [];
   const people = peopleQuery.data?.people ?? [];
   const oauthAvailable = oauthStatusQuery.data?.available ?? false;
@@ -293,6 +291,41 @@ export function GoogleCalendarSettings(): JSX.Element {
     calendar.displayName.toLocaleLowerCase().includes(calendarSearch.trim().toLocaleLowerCase())
   );
   const selectableVisibleCalendars = visibleDiscoveredCalendars.filter((calendar) => !calendar.tracked);
+  const activeAccount = accounts.find((account) => account.id === activeAccountId);
+  const startGoogleConnection = async (accountId?: string): Promise<void> => {
+    try {
+      const suffix = accountId ? `?accountId=${encodeURIComponent(accountId)}` : "";
+      const result = await apiFetch<{ available: boolean; authUrl?: string; message?: string }>(
+        `/integrations/google/connect${suffix}`
+      );
+      if (result.authUrl) {
+        window.location.assign(result.authUrl);
+        return;
+      }
+      setStatus(result.message ?? "Google OAuth is unavailable.");
+    } catch (error) {
+      setStatus(getErrorMessage(error, "Google OAuth is unavailable."));
+    }
+  };
+  const chooseCalendars = async (accountId: string): Promise<void> => {
+    setIsDiscovering(true);
+    setActiveAccountId(accountId);
+    try {
+      const result = await apiFetch<DiscoveryResponse>("/calendar/sources/discover-from-google", {
+        method: "POST",
+        body: JSON.stringify({ accountId })
+      });
+      setDiscoveredCalendars(result.calendars);
+      setSelectedCalendarIds([]);
+      setCalendarSearch("");
+      setStatus("Choose the calendars Daymark should track.");
+    } catch (error) {
+      setDiscoveredCalendars(null);
+      setStatus(getErrorMessage(error, "Failed to load calendars."));
+    } finally {
+      setIsDiscovering(false);
+    }
+  };
   const patchSource = async (sourceId: string, patch: SourcePatch): Promise<void> => {
     setBusySourceId(sourceId);
     try {
@@ -337,45 +370,9 @@ export function GoogleCalendarSettings(): JSX.Element {
           type="button"
           disabled={!oauthAvailable}
           className="min-h-[44px] rounded-md bg-[#0f766e] px-3 py-2 text-sm font-semibold text-white hover:bg-[#0d5f59] disabled:cursor-not-allowed disabled:opacity-50"
-          onClick={async () => {
-            try {
-              const result = await apiFetch<{ available: boolean; authUrl?: string; message?: string }>(
-                "/integrations/google/connect"
-              );
-              if (result.authUrl) {
-                window.location.assign(result.authUrl);
-                return;
-              }
-              setStatus(result.message ?? "Google OAuth is unavailable.");
-            } catch (error) {
-              setStatus(getErrorMessage(error, "Google OAuth is unavailable."));
-            }
-          }}
+          onClick={() => void startGoogleConnection()}
         >
-          {accounts.length > 0 ? "Reconnect Google" : "Connect Google"}
-        </button>
-        <button
-          type="button"
-          disabled={calendarReadyAccounts.length === 0 || isDiscovering}
-          className="min-h-[44px] rounded-md border border-[#c7b8a2] bg-[#fff7ea] px-3 py-2 text-sm font-semibold text-slate-800 hover:bg-[#fcedd8] disabled:cursor-not-allowed disabled:opacity-50"
-          onClick={async () => {
-            setIsDiscovering(true);
-            try {
-              const result = await apiFetch<DiscoveryResponse>("/calendar/sources/discover-from-google", {
-                method: "POST"
-              });
-              setDiscoveredCalendars(result.calendars);
-              setSelectedCalendarIds([]);
-              setCalendarSearch("");
-              setStatus("Choose the calendars Daymark should track.");
-            } catch (error) {
-              setStatus(getErrorMessage(error, "Failed to load calendars."));
-            } finally {
-              setIsDiscovering(false);
-            }
-          }}
-        >
-          {isDiscovering ? "Loading calendars..." : "Choose calendars"}
+          {accounts.length > 0 ? "Add Google Account" : "Connect Google Account"}
         </button>
       </div>
       {!oauthAvailable ? (
@@ -386,16 +383,12 @@ export function GoogleCalendarSettings(): JSX.Element {
       {accounts.length === 0 ? (
         <p className="text-xs text-slate-600">Connect Google before choosing calendars.</p>
       ) : null}
-      {accounts.length > 0 && calendarReadyAccounts.length === 0 ? (
-        <p className="text-xs font-medium text-amber-700">
-          Reconnect Google and allow read-only Calendar access before choosing calendars.
-        </p>
-      ) : null}
-
       {discoveredCalendars ? (
         <div className="grid gap-3 rounded-md border border-[#d8ccba] bg-[#fffaf1] p-3">
           <div>
-            <h3 className="text-sm font-semibold text-slate-900">Choose calendars to track</h3>
+            <h3 className="text-sm font-semibold text-slate-900">
+              Choose calendars for {activeAccount?.email || activeAccount?.displayName || "Google account"}
+            </h3>
             <p className="text-xs text-slate-600">
               New calendars are not selected by default. Added calendars start enabled and unassigned.
             </p>
@@ -476,10 +469,14 @@ export function GoogleCalendarSettings(): JSX.Element {
                 try {
                   const result = await apiFetch<{ imported: number }>("/calendar/sources/import-from-google", {
                     method: "POST",
-                    body: JSON.stringify({ externalCalendarIds: selectedCalendarIds })
+                    body: JSON.stringify({
+                      accountId: activeAccountId,
+                      externalCalendarIds: selectedCalendarIds
+                    })
                   });
                   setStatus(`Added ${result.imported} calendar${result.imported === 1 ? "" : "s"}.`);
                   setDiscoveredCalendars(null);
+                  setActiveAccountId(null);
                   setSelectedCalendarIds([]);
                   await Promise.all([
                     queryClient.invalidateQueries({ queryKey: ["calendar-sources"] }),
@@ -500,6 +497,7 @@ export function GoogleCalendarSettings(): JSX.Element {
               className="min-h-[44px] rounded-md border border-[#c7b8a2] bg-white px-3 py-2 text-sm font-semibold text-slate-800"
               onClick={() => {
                 setDiscoveredCalendars(null);
+                setActiveAccountId(null);
                 setSelectedCalendarIds([]);
               }}
             >
@@ -517,7 +515,9 @@ export function GoogleCalendarSettings(): JSX.Element {
           accounts.map((account) => (
             <div
               key={account.id}
-              className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-[#e4dbcc] bg-white px-3 py-3 text-sm"
+              role="group"
+              aria-label={`Google account ${account.email || account.displayName || account.id}`}
+              className="grid gap-3 rounded-md border border-[#e4dbcc] bg-white px-3 py-3 text-sm md:grid-cols-[minmax(0,1fr)_auto] md:items-center"
             >
               <div className="min-w-0">
                 <div className="font-semibold text-slate-900">
@@ -526,48 +526,84 @@ export function GoogleCalendarSettings(): JSX.Element {
                 <div className="truncate text-slate-600">
                   {account.email || "Reconnect Google to identify this account"}
                 </div>
+                <div className="mt-1 text-xs text-slate-500">
+                  {sources.filter((source) => source.connectedAccountId === account.id).length} tracked calendar
+                  {sources.filter((source) => source.connectedAccountId === account.id).length === 1 ? "" : "s"}
+                </div>
                 {!account.calendarAccessGranted || account.reauthorizationRequired ? (
                   <div className="mt-1 text-xs font-medium text-amber-700">
                     {account.reauthorizationRequired ? "Reconnect required" : "Calendar access required"}
                   </div>
                 ) : null}
               </div>
-              <button
-                type="button"
-                disabled={busyAccountId === account.id}
-                className="min-h-[40px] rounded-md border border-rose-300 bg-white px-3 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-50"
-                onClick={async () => {
-                  const confirmed = window.confirm(
-                    `Disconnect ${account.email || account.displayName || "this Google account"}? Its tracked calendars will be removed from Daymark.`
-                  );
-                  if (!confirmed) {
-                    return;
+              <div className="flex flex-wrap items-center gap-2 md:justify-end">
+                <button
+                  type="button"
+                  disabled={
+                    !account.calendarAccessGranted ||
+                    account.reauthorizationRequired ||
+                    (isDiscovering && activeAccountId === account.id)
                   }
-                  setBusyAccountId(account.id);
-                  try {
-                    const result = await apiFetch<{
-                      disconnected: boolean;
-                      revocationSucceeded: boolean;
-                      warning?: string | null;
-                    }>(`/integrations/google/accounts/${account.id}`, { method: "DELETE" });
-                    setStatus(result.warning || "Google Calendar disconnected.");
-                    setDiscoveredCalendars(null);
-                    setSelectedCalendarIds([]);
-                    await Promise.all([
-                      queryClient.invalidateQueries({ queryKey: ["calendar-accounts"] }),
-                      queryClient.invalidateQueries({ queryKey: ["calendar-sources"] }),
-                      queryClient.invalidateQueries({ queryKey: ["calendar-week"] }),
-                      queryClient.invalidateQueries({ queryKey: ["calendar-week-schedule"] })
-                    ]);
-                  } catch (error) {
-                    setStatus(getErrorMessage(error, "Failed to disconnect Google Calendar."));
-                  } finally {
-                    setBusyAccountId(null);
-                  }
-                }}
-              >
-                {busyAccountId === account.id ? "Disconnecting..." : "Disconnect"}
-              </button>
+                  className="min-h-[40px] rounded-md border border-[#c7b8a2] bg-[#fff7ea] px-3 py-2 text-sm font-semibold text-slate-800 hover:bg-[#fcedd8] disabled:cursor-not-allowed disabled:opacity-50"
+                  onClick={() => void chooseCalendars(account.id)}
+                >
+                  {isDiscovering && activeAccountId === account.id
+                    ? "Loading calendars..."
+                    : "Choose calendars"}
+                </button>
+                {!account.calendarAccessGranted || account.reauthorizationRequired ? (
+                  <button
+                    type="button"
+                    disabled={!oauthAvailable}
+                    className="min-h-[40px] rounded-md bg-amber-100 px-3 py-2 text-sm font-semibold text-amber-900 disabled:opacity-50"
+                    onClick={() => void startGoogleConnection(account.id)}
+                  >
+                    Reconnect
+                  </button>
+                ) : null}
+                <details className="relative">
+                  <summary className="flex min-h-[40px] cursor-pointer list-none items-center rounded-md px-3 text-sm font-semibold text-slate-600 hover:bg-slate-100">
+                    More
+                  </summary>
+                  <div className="absolute right-0 top-11 z-20 min-w-[180px] rounded-md border border-[#e4dbcc] bg-white p-2 shadow-lg">
+                    <button
+                      type="button"
+                      disabled={busyAccountId === account.id}
+                      className="min-h-[40px] w-full rounded-md px-3 py-2 text-left text-sm font-semibold text-rose-700 hover:bg-rose-50 disabled:opacity-50"
+                      onClick={async () => {
+                        const confirmed = window.confirm(
+                          `Disconnect ${account.email || account.displayName || "this Google account"}? Its tracked calendars will be removed from Daymark.`
+                        );
+                        if (!confirmed) return;
+                        setBusyAccountId(account.id);
+                        try {
+                          const result = await apiFetch<{
+                            disconnected: boolean;
+                            revocationSucceeded: boolean;
+                            warning?: string | null;
+                          }>(`/integrations/google/accounts/${account.id}`, { method: "DELETE" });
+                          setStatus(result.warning || "Google Calendar disconnected.");
+                          setDiscoveredCalendars(null);
+                          setActiveAccountId(null);
+                          setSelectedCalendarIds([]);
+                          await Promise.all([
+                            queryClient.invalidateQueries({ queryKey: ["calendar-accounts"] }),
+                            queryClient.invalidateQueries({ queryKey: ["calendar-sources"] }),
+                            queryClient.invalidateQueries({ queryKey: ["calendar-week"] }),
+                            queryClient.invalidateQueries({ queryKey: ["calendar-week-schedule"] })
+                          ]);
+                        } catch (error) {
+                          setStatus(getErrorMessage(error, "Failed to disconnect Google Calendar."));
+                        } finally {
+                          setBusyAccountId(null);
+                        }
+                      }}
+                    >
+                      {busyAccountId === account.id ? "Disconnecting..." : "Disconnect account"}
+                    </button>
+                  </div>
+                </details>
+              </div>
             </div>
           ))
         )}
@@ -581,16 +617,29 @@ export function GoogleCalendarSettings(): JSX.Element {
         {sources.length === 0 ? (
           <p className="text-sm text-slate-600">Import calendars to configure sources.</p>
         ) : (
-          sources.map((source) => (
-            <CalendarSourceCard
-              key={source.id}
-              source={source}
-              people={people}
-              busySourceId={busySourceId}
-              onPatch={patchSource}
-              onUntrack={untrackSource}
-            />
-          ))
+          accounts.map((account) => {
+            const accountSources = sources.filter(
+              (source) => source.connectedAccountId === account.id
+            );
+            if (accountSources.length === 0) return null;
+            return (
+              <div key={account.id} className="grid gap-2 rounded-md border border-[#e4dbcc] p-3">
+                <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  {account.email || account.displayName || "Google account"}
+                </div>
+                {accountSources.map((source) => (
+                  <CalendarSourceCard
+                    key={source.id}
+                    source={source}
+                    people={people}
+                    busySourceId={busySourceId}
+                    onPatch={patchSource}
+                    onUntrack={untrackSource}
+                  />
+                ))}
+              </div>
+            );
+          })
         )}
       </div>
     </section>

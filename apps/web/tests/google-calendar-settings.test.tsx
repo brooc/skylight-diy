@@ -1,4 +1,4 @@
-import { screen } from "@testing-library/react";
+import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { GoogleCalendarSettings } from "../src/features/settings/GoogleCalendarSettings";
@@ -25,8 +25,8 @@ describe("GoogleCalendarSettings", () => {
     expect(
       await screen.findByText("Google OAuth is not configured in environment variables yet.")
     ).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Connect Google" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Choose calendars" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Connect Google Account" })).toBeDisabled();
+    expect(screen.queryByRole("button", { name: "Choose calendars" })).not.toBeInTheDocument();
   });
 
   it("surfaces readable discovery error messages from API failures", async () => {
@@ -65,8 +65,13 @@ describe("GoogleCalendarSettings", () => {
   });
 
   it("requires reconnect when Google identity was granted without Calendar access", async () => {
+    let reconnectUrl = "";
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
       const url = typeof input === "string" ? input : input.url;
+      if (url.startsWith("/api/integrations/google/connect")) {
+        reconnectUrl = url;
+        return mockJsonResponse({ available: true, message: "Reconnect started." });
+      }
       if (url.startsWith("/api/calendar/accounts")) {
         return mockJsonResponse({
           accounts: [{
@@ -88,19 +93,22 @@ describe("GoogleCalendarSettings", () => {
     });
 
     renderWithProviders(<GoogleCalendarSettings />, { route: "/settings" });
-    expect(await screen.findByRole("button", { name: "Reconnect Google" })).toBeEnabled();
+    expect(await screen.findByRole("button", { name: "Reconnect" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Add Google Account" })).toBeEnabled();
     expect(screen.getByRole("button", { name: "Choose calendars" })).toBeDisabled();
     expect(screen.getByText("Reconnect required")).toBeInTheDocument();
-    expect(
-      screen.getByText("Reconnect Google and allow read-only Calendar access before choosing calendars.")
-    ).toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole("button", { name: "Reconnect" }));
+    expect(reconnectUrl).toBe("/api/integrations/google/connect?accountId=account-1");
+    expect(await screen.findByText("Reconnect started.")).toBeInTheDocument();
   });
 
   it("does not select new calendars by default and adds only the user's selection", async () => {
+    let discoveryBody: unknown;
     let importBody: unknown;
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
       const url = typeof input === "string" ? input : input.url;
       if (url.startsWith("/api/calendar/sources/discover-from-google")) {
+        discoveryBody = JSON.parse(String(init?.body));
         return mockJsonResponse({
           calendars: [
             {
@@ -133,14 +141,24 @@ describe("GoogleCalendarSettings", () => {
       }
       if (url.startsWith("/api/calendar/accounts")) {
         return mockJsonResponse({
-          accounts: [{
-            id: "account-1",
-            provider: "google",
-            displayName: "Google",
-            email: "family@example.com",
-            reauthorizationRequired: false,
-            calendarAccessGranted: true
-          }]
+          accounts: [
+            {
+              id: "account-1",
+              provider: "google",
+              displayName: "Family Gmail",
+              email: "family@example.com",
+              reauthorizationRequired: false,
+              calendarAccessGranted: true
+            },
+            {
+              id: "account-2",
+              provider: "google",
+              displayName: "Work Gmail",
+              email: "work@example.com",
+              reauthorizationRequired: false,
+              calendarAccessGranted: true
+            }
+          ]
         });
       }
       if (url.startsWith("/api/calendar/sources")) return mockJsonResponse({ sources: [] });
@@ -153,7 +171,14 @@ describe("GoogleCalendarSettings", () => {
 
     renderWithProviders(<GoogleCalendarSettings />, { route: "/settings" });
     const user = userEvent.setup();
-    await user.click(await screen.findByRole("button", { name: "Choose calendars" }));
+    const workAccount = await screen.findByRole("group", {
+      name: "Google account work@example.com"
+    });
+    expect(screen.getByRole("button", { name: "Add Google Account" })).toBeEnabled();
+    expect(screen.queryByRole("button", { name: "Reconnect" })).not.toBeInTheDocument();
+    await user.click(within(workAccount).getByRole("button", { name: "Choose calendars" }));
+    expect(discoveryBody).toEqual({ accountId: "account-2" });
+    expect(screen.getByText("Choose calendars for work@example.com")).toBeInTheDocument();
 
     const family = await screen.findByRole("checkbox", { name: /Family/ });
     const school = screen.getByRole("checkbox", { name: /School/ });
@@ -166,7 +191,7 @@ describe("GoogleCalendarSettings", () => {
 
     await user.click(school);
     await user.click(screen.getByRole("button", { name: "Add selected (1)" }));
-    expect(importBody).toEqual({ externalCalendarIds: ["school"] });
+    expect(importBody).toEqual({ accountId: "account-2", externalCalendarIds: ["school"] });
     expect(await screen.findByText("Added 1 calendar.")).toBeInTheDocument();
   });
 
@@ -202,7 +227,9 @@ describe("GoogleCalendarSettings", () => {
     renderWithProviders(<GoogleCalendarSettings />, { route: "/settings" });
     expect(await screen.findByText("family@example.com")).toBeInTheDocument();
     const user = userEvent.setup();
-    await user.click(screen.getByRole("button", { name: "Disconnect" }));
+    const accountCard = screen.getByRole("group", { name: "Google account family@example.com" });
+    await user.click(within(accountCard).getByText("More"));
+    await user.click(within(accountCard).getByRole("button", { name: "Disconnect account" }));
 
     expect(window.confirm).toHaveBeenCalledWith(
       "Disconnect family@example.com? Its tracked calendars will be removed from Daymark."

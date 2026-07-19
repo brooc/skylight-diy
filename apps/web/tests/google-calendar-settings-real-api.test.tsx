@@ -66,7 +66,7 @@ describe("GoogleCalendarSettings with the real API", () => {
     const user = userEvent.setup();
 
     expect(await screen.findAllByText("Google Calendar")).toHaveLength(2);
-    expect(screen.getByText("family@example.com")).toBeInTheDocument();
+    expect(screen.getAllByText("family@example.com")).toHaveLength(2);
     expect(await screen.findByText("Family Calendar")).toBeInTheDocument();
 
     await user.click(screen.getAllByRole("button", { name: "Enabled" })[0]!);
