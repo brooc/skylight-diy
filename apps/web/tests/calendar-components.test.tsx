@@ -6,6 +6,7 @@ import { CalendarDayView } from "../src/features/calendar/CalendarDayView";
 import { CalendarEventCard } from "../src/features/calendar/CalendarEventCard";
 import { CalendarStatusBadge } from "../src/features/calendar/CalendarStatusBadge";
 import { CalendarWeekView } from "../src/features/calendar/CalendarWeekView";
+import { layoutTimedEvents } from "../src/features/calendar/layoutTimedEvents";
 import { createTestQueryClient, mockJsonResponse } from "./helpers/test-utils";
 
 function renderWeekView(): void {
@@ -62,6 +63,36 @@ describe("calendar components", () => {
     expect(screen.getByText("Just refreshed")).toBeInTheDocument();
     expect(screen.getByText("Showing saved data")).toBeInTheDocument();
     expect(screen.getByText("No calendar data")).toBeInTheDocument();
+  });
+
+  it("lays overlapping events out side by side and reuses columns at boundaries", () => {
+    const layouts = layoutTimedEvents([
+      { id: "first", start: 9, end: 10 },
+      { id: "second", start: 9.25, end: 10.5 },
+      { id: "third", start: 10, end: 11 },
+      { id: "touching", start: 11, end: 12 }
+    ]);
+
+    expect(layouts).toEqual([
+      { id: "first", column: 0, columnCount: 2 },
+      { id: "second", column: 1, columnCount: 2 },
+      { id: "third", column: 0, columnCount: 2 },
+      { id: "touching", column: 0, columnCount: 1 }
+    ]);
+  });
+
+  it("uses the peak concurrency for every event in an overlap group", () => {
+    const layouts = layoutTimedEvents([
+      { id: "long", start: 9, end: 12 },
+      { id: "early", start: 9.5, end: 10.5 },
+      { id: "peak", start: 10, end: 11 }
+    ]);
+
+    expect(layouts).toEqual([
+      { id: "long", column: 0, columnCount: 3 },
+      { id: "early", column: 1, columnCount: 3 },
+      { id: "peak", column: 2, columnCount: 3 }
+    ]);
   });
 
   it("renders week events, warnings, cache status, and refreshes the query", async () => {

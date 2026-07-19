@@ -175,9 +175,12 @@ This document tracks progress against the [v0.1 Implementation Plan](docs/v0.1-i
 - [x] Refresh expiring Google access tokens once per connected account
 - [x] Persist refreshed credentials and mark revoked or unreadable refresh tokens for reconnect
 
-### ⬜ Step 13: Tablet polish (0%)
+### 🚧 Step 13: Tablet polish (20%)
 
-Not started
+- [x] Place overlapping timed calendar events in deterministic side-by-side columns
+- [x] Keep timed-event text and cards contained within their assigned column and visible schedule range
+- [x] Add layout-algorithm and real API/dashboard regression coverage
+- [ ] Complete responsive 10-inch tablet landscape pass across all primary routes
 
 ### 🚧 Step 14: Documentation and cleanup (60%)
 
@@ -195,12 +198,11 @@ Not started
 - **Frontend component lines**: ~842 lines
 - **Database tables**: 10/10 implemented
 - **Seed data**: Complete with demo household (PIN: 1234)
-- **Automated tests**: API integration tests (42) + web behavior tests (31)
+- **Automated tests**: API integration tests (42) + web behavior tests (34)
 - **Coverage**: API 94.26% statements/lines, web 94.45% statements/lines
 
 ## Next Priorities
 
-1. **Calendar layout polish**: Place overlapping timed events side by side and contain event content within its column.
-2. **Calendar completeness**: Add Google pagination, timezone/DST coverage, and explicit untracking for sources no longer wanted.
-3. **Manual v0.1 smoke pass**: Verify OAuth return, calendar selection, enable/disable, refresh, and event rendering in Docker.
-4. **Scope decision**: Keep calendar event creation as a post-v0.1 item unless it becomes required for release.
+1. **Calendar completeness**: Add Google pagination, timezone/DST coverage, and explicit untracking for sources no longer wanted.
+2. **Manual v0.1 smoke pass**: Verify OAuth return, calendar selection, enable/disable, refresh, and event rendering in Docker.
+3. **Scope decision**: Keep calendar event creation as a post-v0.1 item unless it becomes required for release.

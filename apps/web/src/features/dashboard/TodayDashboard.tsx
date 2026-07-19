@@ -7,6 +7,7 @@ import { queryKeys } from "../../api/queryKeys";
 import { ErrorState } from "../../components/ErrorState";
 import { LoadingState } from "../../components/LoadingState";
 import { CalendarStatusBadge } from "../calendar/CalendarStatusBadge";
+import { layoutTimedEvents } from "../calendar/layoutTimedEvents";
 
 type RewardsResponse = {
   balances: Array<{
@@ -197,6 +198,19 @@ export function TodayDashboard(): JSX.Element {
     .filter((event) => event.dayIndex >= 0);
 
   const scheduleEvents = mappedEvents;
+  const timedEventLayout = new Map(
+    days.flatMap((day) =>
+      layoutTimedEvents(
+        scheduleEvents
+          .filter((event) => event.dayIndex === day.index)
+          .map((event) => ({
+            id: event.id,
+            start: event.startHour,
+            end: event.startHour + event.durationHours
+          }))
+      ).map((layout) => [layout.id, layout] as const)
+    )
+  );
   const allDayEvents = (calendarQuery.data?.events ?? [])
     .filter((event) => event.isAllDay)
     .map((event, index) => {
@@ -380,21 +394,44 @@ export function TodayDashboard(): JSX.Element {
                     >
                       {hourEvents.map((event) => {
                         const offset = (event.startHour - hour) * slotHeight;
-                        const height = Math.max(56, event.durationHours * slotHeight - 8);
+                        const availableHeight = Math.max(
+                          0,
+                          (endHour + 1 - event.startHour) * slotHeight - 4
+                        );
+                        const height = Math.min(
+                          Math.max(40, event.durationHours * slotHeight - 8),
+                          availableHeight
+                        );
+                        const layout = timedEventLayout.get(event.id) ?? {
+                          column: 0,
+                          columnCount: 1
+                        };
+                        const columnWidth = 100 / layout.columnCount;
                         return (
                           <article
                             key={event.id}
-                            className="absolute left-2 right-2 z-10 rounded-[20px] px-3 py-2 text-slate-800"
+                            data-event-id={event.id}
+                            data-layout-column={layout.column}
+                            data-layout-columns={layout.columnCount}
+                            className="absolute z-10 min-w-0 overflow-hidden rounded-[20px] px-2 py-2 text-slate-800"
                             style={{
                               top: offset,
                               height,
+                              left: `calc(${layout.column * columnWidth}% + 4px)`,
+                              width: `calc(${columnWidth}% - 8px)`,
                               background: event.striped
                                 ? "repeating-linear-gradient(125deg, #d6efd8 0 38px, #f7d8d4 38px 76px, #bee8ea 76px 114px, #e4daf0 114px 152px)"
                                 : event.color
                             }}
                           >
-                            <div className="text-[20px] font-semibold leading-tight">{event.title}</div>
-                            <div className="mt-1 text-[16px] leading-tight text-slate-700">
+                            <div
+                              className={`${layout.columnCount > 1 ? "text-[15px]" : "text-[20px]"} break-words font-semibold leading-tight`}
+                            >
+                              {event.title}
+                            </div>
+                            <div
+                              className={`${layout.columnCount > 1 ? "text-[12px]" : "text-[16px]"} mt-1 break-words leading-tight text-slate-700`}
+                            >
                               {event.timeLabel}
                             </div>
                             {event.ownerInitial ? (
