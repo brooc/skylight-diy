@@ -1,4 +1,11 @@
-import { calendarFetchLogs, calendarSources, connectedAccounts, households, people } from "@daymark/db";
+import {
+  calendarEventCache,
+  calendarFetchLogs,
+  calendarSources,
+  connectedAccounts,
+  households,
+  people
+} from "@daymark/db";
 import { and, asc, eq } from "drizzle-orm";
 import type { FastifyInstance, FastifyPluginAsync } from "fastify";
 import { z } from "zod";
@@ -593,6 +600,32 @@ export const calendarRoutes: FastifyPluginAsync = async (app) => {
       });
 
     return { updated: true, source: updated };
+  });
+
+  app.delete("/calendar/sources/:sourceId", async (request, reply) => {
+    if (!request.isAdminUnlocked()) {
+      return reply.status(401).send({ error: "admin_unlock_required" });
+    }
+
+    const [household] = await app.db.select().from(households).limit(1);
+    if (!household) {
+      return reply.status(404).send({ error: "setup_not_completed" });
+    }
+
+    const sourceId = (request.params as { sourceId: string }).sourceId;
+    const [deleted] = await app.db
+      .delete(calendarSources)
+      .where(and(eq(calendarSources.id, sourceId), eq(calendarSources.householdId, household.id)))
+      .returning({ id: calendarSources.id });
+    if (!deleted) {
+      return reply.status(404).send({ error: "source_not_found" });
+    }
+
+    await app.db
+      .delete(calendarEventCache)
+      .where(eq(calendarEventCache.householdId, household.id));
+
+    return { untracked: true, sourceId: deleted.id };
   });
 
   app.get("/calendar/events", async (request, reply) => {

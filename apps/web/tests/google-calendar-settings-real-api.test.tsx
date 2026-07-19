@@ -1,7 +1,7 @@
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { FastifyInstance } from "fastify";
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { GoogleCalendarSettings } from "../src/features/settings/GoogleCalendarSettings";
 import { calendarSources, connectedAccounts, households } from "../../../packages/db/src/index";
 import { encryptToken } from "../../api/src/modules/integrations/token-crypto";
@@ -31,6 +31,7 @@ describe("GoogleCalendarSettings with the real API", () => {
   afterEach(() => {
     restoreFetch?.();
     restoreFetch = null;
+    vi.restoreAllMocks();
   });
 
   afterAll(async () => {
@@ -87,6 +88,12 @@ describe("GoogleCalendarSettings with the real API", () => {
     const parentOption = within(firstPersonSelect).getByRole("option", { name: "Parent" });
     await user.selectOptions(firstPersonSelect, parentOption);
     await waitFor(() => expect(firstPersonSelect).toHaveValue(parentOption.getAttribute("value")));
+
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    await user.click(screen.getByRole("button", { name: "Stop tracking Family Room" }));
+    expect(await screen.findByText("Family Room is no longer tracked.")).toBeInTheDocument();
+    expect(await screen.findByText("Import calendars to configure sources.")).toBeInTheDocument();
+    expect(await app.db.select().from(calendarSources)).toHaveLength(0);
   });
 
   it("discovers calendars and imports only the selection through Settings and the real API", async () => {

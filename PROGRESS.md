@@ -159,6 +159,7 @@ This document tracks progress against the [v0.1 Implementation Plan](docs/v0.1-i
 - [x] Return explicit errors instead of demo fallback when real Google calendar-list import fails
 - [x] Discover calendars without tracking them and import only explicit user selections
 - [x] Keep new calendars unselected by default, then add selected calendars enabled and unassigned
+- [x] Let admins stop tracking individual calendars without disconnecting the Google account
 - [x] Reconcile connected-account state after returning from Google OAuth
 - [x] Store and display the connected Google account email and stable account ID
 - [x] Add confirmed Google disconnect with token revocation and local calendar cleanup
@@ -206,6 +207,5 @@ This document tracks progress against the [v0.1 Implementation Plan](docs/v0.1-i
 
 ## Next Priorities
 
-1. **Calendar completeness**: Add explicit untracking for sources no longer wanted.
-2. **Manual v0.1 smoke pass**: Verify OAuth return, calendar selection, enable/disable, refresh, and event rendering in Docker.
-3. **Scope decision**: Keep calendar event creation as a post-v0.1 item unless it becomes required for release.
+1. **Manual v0.1 smoke pass**: Verify OAuth return, calendar selection, enable/disable, untracking, refresh, and event rendering in Docker.
+2. **Scope decision**: Keep calendar event creation as a post-v0.1 item unless it becomes required for release.

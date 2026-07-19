@@ -732,7 +732,7 @@ describe("calendar and google integration routes", () => {
     });
   });
 
-  it("patches calendar source settings and validates assigned people", async () => {
+  it("patches and untracks calendar sources with admin protection", async () => {
     const setup = await setupHousehold(app);
     const [kiddo] = await app.db
       .select()
@@ -832,6 +832,42 @@ describe("calendar and google integration routes", () => {
       personId: null,
       color: null
     });
+
+    await app.db.insert(calendarEventCache).values({
+      householdId: setup.household.id,
+      cacheKey: "source-removal-cache",
+      rangeStart: new Date("2026-06-01T00:00:00.000Z"),
+      rangeEnd: new Date("2026-06-08T00:00:00.000Z"),
+      timezone: "UTC",
+      sourceFingerprint: source.id,
+      payloadJsonb: { events: [{ sourceId: source.id }] },
+      fetchedAt: new Date(),
+      expiresAt: new Date(Date.now() + 60_000),
+      staleUntil: new Date(Date.now() + 120_000)
+    });
+    const blockedDelete = await app.inject({
+      method: "DELETE",
+      url: `/api/calendar/sources/${source.id}`
+    });
+    expect(blockedDelete.statusCode).toBe(401);
+
+    const untracked = await app.inject({
+      method: "DELETE",
+      url: `/api/calendar/sources/${source.id}`,
+      headers: { cookie }
+    });
+    expect(untracked.statusCode).toBe(200);
+    expect(untracked.json()).toEqual({ untracked: true, sourceId: source.id });
+    expect(await app.db.select().from(calendarSources)).toHaveLength(0);
+    expect(await app.db.select().from(calendarEventCache)).toHaveLength(0);
+
+    const missingDelete = await app.inject({
+      method: "DELETE",
+      url: `/api/calendar/sources/${source.id}`,
+      headers: { cookie }
+    });
+    expect(missingDelete.statusCode).toBe(404);
+    expect(missingDelete.json().error).toBe("source_not_found");
   });
 
   it("fetches provider events and serves cached fresh results on subsequent calls", async () => {

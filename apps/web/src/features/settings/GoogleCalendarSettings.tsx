@@ -73,12 +73,14 @@ function CalendarSourceCard({
   source,
   people,
   busySourceId,
-  onPatch
+  onPatch,
+  onUntrack
 }: {
   source: CalendarSource;
   people: HouseholdResponse["people"];
   busySourceId: string | null;
   onPatch: (sourceId: string, patch: SourcePatch) => Promise<void>;
+  onUntrack: (source: CalendarSource) => Promise<void>;
 }): JSX.Element {
   const [displayName, setDisplayName] = useState(source.displayName);
   const [color, setColor] = useState(source.color ?? "#8ec5b8");
@@ -192,6 +194,28 @@ function CalendarSourceCard({
           ))}
         </select>
       </label>
+      <div className="flex justify-end border-t border-[#ece6db] pt-3">
+        <button
+          type="button"
+          aria-label={`Stop tracking ${source.displayName}`}
+          disabled={isBusy}
+          className="min-h-[38px] rounded-md border border-rose-300 bg-white px-3 text-sm font-semibold text-rose-700 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-50"
+          onClick={async () => {
+            const confirmed = window.confirm(
+              `Stop tracking ${source.displayName}? It will no longer appear in Daymark, but you can add it again later.`
+            );
+            if (!confirmed) return;
+            setSourceError(null);
+            try {
+              await onUntrack(source);
+            } catch (error) {
+              setSourceError(getErrorMessage(error, "Failed to stop tracking calendar."));
+            }
+          }}
+        >
+          {isBusy ? "Removing..." : "Stop tracking"}
+        </button>
+      </div>
       {sourceError ? <p className="text-xs text-rose-700">{sourceError}</p> : null}
     </div>
   );
@@ -276,6 +300,21 @@ export function GoogleCalendarSettings(): JSX.Element {
         method: "PATCH",
         body: JSON.stringify(patch)
       });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["calendar-sources"] }),
+        queryClient.invalidateQueries({ queryKey: ["calendar-week"] }),
+        queryClient.invalidateQueries({ queryKey: ["calendar-week-schedule"] })
+      ]);
+    } finally {
+      setBusySourceId(null);
+    }
+  };
+  const untrackSource = async (source: CalendarSource): Promise<void> => {
+    setBusySourceId(source.id);
+    try {
+      await apiFetch(`/calendar/sources/${source.id}`, { method: "DELETE" });
+      setStatus(`${source.displayName} is no longer tracked.`);
+      setDiscoveredCalendars(null);
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["calendar-sources"] }),
         queryClient.invalidateQueries({ queryKey: ["calendar-week"] }),
@@ -537,7 +576,7 @@ export function GoogleCalendarSettings(): JSX.Element {
       <div className="grid gap-2 rounded-md border border-[#ece6db] bg-[#fbf8f3] p-3">
         <h3 className="text-sm font-semibold text-slate-900">Calendar sources</h3>
         <p className="text-xs text-slate-600">
-          Disable calendars you do not want shown, or assign tracked calendars to a person.
+          Disable calendars temporarily, stop tracking calendars you no longer want, or assign them to a person.
         </p>
         {sources.length === 0 ? (
           <p className="text-sm text-slate-600">Import calendars to configure sources.</p>
@@ -549,6 +588,7 @@ export function GoogleCalendarSettings(): JSX.Element {
               people={people}
               busySourceId={busySourceId}
               onPatch={patchSource}
+              onUntrack={untrackSource}
             />
           ))
         )}
