@@ -12,18 +12,30 @@ type CalendarEvent = {
 
 export function CalendarDayView({
   title,
-  events
+  events,
+  compact = false
 }: {
   title: string;
   events: CalendarEvent[];
+  compact?: boolean;
 }): JSX.Element {
   return (
-    <section className="grid gap-3 rounded-md border border-[#ecebe8] bg-[#fbfbfa] p-3">
-      <h2 className="font-display text-4xl leading-none text-slate-900">{title}</h2>
+    <section
+      className={`min-w-0 rounded-md border border-[#ecebe8] bg-[#fbfbfa] ${
+        compact ? "grid content-start gap-2 p-2" : "grid gap-3 p-3"
+      }`}
+    >
+      <h2
+        className={`font-display leading-none text-slate-900 ${
+          compact ? "text-xl xl:text-lg 2xl:text-xl" : "text-4xl"
+        }`}
+      >
+        {title}
+      </h2>
       {events.length > 0 ? (
         <div className="grid gap-2">
           {events.map((event) => (
-            <CalendarEventCard key={event.id} event={event} />
+            <CalendarEventCard key={event.id} event={event} compact={compact} />
           ))}
         </div>
       ) : (

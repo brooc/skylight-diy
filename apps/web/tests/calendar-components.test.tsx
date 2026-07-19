@@ -145,6 +145,14 @@ describe("calendar components", () => {
     expect(await screen.findByText("History Test")).toBeInTheDocument();
     expect(screen.getByText("Google is taking a nap.")).toBeInTheDocument();
     expect(screen.getByText("Showing saved data")).toBeInTheDocument();
+    const weekGrid = screen.getByTestId("week-grid");
+    expect(weekGrid).toHaveClass(
+      "grid-cols-1",
+      "sm:grid-cols-2",
+      "lg:grid-cols-4",
+      "xl:grid-cols-7"
+    );
+    expect(weekGrid).not.toHaveClass("min-w-[1120px]");
 
     await userEvent.setup().click(screen.getByRole("button", { name: "Refresh" }));
     await waitFor(() => {

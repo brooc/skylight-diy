@@ -117,10 +117,18 @@ export function CalendarWeekView(): JSX.Element {
         />
       ) : null}
 
-      <div className="overflow-x-auto rounded-md border border-[#e7e7e5] bg-white p-3">
-        <div className="grid min-w-[1120px] grid-flow-col auto-cols-[minmax(220px,1fr)] gap-3">
+      <div className="min-w-0 rounded-md border border-[#e7e7e5] bg-white p-2 sm:p-3">
+        <div
+          data-testid="week-grid"
+          className="grid min-w-0 grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 xl:gap-3"
+        >
           {days.map((day) => (
-            <CalendarDayView key={day.dayKey} title={day.label} events={day.events} />
+            <CalendarDayView
+              key={day.dayKey}
+              title={day.label}
+              events={day.events}
+              compact
+            />
           ))}
         </div>
       </div>
