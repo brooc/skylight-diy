@@ -159,29 +159,29 @@ export function CalendarEventCreateDialog({
       role="dialog"
       aria-modal="true"
       aria-labelledby="add-calendar-event-title"
-      className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-950/45 p-3 backdrop-blur-[2px]"
+      className="fixed inset-0 z-50 flex items-center justify-center overflow-hidden bg-slate-950/45 p-2 backdrop-blur-[2px] sm:p-3"
       onClick={onClose}
     >
       <div
-        className="my-auto w-full max-w-lg overflow-hidden rounded-3xl border border-white/70 bg-white shadow-[0_24px_80px_rgba(15,23,42,0.28)]"
+        className="flex max-h-[calc(100dvh-1rem)] w-full min-w-0 max-w-lg flex-col overflow-hidden rounded-3xl border border-white/70 bg-white shadow-[0_24px_80px_rgba(15,23,42,0.28)] sm:max-h-[calc(100dvh-1.5rem)]"
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="h-2 bg-gradient-to-r from-[#8ec5b8] via-[#dca1b4] to-[#b7abd8]" />
+        <div className="h-2 shrink-0 bg-gradient-to-r from-[#8ec5b8] via-[#dca1b4] to-[#b7abd8]" />
         <form
-          className="grid gap-4 p-5 sm:p-7"
+          className="grid min-h-0 min-w-0 gap-3 overflow-x-hidden overflow-y-auto overscroll-contain p-4 sm:p-5"
           onSubmit={(event) => {
             event.preventDefault();
             void submit();
           }}
         >
-          <div className="flex items-start justify-between gap-3">
-            <div>
+          <div className="flex min-w-0 items-start justify-between gap-3">
+            <div className="min-w-0">
               <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[#287f78]">
                 Google Calendar
               </div>
               <h2
                 id="add-calendar-event-title"
-                className="font-display text-3xl text-slate-950"
+                className="font-display text-2xl text-slate-950 sm:text-3xl"
               >
                 Add event
               </h2>
@@ -189,7 +189,7 @@ export function CalendarEventCreateDialog({
             <button
               type="button"
               aria-label="Close add event"
-              className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-xl text-slate-600 hover:bg-slate-200"
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-100 text-xl text-slate-600 hover:bg-slate-200"
               onClick={onClose}
             >
               ×
@@ -216,7 +216,7 @@ export function CalendarEventCreateDialog({
             </div>
           ) : (
             <>
-              <label className="grid gap-1">
+              <label className="grid min-w-0 gap-1">
                 <span className="text-sm font-semibold text-slate-700">
                   Event title
                 </span>
@@ -226,11 +226,11 @@ export function CalendarEventCreateDialog({
                   maxLength={200}
                   value={title}
                   onChange={(event) => setTitle(event.target.value)}
-                  className="min-h-[46px] rounded-xl border border-slate-300 px-3 text-base text-slate-950"
+                  className="min-h-[42px] w-full min-w-0 rounded-xl border border-slate-300 px-3 text-base text-slate-950"
                 />
               </label>
 
-              <label className="grid gap-1">
+              <label className="grid min-w-0 gap-1">
                 <span className="text-sm font-semibold text-slate-700">
                   Calendar
                 </span>
@@ -238,24 +238,30 @@ export function CalendarEventCreateDialog({
                   required
                   value={sourceId}
                   onChange={(event) => setSourceId(event.target.value)}
-                  className="min-h-[46px] rounded-xl border border-slate-300 bg-white px-3 text-base text-slate-950"
+                  className="min-h-[42px] w-full min-w-0 max-w-full truncate rounded-xl border border-slate-300 bg-white px-3 text-base text-slate-950"
                 >
                   {destinations.map((source) => {
                     const account = accountById.get(source.connectedAccountId);
+                    const accountLabel =
+                      account?.email ||
+                      account?.displayName ||
+                      "Google account";
+                    const destinationLabel =
+                      source.displayName.toLocaleLowerCase() ===
+                      accountLabel.toLocaleLowerCase()
+                        ? source.displayName
+                        : `${source.displayName} — ${accountLabel}`;
                     return (
                       <option key={source.id} value={source.id}>
-                        {source.displayName} —{" "}
-                        {account?.email ||
-                          account?.displayName ||
-                          "Google account"}
+                        {destinationLabel}
                       </option>
                     );
                   })}
                 </select>
               </label>
 
-              <div className="grid gap-3 sm:grid-cols-2">
-                <label className="grid gap-1">
+              <div className="grid min-w-0 gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,0.72fr)]">
+                <label className="grid min-w-0 gap-1">
                   <span className="text-sm font-semibold text-slate-700">
                     Date
                   </span>
@@ -264,10 +270,10 @@ export function CalendarEventCreateDialog({
                     required
                     value={date}
                     onChange={(event) => setDate(event.target.value)}
-                    className="min-h-[46px] rounded-xl border border-slate-300 px-3 text-base text-slate-950"
+                    className="min-h-[42px] w-full min-w-0 rounded-xl border border-slate-300 px-3 text-base text-slate-950"
                   />
                 </label>
-                <label className="flex min-h-[46px] items-center gap-3 self-end rounded-xl bg-slate-50 px-3 text-sm font-semibold text-slate-700">
+                <label className="flex min-h-[42px] min-w-0 items-center gap-3 self-end rounded-xl bg-slate-50 px-3 text-sm font-semibold text-slate-700">
                   <input
                     type="checkbox"
                     checked={allDay}
@@ -278,8 +284,8 @@ export function CalendarEventCreateDialog({
               </div>
 
               {!allDay ? (
-                <div className="grid grid-cols-2 gap-3">
-                  <label className="grid gap-1">
+                <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-3">
+                  <label className="grid min-w-0 gap-1">
                     <span className="text-sm font-semibold text-slate-700">
                       Start time
                     </span>
@@ -288,10 +294,10 @@ export function CalendarEventCreateDialog({
                       required
                       value={startTime}
                       onChange={(event) => setStartTime(event.target.value)}
-                      className="min-h-[46px] rounded-xl border border-slate-300 px-3 text-base text-slate-950"
+                      className="min-h-[42px] w-full min-w-0 rounded-xl border border-slate-300 px-3 text-base text-slate-950"
                     />
                   </label>
-                  <label className="grid gap-1">
+                  <label className="grid min-w-0 gap-1">
                     <span className="text-sm font-semibold text-slate-700">
                       End time
                     </span>
@@ -300,13 +306,13 @@ export function CalendarEventCreateDialog({
                       required
                       value={endTime}
                       onChange={(event) => setEndTime(event.target.value)}
-                      className="min-h-[46px] rounded-xl border border-slate-300 px-3 text-base text-slate-950"
+                      className="min-h-[42px] w-full min-w-0 rounded-xl border border-slate-300 px-3 text-base text-slate-950"
                     />
                   </label>
                 </div>
               ) : null}
 
-              <label className="grid gap-1">
+              <label className="grid min-w-0 gap-1">
                 <span className="text-sm font-semibold text-slate-700">
                   Location <span className="font-normal">(optional)</span>
                 </span>
@@ -314,11 +320,11 @@ export function CalendarEventCreateDialog({
                   maxLength={500}
                   value={location}
                   onChange={(event) => setLocation(event.target.value)}
-                  className="min-h-[44px] rounded-xl border border-slate-300 px-3 text-base text-slate-950"
+                  className="min-h-[42px] w-full min-w-0 rounded-xl border border-slate-300 px-3 text-base text-slate-950"
                 />
               </label>
 
-              <label className="grid gap-1">
+              <label className="grid min-w-0 gap-1">
                 <span className="text-sm font-semibold text-slate-700">
                   Guests <span className="font-normal">(optional)</span>
                 </span>
@@ -326,23 +332,23 @@ export function CalendarEventCreateDialog({
                   value={guests}
                   placeholder="name@example.com, another@example.com"
                   onChange={(event) => setGuests(event.target.value)}
-                  className="min-h-[44px] rounded-xl border border-slate-300 px-3 text-base text-slate-950"
+                  className="min-h-[42px] w-full min-w-0 rounded-xl border border-slate-300 px-3 text-base text-slate-950"
                 />
                 <span className="text-xs text-slate-500">
                   Google will email invitations to these guests.
                 </span>
               </label>
 
-              <label className="grid gap-1">
+              <label className="grid min-w-0 gap-1">
                 <span className="text-sm font-semibold text-slate-700">
                   Notes <span className="font-normal">(optional)</span>
                 </span>
                 <textarea
-                  rows={3}
+                  rows={2}
                   maxLength={8_000}
                   value={description}
                   onChange={(event) => setDescription(event.target.value)}
-                  className="rounded-xl border border-slate-300 px-3 py-2 text-base text-slate-950"
+                  className="w-full min-w-0 resize-none rounded-xl border border-slate-300 px-3 py-2 text-base text-slate-950"
                 />
               </label>
 
@@ -352,7 +358,7 @@ export function CalendarEventCreateDialog({
                 </p>
               ) : null}
 
-              <div className="flex justify-end gap-2 pt-1">
+              <div className="sticky bottom-0 -mx-4 -mb-4 flex justify-end gap-2 border-t border-slate-100 bg-white/95 px-4 pb-4 pt-3 backdrop-blur sm:-mx-5 sm:-mb-5 sm:px-5 sm:pb-5">
                 <button
                   type="button"
                   className="min-h-[44px] rounded-xl px-4 font-semibold text-slate-600 hover:bg-slate-100"

@@ -472,6 +472,23 @@ describe("TodayDashboard", () => {
     await user.click(await screen.findByRole("button", { name: "Add event" }));
 
     const dialog = await screen.findByRole("dialog", { name: "Add event" });
+    expect(dialog).toHaveClass("overflow-hidden");
+    expect(dialog.firstElementChild).toHaveClass(
+      "max-h-[calc(100dvh-1rem)]",
+      "min-w-0",
+      "overflow-hidden",
+    );
+    expect(dialog.querySelector("form")).toHaveClass(
+      "overflow-y-auto",
+      "overflow-x-hidden",
+      "min-w-0",
+    );
+    expect(within(dialog).getByLabelText("Calendar")).toHaveClass(
+      "w-full",
+      "min-w-0",
+      "max-w-full",
+      "truncate",
+    );
     expect(
       within(dialog).getByRole("option", {
         name: "Family — family@example.com",
