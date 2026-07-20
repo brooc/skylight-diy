@@ -195,7 +195,10 @@ describe("TodayDashboard", () => {
         providerAccountId: "google-overlap-test",
         displayName: "Google Calendar",
         encryptedAccessToken: encryptToken("test-access-token"),
-        scopes: ["https://www.googleapis.com/auth/calendar.readonly"],
+        scopes: [
+          "https://www.googleapis.com/auth/calendar.readonly",
+          "https://www.googleapis.com/auth/calendar.events",
+        ],
       })
       .returning();
     await app.db.insert(calendarSources).values({
@@ -205,6 +208,8 @@ describe("TodayDashboard", () => {
       externalCalendarId: "family@example.com",
       displayName: "Family",
       enabled: true,
+      allowEventWrites: true,
+      googleAccessRole: "owner",
       sortOrder: 0,
     });
 
@@ -229,9 +234,14 @@ describe("TodayDashboard", () => {
     halfHourEnd.setMinutes(halfHourStart.getMinutes() + 30);
 
     restoreFetch?.();
+    let deletedUrl = "";
     restoreFetch = installRealApiFetch(app, {
-      externalFetch: async () =>
-        new Response(
+      externalFetch: async (input, init) => {
+        if (init?.method === "DELETE") {
+          deletedUrl = String(input);
+          return new Response(null, { status: 204 });
+        }
+        return new Response(
           JSON.stringify({
             items: [
               {
@@ -255,7 +265,8 @@ describe("TodayDashboard", () => {
             ],
           }),
           { status: 200, headers: { "Content-Type": "application/json" } },
-        ),
+        );
+      },
     });
 
     renderTodayDashboard();
@@ -302,6 +313,10 @@ describe("TodayDashboard", () => {
     expect(
       screen.getByRole("button", { name: "Close event details" }),
     ).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Delete" }));
+    await user.click(screen.getByRole("button", { name: "Delete event" }));
+    expect(await screen.findByText("Event deleted.")).toBeInTheDocument();
+    expect(deletedUrl).toContain("/events/half-hour?sendUpdates=all");
   });
 
   it("merges a shared Google occurrence and renders its calendar color bands", async () => {
@@ -501,6 +516,16 @@ describe("TodayDashboard", () => {
     await user.type(within(dialog).getByLabelText("End time"), "11:15");
     await user.type(within(dialog).getByLabelText(/Location/), "Campbell");
     await user.type(within(dialog).getByLabelText(/Guests/), "kid@example.com");
+    await user.selectOptions(within(dialog).getByLabelText("Repeat"), "weekly");
+    await user.selectOptions(
+      within(dialog).getByLabelText("Repeat ends"),
+      "after",
+    );
+    await user.clear(within(dialog).getByLabelText("Number of occurrences"));
+    await user.type(
+      within(dialog).getByLabelText("Number of occurrences"),
+      "6",
+    );
     await user.click(within(dialog).getByRole("button", { name: "Add event" }));
 
     expect(
@@ -512,6 +537,7 @@ describe("TodayDashboard", () => {
       summary: "Dentist",
       location: "Campbell",
       attendees: [{ email: "kid@example.com" }],
+      recurrence: ["RRULE:FREQ=WEEKLY;COUNT=6"],
       start: { timeZone: "America/Los_Angeles" },
       end: { timeZone: "America/Los_Angeles" },
     });

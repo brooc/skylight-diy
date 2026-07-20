@@ -79,6 +79,12 @@ type CalendarResponse = {
     color?: string;
     colors?: string[];
     shared?: boolean;
+    recurringEventId?: string;
+    providerRefs?: Array<{
+      sourceId: string;
+      providerEventId: string;
+      recurringEventId?: string;
+    }>;
   }>;
 };
 
@@ -102,18 +108,23 @@ type MealsResponse = {
   }>;
 };
 
-type RenderEvent = {
+type EventDetail = {
   id: string;
-  dayIndex: number;
-  startHour: number;
-  durationHours: number;
   title: string;
   timeLabel: string;
-  compactTimeLabel: string;
   sourceName: string;
   sourceNames: string[];
   color: string;
   colors: string[];
+  providerRefs: NonNullable<CalendarResponse["events"][number]["providerRefs"]>;
+  isRecurring: boolean;
+};
+
+type RenderEvent = EventDetail & {
+  dayIndex: number;
+  startHour: number;
+  durationHours: number;
+  compactTimeLabel: string;
   ownerInitial?: string;
   ownerCount: number;
   striped: boolean;
@@ -173,7 +184,10 @@ export function TodayDashboard(): JSX.Element {
   const [selectedCalendarFilters, setSelectedCalendarFilters] = useState<
     string[]
   >([]);
-  const [selectedEvent, setSelectedEvent] = useState<RenderEvent | null>(null);
+  const [selectedEvent, setSelectedEvent] = useState<EventDetail | null>(null);
+  const [deleteChoiceOpen, setDeleteChoiceOpen] = useState(false);
+  const [isDeletingEvent, setIsDeletingEvent] = useState(false);
+  const [eventDeleteError, setEventDeleteError] = useState<string | null>(null);
   const [isCalendarRefreshing, setIsCalendarRefreshing] = useState(false);
   const [calendarRefreshError, setCalendarRefreshError] = useState<
     string | null
@@ -378,6 +392,11 @@ export function TodayDashboard(): JSX.Element {
         striped: Boolean(event.shared && colors.length > 1),
         color: colors[0] ?? fallbackColorAt(index),
         colors,
+        providerRefs: event.providerRefs ?? [],
+        isRecurring: Boolean(
+          event.recurringEventId ||
+          event.providerRefs?.some((reference) => reference.recurringEventId),
+        ),
       };
     })
     .filter((event) => event.dayIndex >= 0);
@@ -428,6 +447,12 @@ export function TodayDashboard(): JSX.Element {
         colors,
         sourceName: sourceNames.join(", "),
         sourceNames,
+        timeLabel: "All day",
+        providerRefs: event.providerRefs ?? [],
+        isRecurring: Boolean(
+          event.recurringEventId ||
+          event.providerRefs?.some((reference) => reference.recurringEventId),
+        ),
       };
     })
     .filter((event) => eventMatchesFilter(event.sourceNames));
@@ -440,6 +465,65 @@ export function TodayDashboard(): JSX.Element {
   const currentWeather = weatherQuery.data?.configured
     ? weatherIconForCode(weatherQuery.data.weatherCode, weatherQuery.data.isDay)
     : null;
+  const writableSourceIds = new Set(
+    (calendarSourcesQuery.data?.sources ?? [])
+      .filter((source) => {
+        const account = calendarAccountsQuery.data?.accounts.find(
+          (candidate) => candidate.id === source.connectedAccountId,
+        );
+        return (
+          source.enabled &&
+          source.allowEventWrites &&
+          (source.googleAccessRole === "owner" ||
+            source.googleAccessRole === "writer") &&
+          account?.calendarWriteAccessGranted &&
+          !account.reauthorizationRequired
+        );
+      })
+      .map((source) => source.id),
+  );
+  const writableSelectedEventRefs =
+    selectedEvent?.providerRefs.filter((reference) =>
+      writableSourceIds.has(reference.sourceId),
+    ) ?? [];
+
+  const deleteSelectedEvent = async (
+    scope: "event" | "series",
+  ): Promise<void> => {
+    if (!selectedEvent || writableSelectedEventRefs.length === 0) return;
+    setIsDeletingEvent(true);
+    setEventDeleteError(null);
+    try {
+      await apiFetch("/calendar/events", {
+        method: "DELETE",
+        body: JSON.stringify({ targets: writableSelectedEventRefs, scope }),
+      });
+      await Promise.all([
+        calendarQuery.refetch(),
+        queryClient.invalidateQueries({ queryKey: ["calendar-week"] }),
+      ]);
+      setSelectedEvent(null);
+      setDeleteChoiceOpen(false);
+      setEventCreateStatus(
+        scope === "series" ? "Event series deleted." : "Event deleted.",
+      );
+    } catch (deleteError) {
+      let message = "The event could not be deleted.";
+      if (deleteError instanceof Error) {
+        try {
+          const payload = JSON.parse(deleteError.message) as {
+            message?: string;
+          };
+          message = payload.message ?? message;
+        } catch {
+          message = deleteError.message || message;
+        }
+      }
+      setEventDeleteError(message);
+    } finally {
+      setIsDeletingEvent(false);
+    }
+  };
 
   return (
     <section className="grid gap-3 md:h-[calc(100dvh-1.5rem)] md:min-h-0">
@@ -699,8 +783,15 @@ export function TodayDashboard(): JSX.Element {
                   className="border-b border-r border-[#ecebe8] p-2"
                 >
                   {event ? (
-                    <div
+                    <button
+                      type="button"
+                      aria-label={`${event.title}, All day, ${event.sourceName}`}
                       className="truncate rounded-full px-1.5 py-1 text-[11px] font-semibold text-slate-700 md:px-2 md:text-[12px] xl:px-3 xl:text-[14px]"
+                      onClick={() => {
+                        setDeleteChoiceOpen(false);
+                        setEventDeleteError(null);
+                        setSelectedEvent(event);
+                      }}
                       style={{
                         background: eventBandBackground(
                           event.colors,
@@ -709,7 +800,7 @@ export function TodayDashboard(): JSX.Element {
                       }}
                     >
                       {event.title}
-                    </div>
+                    </button>
                   ) : null}
                 </div>
               );
@@ -780,7 +871,11 @@ export function TodayDashboard(): JSX.Element {
                             aria-label={`${event.title}, ${event.timeLabel}, ${event.sourceName}`}
                             title={`${event.title} · ${event.timeLabel} · ${event.sourceName}`}
                             className="absolute z-10 min-w-0 overflow-hidden rounded-xl px-2 py-1 text-left text-slate-800 transition-shadow hover:shadow-md focus:outline-none focus:ring-2 focus:ring-sky-500"
-                            onClick={() => setSelectedEvent(event)}
+                            onClick={() => {
+                              setDeleteChoiceOpen(false);
+                              setEventDeleteError(null);
+                              setSelectedEvent(event);
+                            }}
                             style={{
                               top: offset,
                               height,
@@ -984,13 +1079,73 @@ export function TodayDashboard(): JSX.Element {
                     </div>
                   </div>
                 </div>
-                <button
-                  type="button"
-                  className="mt-6 min-h-[44px] w-full rounded-xl bg-slate-900 px-4 text-sm font-semibold text-white transition-colors hover:bg-slate-700"
-                  onClick={() => setSelectedEvent(null)}
-                >
-                  Done
-                </button>
+                {eventDeleteError ? (
+                  <p
+                    role="alert"
+                    className="mt-4 text-sm font-medium text-rose-700"
+                  >
+                    {eventDeleteError}
+                  </p>
+                ) : null}
+                {deleteChoiceOpen ? (
+                  <div className="mt-6 grid gap-2 rounded-2xl border border-rose-200 bg-rose-50 p-3">
+                    <p className="text-sm font-semibold text-rose-950">
+                      {selectedEvent.isRecurring
+                        ? "Which events should be deleted?"
+                        : "Delete this event from Google Calendar?"}
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        disabled={isDeletingEvent}
+                        className="min-h-[42px] rounded-xl bg-rose-700 px-4 text-sm font-semibold text-white disabled:opacity-50"
+                        onClick={() => void deleteSelectedEvent("event")}
+                      >
+                        {isDeletingEvent
+                          ? "Deleting..."
+                          : selectedEvent.isRecurring
+                            ? "This occurrence"
+                            : "Delete event"}
+                      </button>
+                      {selectedEvent.isRecurring ? (
+                        <button
+                          type="button"
+                          disabled={isDeletingEvent}
+                          className="min-h-[42px] rounded-xl border border-rose-300 bg-white px-4 text-sm font-semibold text-rose-800 disabled:opacity-50"
+                          onClick={() => void deleteSelectedEvent("series")}
+                        >
+                          Entire series
+                        </button>
+                      ) : null}
+                      <button
+                        type="button"
+                        disabled={isDeletingEvent}
+                        className="min-h-[42px] rounded-xl px-3 text-sm font-semibold text-slate-600"
+                        onClick={() => setDeleteChoiceOpen(false)}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
+                <div className="mt-6 flex gap-2">
+                  {writableSelectedEventRefs.length > 0 && !deleteChoiceOpen ? (
+                    <button
+                      type="button"
+                      className="min-h-[44px] rounded-xl px-4 text-sm font-semibold text-rose-700 transition-colors hover:bg-rose-50"
+                      onClick={() => setDeleteChoiceOpen(true)}
+                    >
+                      Delete
+                    </button>
+                  ) : null}
+                  <button
+                    type="button"
+                    className="min-h-[44px] flex-1 rounded-xl bg-slate-900 px-4 text-sm font-semibold text-white transition-colors hover:bg-slate-700"
+                    onClick={() => setSelectedEvent(null)}
+                  >
+                    Done
+                  </button>
+                </div>
               </div>
             </div>
           </div>

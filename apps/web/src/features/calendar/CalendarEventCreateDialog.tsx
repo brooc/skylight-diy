@@ -78,6 +78,14 @@ export function CalendarEventCreateDialog({
   const [allDay, setAllDay] = useState(false);
   const [location, setLocation] = useState("");
   const [guests, setGuests] = useState("");
+  const [repeat, setRepeat] = useState<"none" | "daily" | "weekly" | "monthly">(
+    "none",
+  );
+  const [repeatEnds, setRepeatEnds] = useState<"never" | "on_date" | "after">(
+    "never",
+  );
+  const [repeatUntil, setRepeatUntil] = useState(defaultDate);
+  const [repeatCount, setRepeatCount] = useState(10);
   const [submissionId] = useState(requestId);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -135,6 +143,15 @@ export function CalendarEventCreateDialog({
             title: title.trim(),
             location: location.trim() || undefined,
             attendees: attendees.length ? attendees : undefined,
+            recurrence:
+              repeat === "none"
+                ? undefined
+                : {
+                    frequency: repeat,
+                    ends: repeatEnds,
+                    until: repeatEnds === "on_date" ? repeatUntil : undefined,
+                    count: repeatEnds === "after" ? repeatCount : undefined,
+                  },
             allDay,
             start,
             end,
@@ -308,6 +325,81 @@ export function CalendarEventCreateDialog({
                     />
                   </label>
                 </div>
+              ) : null}
+
+              <div className="grid min-w-0 gap-3 sm:grid-cols-2">
+                <label className="grid min-w-0 gap-1">
+                  <span className="text-sm font-semibold text-slate-700">
+                    Repeat
+                  </span>
+                  <select
+                    aria-label="Repeat"
+                    value={repeat}
+                    onChange={(event) =>
+                      setRepeat(event.target.value as typeof repeat)
+                    }
+                    className="min-h-[42px] w-full min-w-0 rounded-xl border border-slate-300 bg-white px-3 text-base text-slate-950"
+                  >
+                    <option value="none">Does not repeat</option>
+                    <option value="daily">Daily</option>
+                    <option value="weekly">Weekly</option>
+                    <option value="monthly">Monthly</option>
+                  </select>
+                </label>
+                {repeat !== "none" ? (
+                  <label className="grid min-w-0 gap-1">
+                    <span className="text-sm font-semibold text-slate-700">
+                      Ends
+                    </span>
+                    <select
+                      aria-label="Repeat ends"
+                      value={repeatEnds}
+                      onChange={(event) =>
+                        setRepeatEnds(event.target.value as typeof repeatEnds)
+                      }
+                      className="min-h-[42px] w-full min-w-0 rounded-xl border border-slate-300 bg-white px-3 text-base text-slate-950"
+                    >
+                      <option value="never">Never</option>
+                      <option value="on_date">On date</option>
+                      <option value="after">After occurrences</option>
+                    </select>
+                  </label>
+                ) : null}
+              </div>
+
+              {repeat !== "none" && repeatEnds === "on_date" ? (
+                <label className="grid min-w-0 gap-1">
+                  <span className="text-sm font-semibold text-slate-700">
+                    Last date
+                  </span>
+                  <input
+                    type="date"
+                    min={date}
+                    required
+                    value={repeatUntil}
+                    onChange={(event) => setRepeatUntil(event.target.value)}
+                    className="min-h-[42px] w-full min-w-0 rounded-xl border border-slate-300 px-3 text-base text-slate-950"
+                  />
+                </label>
+              ) : null}
+
+              {repeat !== "none" && repeatEnds === "after" ? (
+                <label className="grid min-w-0 gap-1">
+                  <span className="text-sm font-semibold text-slate-700">
+                    Number of occurrences
+                  </span>
+                  <input
+                    type="number"
+                    min={2}
+                    max={365}
+                    required
+                    value={repeatCount}
+                    onChange={(event) =>
+                      setRepeatCount(Number(event.target.value))
+                    }
+                    className="min-h-[42px] w-full min-w-0 rounded-xl border border-slate-300 px-3 text-base text-slate-950"
+                  />
+                </label>
               ) : null}
 
               <label className="grid min-w-0 gap-1">

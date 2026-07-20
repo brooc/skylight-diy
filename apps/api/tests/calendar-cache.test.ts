@@ -32,6 +32,7 @@ describe("calendar cache fingerprint", () => {
 describe("shared calendar events", () => {
   const base = {
     id: "source-1:event-1",
+    providerEventId: "event-1",
     iCalUID: "shared-event@example.com",
     sourceId: "source-1",
     sourceName: "Parent",
@@ -48,6 +49,7 @@ describe("shared calendar events", () => {
       {
         ...base,
         id: "source-2:event-2",
+        providerEventId: "event-2",
         sourceId: "source-2",
         sourceName: "Kiddo",
         color: "#bee8ea"
@@ -58,7 +60,11 @@ describe("shared calendar events", () => {
     expect(events[0]).toMatchObject({
       shared: true,
       sourceNames: ["Parent", "Kiddo"],
-      colors: ["#f3cfd0", "#bee8ea"]
+      colors: ["#f3cfd0", "#bee8ea"],
+      providerRefs: [
+        { sourceId: "source-1", providerEventId: "event-1" },
+        { sourceId: "source-2", providerEventId: "event-2" }
+      ]
     });
   });
 
@@ -66,7 +72,7 @@ describe("shared calendar events", () => {
     expect(
       mergeSharedEvents([
         base,
-        { ...base, id: "source-2:event-2", iCalUID: "different@example.com" }
+        { ...base, id: "source-2:event-2", providerEventId: "event-2", iCalUID: "different@example.com" }
       ])
     ).toHaveLength(2);
   });

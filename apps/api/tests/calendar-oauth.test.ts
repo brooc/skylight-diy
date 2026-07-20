@@ -1215,6 +1215,7 @@ describe("calendar and google integration routes", () => {
               items: [
                 {
                   id: "evt-1",
+                  recurringEventId: "series-1",
                   summary: "Dentist",
                   description: "Bring insurance card",
                   location: "Main clinic",
@@ -1254,6 +1255,14 @@ describe("calendar and google integration routes", () => {
       description: "Bring insurance card",
       location: "Main clinic",
       isAllDay: false,
+      recurringEventId: "series-1",
+      providerRefs: [
+        {
+          sourceId: source.id,
+          providerEventId: "evt-1",
+          recurringEventId: "series-1",
+        },
+      ],
     });
     expect(first.json().events[1]).toMatchObject({
       sourceId: source.id,
@@ -1547,6 +1556,17 @@ describe("calendar and google integration routes", () => {
     expect(disabled.statusCode).toBe(403);
     expect(disabled.json().error).toBe("calendar_writes_disabled");
 
+    const deleteDisabled = await app.inject({
+      method: "DELETE",
+      url: "/api/calendar/events",
+      payload: {
+        targets: [{ sourceId: source.id, providerEventId: "event-id" }],
+        scope: "event",
+      },
+    });
+    expect(deleteDisabled.statusCode).toBe(403);
+    expect(deleteDisabled.json().error).toBe("calendar_writes_disabled");
+
     await app.db
       .update(calendarSources)
       .set({ allowEventWrites: true })
@@ -1620,7 +1640,7 @@ describe("calendar and google integration routes", () => {
           { status: 201, headers: { "Content-Type": "application/json" } },
         ),
       )
-      .mockResolvedValueOnce(new Response("duplicate", { status: 409 }));
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
     const payload = {
       sourceId: source.id,
       requestId: "22222222-2222-4222-8222-222222222222",
@@ -1628,6 +1648,11 @@ describe("calendar and google integration routes", () => {
       description: "Bring insurance card",
       location: "Campbell",
       attendees: ["kid@example.com"],
+      recurrence: {
+        frequency: "weekly",
+        ends: "after",
+        count: 6,
+      },
       allDay: false,
       start: "2026-07-21T17:00:00.000Z",
       end: "2026-07-21T18:00:00.000Z",
@@ -1657,6 +1682,7 @@ describe("calendar and google integration routes", () => {
       description: "Bring insurance card",
       location: "Campbell",
       attendees: [{ email: "kid@example.com" }],
+      recurrence: ["RRULE:FREQ=WEEKLY;COUNT=6"],
       start: {
         dateTime: "2026-07-21T17:00:00.000Z",
         timeZone: "America/Los_Angeles",
@@ -1683,6 +1709,44 @@ describe("calendar and google integration routes", () => {
         title: "Dentist",
       },
     ]);
+
+    await app.db.insert(calendarEventCache).values({
+      householdId: setup.household.id,
+      cacheKey: "event-delete-cache",
+      rangeStart: new Date("2026-07-21T00:00:00.000Z"),
+      rangeEnd: new Date("2026-07-22T00:00:00.000Z"),
+      timezone: "America/Los_Angeles",
+      sourceFingerprint: source.id,
+      payloadJsonb: { events: [] },
+      fetchedAt: new Date(),
+      expiresAt: new Date(Date.now() + 60_000),
+      staleUntil: new Date(Date.now() + 120_000),
+    });
+    const deleted = await app.inject({
+      method: "DELETE",
+      url: "/api/calendar/events",
+      payload: {
+        scope: "series",
+        targets: [
+          {
+            sourceId: source.id,
+            providerEventId: "recurring-instance-id",
+            recurringEventId: "recurring-master-id",
+          },
+        ],
+      },
+    });
+    expect(deleted.statusCode).toBe(200);
+    expect(deleted.json()).toMatchObject({
+      deleted: true,
+      scope: "series",
+      events: [{ sourceId: source.id, providerEventId: "recurring-master-id" }],
+    });
+    expect(fetchSpy.mock.calls[1]?.[0].toString()).toContain(
+      "/events/recurring-master-id?sendUpdates=all",
+    );
+    expect(fetchSpy.mock.calls[1]?.[1]?.method).toBe("DELETE");
+    expect(await app.db.select().from(calendarEventCache)).toHaveLength(0);
   });
 });
 

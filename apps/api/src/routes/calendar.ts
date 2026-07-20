@@ -69,6 +69,14 @@ const calendarEventBodySchema = z
     allDay: z.boolean(),
     start: z.string().min(1),
     end: z.string().min(1),
+    recurrence: z
+      .object({
+        frequency: z.enum(["daily", "weekly", "monthly"]),
+        ends: z.enum(["never", "on_date", "after"]),
+        until: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+        count: z.number().int().min(2).max(365).optional()
+      })
+      .optional(),
     timezone: z.string().min(1).refine((timezone) => {
       try {
         new Intl.DateTimeFormat("en-US", { timeZone: timezone });
@@ -79,6 +87,32 @@ const calendarEventBodySchema = z
     }, "Invalid IANA timezone.")
   })
   .superRefine((event, context) => {
+    if (event.recurrence?.ends === "on_date" && !event.recurrence.until) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Recurring events ending on a date require an end date.",
+        path: ["recurrence", "until"]
+      });
+    }
+    if (event.recurrence?.ends === "after" && !event.recurrence.count) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Recurring events ending after occurrences require a count.",
+        path: ["recurrence", "count"]
+      });
+    }
+    const eventStartDate = event.start.slice(0, 10);
+    if (
+      event.recurrence?.ends === "on_date" &&
+      event.recurrence.until &&
+      event.recurrence.until < eventStartDate
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "The recurrence end date cannot be before the event date.",
+        path: ["recurrence", "until"]
+      });
+    }
     if (event.allDay) {
       const datePattern = /^\d{4}-\d{2}-\d{2}$/;
       if (!datePattern.test(event.start) || !datePattern.test(event.end)) {
@@ -128,6 +162,15 @@ const calendarEventBodySchema = z
     }
   });
 
+const deleteCalendarEventsBodySchema = z.object({
+  targets: z.array(z.object({
+    sourceId: z.string().uuid(),
+    providerEventId: z.string().min(1).max(1024),
+    recurringEventId: z.string().min(1).max(1024).optional()
+  })).min(1).max(25),
+  scope: z.enum(["event", "series"]).default("event")
+});
+
 type GoogleCalendarCandidate = {
   externalCalendarId: string;
   displayName: string;
@@ -156,9 +199,60 @@ type GoogleEventItem = {
   description?: string;
   location?: string;
   status?: string;
+  recurringEventId?: string;
   start?: { date?: string; dateTime?: string };
   end?: { date?: string; dateTime?: string };
 };
+
+function dateFromDateKeyInTimeZone(
+  dateKey: string,
+  timeZone: string,
+  hour: number,
+  minute: number,
+  second: number
+): Date {
+  const [year, month, day] = dateKey.split("-").map(Number);
+  const target = Date.UTC(year!, month! - 1, day!, hour, minute, second);
+  const formatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23"
+  });
+  let result = target;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const parts = new Map(
+      formatter.formatToParts(new Date(result)).map((part) => [part.type, part.value])
+    );
+    const represented = Date.UTC(
+      Number(parts.get("year")),
+      Number(parts.get("month")) - 1,
+      Number(parts.get("day")),
+      Number(parts.get("hour")),
+      Number(parts.get("minute")),
+      Number(parts.get("second"))
+    );
+    result += target - represented;
+  }
+  return new Date(result);
+}
+
+function googleRecurrenceRule(
+  recurrence: NonNullable<z.infer<typeof calendarEventBodySchema>["recurrence"]>,
+  timeZone: string
+): string {
+  const parts = [`RRULE:FREQ=${recurrence.frequency.toUpperCase()}`];
+  if (recurrence.ends === "after") parts.push(`COUNT=${recurrence.count}`);
+  if (recurrence.ends === "on_date" && recurrence.until) {
+    const until = dateFromDateKeyInTimeZone(recurrence.until, timeZone, 23, 59, 59);
+    parts.push(`UNTIL=${until.toISOString().replace(/[-:]/g, "").replace(/\.000Z$/, "Z")}`);
+  }
+  return parts.join(";");
+}
 
 type GoogleEventLoadResult =
   | { ok: true; items: GoogleEventItem[] }
@@ -912,6 +1006,9 @@ export const calendarRoutes: FastifyPluginAsync = async (app) => {
             attendees: parsed.data.attendees.map((email) => ({ email }))
           }
         : {}),
+      ...(parsed.data.recurrence
+        ? { recurrence: [googleRecurrenceRule(parsed.data.recurrence, parsed.data.timezone)] }
+        : {}),
       start: parsed.data.allDay
         ? { date: parsed.data.start }
         : { dateTime: parsed.data.start, timeZone: parsed.data.timezone },
@@ -1011,6 +1108,143 @@ export const calendarRoutes: FastifyPluginAsync = async (app) => {
       htmlLink,
       sourceId: destination.sourceId
     });
+  });
+
+  app.delete("/calendar/events", async (request, reply) => {
+    const parsed = deleteCalendarEventsBodySchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.status(400).send({
+        error: "invalid_calendar_event_delete",
+        details: parsed.error.flatten()
+      });
+    }
+
+    const [household] = await app.db.select().from(households).limit(1);
+    if (!household) {
+      return reply.status(404).send({ error: "setup_not_completed" });
+    }
+
+    const uniqueTargets = Array.from(
+      new Map(parsed.data.targets.map((target) => [
+        `${target.sourceId}:${target.providerEventId}`,
+        target
+      ])).values()
+    );
+    const deleted: Array<{ sourceId: string; providerEventId: string }> = [];
+
+    for (const target of uniqueTargets) {
+      const [destination] = await app.db
+        .select({
+          sourceId: calendarSources.id,
+          externalCalendarId: calendarSources.externalCalendarId,
+          displayName: calendarSources.displayName,
+          enabled: calendarSources.enabled,
+          allowEventWrites: calendarSources.allowEventWrites,
+          googleAccessRole: calendarSources.googleAccessRole,
+          accountId: connectedAccounts.id,
+          encryptedAccessToken: connectedAccounts.encryptedAccessToken,
+          encryptedRefreshToken: connectedAccounts.encryptedRefreshToken,
+          accessTokenExpiresAt: connectedAccounts.accessTokenExpiresAt,
+          scopes: connectedAccounts.scopes
+        })
+        .from(calendarSources)
+        .innerJoin(
+          connectedAccounts,
+          eq(calendarSources.connectedAccountId, connectedAccounts.id)
+        )
+        .where(and(
+          eq(calendarSources.id, target.sourceId),
+          eq(calendarSources.householdId, household.id),
+          eq(connectedAccounts.provider, "google")
+        ))
+        .limit(1);
+
+      if (!destination) {
+        return reply.status(404).send({ error: "calendar_source_not_found" });
+      }
+      if (!destination.enabled || !destination.allowEventWrites) {
+        return reply.status(403).send({
+          error: "calendar_writes_disabled",
+          message: `Event deletion is disabled for "${destination.displayName}" in Daymark settings.`
+        });
+      }
+      if (!isGoogleCalendarWritable(destination.googleAccessRole)) {
+        return reply.status(403).send({
+          error: "google_calendar_not_writable",
+          message: `Google only allows viewing events on "${destination.displayName}".`
+        });
+      }
+      if (!hasGoogleCalendarWriteScope(destination.scopes)) {
+        return reply.status(409).send({
+          error: "google_write_authorization_required",
+          message: "Reconnect this Google account and allow event changes."
+        });
+      }
+
+      const token = await requireGoogleAccessToken(app, {
+        id: destination.accountId,
+        encryptedAccessToken: destination.encryptedAccessToken,
+        encryptedRefreshToken: destination.encryptedRefreshToken,
+        accessTokenExpiresAt: destination.accessTokenExpiresAt,
+        scopes: destination.scopes
+      });
+      if (!token.ok) {
+        return reply
+          .status(token.reauthorizationRequired ? 409 : 502)
+          .send({ error: token.error, message: token.message });
+      }
+
+      const providerEventId = parsed.data.scope === "series"
+        ? target.recurringEventId ?? target.providerEventId
+        : target.providerEventId;
+      const deleteUrl = new URL(
+        `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(destination.externalCalendarId)}/events/${encodeURIComponent(providerEventId)}`
+      );
+      deleteUrl.searchParams.set("sendUpdates", "all");
+
+      let googleResponse: Response;
+      try {
+        googleResponse = await fetch(deleteUrl, {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${token.accessToken}` }
+        });
+      } catch {
+        return reply.status(502).send({
+          error: "google_event_delete_request_failed",
+          message: "Google Calendar could not be reached. Try again."
+        });
+      }
+      if (googleResponse.status === 401) {
+        await app.db
+          .update(connectedAccounts)
+          .set({ reauthorizationRequired: true, updatedAt: new Date() })
+          .where(eq(connectedAccounts.id, destination.accountId));
+        return reply.status(409).send({
+          error: "google_reauthorization_required",
+          message: "Reconnect this Google account before deleting events."
+        });
+      }
+      if (googleResponse.status === 403) {
+        return reply.status(403).send({
+          error: "google_calendar_not_writable",
+          message: `Google does not allow this account to delete events from "${destination.displayName}".`
+        });
+      }
+      if (!googleResponse.ok && googleResponse.status !== 404 && googleResponse.status !== 410) {
+        return reply.status(502).send({
+          error: "google_event_delete_failed",
+          message: "Google Calendar did not delete the event. Try again.",
+          statusCode: googleResponse.status
+        });
+      }
+      deleted.push({ sourceId: destination.sourceId, providerEventId });
+    }
+
+    await app.db
+      .delete(calendarEventCache)
+      .where(eq(calendarEventCache.householdId, household.id));
+
+    return { deleted: true, scope: parsed.data.scope, events: deleted };
   });
 
   app.get("/calendar/events", async (request, reply) => {
@@ -1206,6 +1440,8 @@ export const calendarRoutes: FastifyPluginAsync = async (app) => {
           const isAllDay = Boolean(item.start?.date && !item.start?.dateTime);
           sourceEvents.push({
             id: `${source.id}:${item.id ?? start}`,
+            providerEventId: item.id ?? start,
+            recurringEventId: item.recurringEventId,
             iCalUID: item.iCalUID,
             sourceId: source.id,
             title: item.summary || "Untitled event",

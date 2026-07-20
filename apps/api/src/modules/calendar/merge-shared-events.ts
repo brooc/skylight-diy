@@ -1,5 +1,7 @@
 export type SourceCalendarEvent = {
   id: string;
+  providerEventId: string;
+  recurringEventId?: string;
   iCalUID?: string;
   sourceId: string;
   sourceName: string;
@@ -17,6 +19,11 @@ export type MergedCalendarEvent = SourceCalendarEvent & {
   sourceNames: string[];
   colors: string[];
   shared: boolean;
+  providerRefs: Array<{
+    sourceId: string;
+    providerEventId: string;
+    recurringEventId?: string;
+  }>;
 };
 
 export function mergeSharedEvents(events: SourceCalendarEvent[]): MergedCalendarEvent[] {
@@ -33,7 +40,12 @@ export function mergeSharedEvents(events: SourceCalendarEvent[]): MergedCalendar
         sourceIds: [event.sourceId],
         sourceNames: [event.sourceName],
         colors: event.color ? [event.color] : [],
-        shared: false
+        shared: false,
+        providerRefs: [{
+          sourceId: event.sourceId,
+          providerEventId: event.providerEventId,
+          recurringEventId: event.recurringEventId
+        }]
       });
       continue;
     }
@@ -41,6 +53,15 @@ export function mergeSharedEvents(events: SourceCalendarEvent[]): MergedCalendar
     if (!existing.sourceIds.includes(event.sourceId)) existing.sourceIds.push(event.sourceId);
     if (!existing.sourceNames.includes(event.sourceName)) existing.sourceNames.push(event.sourceName);
     if (event.color && !existing.colors.includes(event.color)) existing.colors.push(event.color);
+    if (!existing.providerRefs.some((reference) =>
+      reference.sourceId === event.sourceId && reference.providerEventId === event.providerEventId
+    )) {
+      existing.providerRefs.push({
+        sourceId: event.sourceId,
+        providerEventId: event.providerEventId,
+        recurringEventId: event.recurringEventId
+      });
+    }
     existing.sourceName = existing.sourceNames.join(", ");
     existing.shared = existing.sourceIds.length > 1;
     existing.description ||= event.description;
