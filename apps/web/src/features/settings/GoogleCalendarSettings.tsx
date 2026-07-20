@@ -12,6 +12,7 @@ type AccountsResponse = {
     email?: string | null;
     reauthorizationRequired: boolean;
     calendarAccessGranted: boolean;
+    calendarWriteAccessGranted: boolean;
   }>;
 };
 
@@ -23,6 +24,7 @@ type SourcesResponse = {
     displayName: string;
     color?: string | null;
     enabled: boolean;
+    allowEventWrites: boolean;
     personId?: string | null;
     personName?: string | null;
   }>;
@@ -52,6 +54,7 @@ type CalendarSource = SourcesResponse["sources"][number];
 
 type SourcePatch = {
   enabled?: boolean;
+  allowEventWrites?: boolean;
   personId?: string | null;
   displayName?: string;
   color?: string | null;
@@ -259,6 +262,34 @@ function CalendarSourceCard({
             </option>
           ))}
         </select>
+      </label>
+      <label className="flex min-h-[44px] items-start gap-3 rounded-md border border-[#e4dbcc] bg-[#fffaf1] px-3 py-2">
+        <input
+          type="checkbox"
+          checked={source.allowEventWrites}
+          disabled={isBusy}
+          className="mt-1"
+          onChange={async (event) => {
+            setSourceError(null);
+            try {
+              await onPatch(source.id, {
+                allowEventWrites: event.target.checked,
+              });
+            } catch (error) {
+              setSourceError(
+                getErrorMessage(error, "Failed to update event permission."),
+              );
+            }
+          }}
+        />
+        <span>
+          <span className="block text-sm font-semibold text-slate-800">
+            Allow Daymark to add events
+          </span>
+          <span className="block text-xs text-slate-600">
+            Keep this off for calendars family members should only view.
+          </span>
+        </span>
       </label>
       <div className="flex justify-end border-t border-[#ece6db] pt-3">
         <button
@@ -792,11 +823,14 @@ export function GoogleCalendarSettings(): JSX.Element {
                     : "s"}
                 </div>
                 {!account.calendarAccessGranted ||
+                !account.calendarWriteAccessGranted ||
                 account.reauthorizationRequired ? (
                   <div className="mt-1 text-xs font-medium text-amber-700">
                     {account.reauthorizationRequired
                       ? "Reconnect required"
-                      : "Calendar access required"}
+                      : !account.calendarAccessGranted
+                        ? "Calendar access required"
+                        : "Event creation permission required"}
                   </div>
                 ) : null}
               </div>
@@ -816,6 +850,7 @@ export function GoogleCalendarSettings(): JSX.Element {
                     : "Choose calendars"}
                 </button>
                 {!account.calendarAccessGranted ||
+                !account.calendarWriteAccessGranted ||
                 account.reauthorizationRequired ? (
                   <button
                     type="button"
@@ -823,7 +858,10 @@ export function GoogleCalendarSettings(): JSX.Element {
                     className="min-h-[40px] rounded-md bg-amber-100 px-3 py-2 text-sm font-semibold text-amber-900 disabled:opacity-50"
                     onClick={() => void startGoogleConnection(account.id)}
                   >
-                    Reconnect
+                    {!account.calendarAccessGranted ||
+                    account.reauthorizationRequired
+                      ? "Reconnect"
+                      : "Allow event creation"}
                   </button>
                 ) : null}
                 <details className="relative">
@@ -899,7 +937,8 @@ export function GoogleCalendarSettings(): JSX.Element {
         </h3>
         <p className="text-xs text-slate-600">
           Disable calendars temporarily, stop tracking calendars you no longer
-          want, or assign them to a person.
+          want, assign them to a person, or choose which calendars Daymark may
+          write to.
         </p>
         {sources.length === 0 ? (
           <p className="text-sm text-slate-600">

@@ -191,6 +191,7 @@ describe("GoogleCalendarSettings", () => {
               email: "family@example.com",
               reauthorizationRequired: false,
               calendarAccessGranted: true,
+              calendarWriteAccessGranted: true,
             },
           ],
         });
@@ -240,6 +241,7 @@ describe("GoogleCalendarSettings", () => {
               email: "family@example.com",
               reauthorizationRequired: true,
               calendarAccessGranted: false,
+              calendarWriteAccessGranted: false,
             },
           ],
         });
@@ -324,6 +326,7 @@ describe("GoogleCalendarSettings", () => {
               email: "family@example.com",
               reauthorizationRequired: false,
               calendarAccessGranted: true,
+              calendarWriteAccessGranted: true,
             },
             {
               id: "account-2",
@@ -332,6 +335,7 @@ describe("GoogleCalendarSettings", () => {
               email: "work@example.com",
               reauthorizationRequired: false,
               calendarAccessGranted: true,
+              calendarWriteAccessGranted: true,
             },
           ],
         });
@@ -413,6 +417,7 @@ describe("GoogleCalendarSettings", () => {
                   email: "family@example.com",
                   reauthorizationRequired: false,
                   calendarAccessGranted: true,
+                  calendarWriteAccessGranted: true,
                 },
               ],
         });

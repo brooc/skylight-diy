@@ -1,15 +1,28 @@
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { FastifyInstance } from "fastify";
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 import { GoogleCalendarSettings } from "../src/features/settings/GoogleCalendarSettings";
-import { calendarSources, connectedAccounts, households } from "../../../packages/db/src/index";
+import {
+  calendarSources,
+  connectedAccounts,
+  households,
+} from "../../../packages/db/src/index";
 import { encryptToken } from "../../api/src/modules/integrations/token-crypto";
 import {
   createRealApiApp,
   installRealApiFetch,
   resetRealApiApp,
-  unlockRealApiAdmin
+  unlockRealApiAdmin,
 } from "./helpers/real-api";
 import { renderWithProviders } from "./helpers/test-utils";
 
@@ -38,7 +51,7 @@ describe("GoogleCalendarSettings with the real API", () => {
     await app.close();
   });
 
-  it("edits connected source visibility, label, color, and assignment", async () => {
+  it("edits connected source visibility, write permission, label, color, and assignment", async () => {
     const [household] = await app.db.select().from(households).limit(1);
     const [account] = await app.db
       .insert(connectedAccounts)
@@ -48,7 +61,7 @@ describe("GoogleCalendarSettings with the real API", () => {
         providerAccountId: "google-1",
         displayName: "Google Calendar",
         email: "family@example.com",
-        scopes: ["https://www.googleapis.com/auth/calendar.readonly"]
+        scopes: ["https://www.googleapis.com/auth/calendar.readonly"],
       })
       .returning();
     await app.db.insert(calendarSources).values({
@@ -59,7 +72,7 @@ describe("GoogleCalendarSettings with the real API", () => {
       displayName: "Family Calendar",
       color: "#8ec5b8",
       enabled: true,
-      sortOrder: 0
+      sortOrder: 0,
     });
 
     renderWithProviders(<GoogleCalendarSettings />, { route: "/settings" });
@@ -69,8 +82,21 @@ describe("GoogleCalendarSettings with the real API", () => {
     expect(screen.getAllByText("family@example.com")).toHaveLength(2);
     expect(await screen.findByText("Family Calendar")).toBeInTheDocument();
 
+    const writePermission = screen.getByRole("checkbox", {
+      name: /Allow Daymark to add events/,
+    });
+    expect(writePermission).not.toBeChecked();
+    await user.click(writePermission);
+    await waitFor(() => expect(writePermission).toBeChecked());
+    const [writableSource] = await app.db.select().from(calendarSources);
+    expect(writableSource.allowEventWrites).toBe(true);
+
     await user.click(screen.getAllByRole("button", { name: "Enabled" })[0]!);
-    await waitFor(() => expect(screen.getByRole("button", { name: "Disabled" })).toBeInTheDocument());
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "Disabled" }),
+      ).toBeInTheDocument(),
+    );
 
     const firstNameInput = screen.getAllByLabelText("Source name")[0]!;
     await user.clear(firstNameInput);
@@ -81,18 +107,30 @@ describe("GoogleCalendarSettings with the real API", () => {
     await user.click(screen.getAllByRole("button", { name: "Save" })[0]!);
 
     expect(await screen.findByText("Family Room")).toBeInTheDocument();
-    expect(screen.getAllByLabelText("Source name")[0]).toHaveValue("Family Room");
+    expect(screen.getAllByLabelText("Source name")[0]).toHaveValue(
+      "Family Room",
+    );
     expect(screen.getAllByLabelText("Color")[0]).toHaveValue("#f7d8d4");
 
     const firstPersonSelect = screen.getAllByLabelText("Assigned person")[0]!;
-    const parentOption = within(firstPersonSelect).getByRole("option", { name: "Parent" });
+    const parentOption = within(firstPersonSelect).getByRole("option", {
+      name: "Parent",
+    });
     await user.selectOptions(firstPersonSelect, parentOption);
-    await waitFor(() => expect(firstPersonSelect).toHaveValue(parentOption.getAttribute("value")));
+    await waitFor(() =>
+      expect(firstPersonSelect).toHaveValue(parentOption.getAttribute("value")),
+    );
 
     vi.spyOn(window, "confirm").mockReturnValue(true);
-    await user.click(screen.getByRole("button", { name: "Stop tracking Family Room" }));
-    expect(await screen.findByText("Family Room is no longer tracked.")).toBeInTheDocument();
-    expect(await screen.findByText("Import calendars to configure sources.")).toBeInTheDocument();
+    await user.click(
+      screen.getByRole("button", { name: "Stop tracking Family Room" }),
+    );
+    expect(
+      await screen.findByText("Family Room is no longer tracked."),
+    ).toBeInTheDocument();
+    expect(
+      await screen.findByText("Import calendars to configure sources."),
+    ).toBeInTheDocument();
     expect(await app.db.select().from(calendarSources)).toHaveLength(0);
   });
 
@@ -105,26 +143,40 @@ describe("GoogleCalendarSettings with the real API", () => {
       displayName: "Family Gmail",
       email: "family@example.com",
       encryptedAccessToken: encryptToken("google-access-token"),
-      scopes: ["openid", "email", "https://www.googleapis.com/auth/calendar.readonly"]
+      scopes: [
+        "openid",
+        "email",
+        "https://www.googleapis.com/auth/calendar.readonly",
+      ],
     });
     restoreFetch?.();
     restoreFetch = installRealApiFetch(app, {
       cookie: adminCookie,
-      externalFetch: async () => new Response(JSON.stringify({
-        items: [
-          { id: "family", summary: "Family", backgroundColor: "#8ec5b8" },
-          { id: "school", summary: "School", backgroundColor: "#dca1b4" },
-          { id: "holidays", summary: "Holidays", backgroundColor: "#b7abd8" }
-        ]
-      }), {
-        status: 200,
-        headers: { "Content-Type": "application/json" }
-      })
+      externalFetch: async () =>
+        new Response(
+          JSON.stringify({
+            items: [
+              { id: "family", summary: "Family", backgroundColor: "#8ec5b8" },
+              { id: "school", summary: "School", backgroundColor: "#dca1b4" },
+              {
+                id: "holidays",
+                summary: "Holidays",
+                backgroundColor: "#b7abd8",
+              },
+            ],
+          }),
+          {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          },
+        ),
     });
 
     renderWithProviders(<GoogleCalendarSettings />, { route: "/settings" });
     const user = userEvent.setup();
-    await user.click(await screen.findByRole("button", { name: "Choose calendars" }));
+    await user.click(
+      await screen.findByRole("button", { name: "Choose calendars" }),
+    );
 
     const family = await screen.findByRole("checkbox", { name: "Family" });
     const school = screen.getByRole("checkbox", { name: "School" });
@@ -143,7 +195,7 @@ describe("GoogleCalendarSettings with the real API", () => {
       externalCalendarId: "school",
       displayName: "School",
       enabled: true,
-      personId: null
+      personId: null,
     });
   });
 });

@@ -13,6 +13,11 @@ import { ErrorState } from "../../components/ErrorState";
 import { LoadingState } from "../../components/LoadingState";
 import { CalendarStatusBadge } from "../calendar/CalendarStatusBadge";
 import {
+  CalendarEventCreateDialog,
+  type CalendarEventAccount,
+  type CalendarEventSource,
+} from "../calendar/CalendarEventCreateDialog";
+import {
   dateFromDateKeyInTimeZone,
   dateKeyInTimeZone,
   shiftDateKey,
@@ -75,6 +80,14 @@ type CalendarResponse = {
     colors?: string[];
     shared?: boolean;
   }>;
+};
+
+type CalendarAccountsResponse = {
+  accounts: CalendarEventAccount[];
+};
+
+type CalendarSourcesResponse = {
+  sources: CalendarEventSource[];
 };
 
 type MealsResponse = {
@@ -152,6 +165,10 @@ export function TodayDashboard(): JSX.Element {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
+  const [isAddEventOpen, setIsAddEventOpen] = useState(false);
+  const [eventCreateStatus, setEventCreateStatus] = useState<string | null>(
+    null,
+  );
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [selectedCalendarFilters, setSelectedCalendarFilters] = useState<
     string[]
@@ -193,6 +210,14 @@ export function TodayDashboard(): JSX.Element {
     queryFn: () => apiFetch<MealsResponse>("/meals/week"),
     refetchInterval: DASHBOARD_AUTO_REFRESH_MS,
     refetchIntervalInBackground: true,
+  });
+  const calendarAccountsQuery = useQuery({
+    queryKey: ["calendar-accounts"],
+    queryFn: () => apiFetch<CalendarAccountsResponse>("/calendar/accounts"),
+  });
+  const calendarSourcesQuery = useQuery({
+    queryKey: ["calendar-sources"],
+    queryFn: () => apiFetch<CalendarSourcesResponse>("/calendar/sources"),
   });
   const todayKey = dateKeyInTimeZone(now, timezone);
   const currentWeekStartKey = startOfWeekDateKey(
@@ -814,6 +839,17 @@ export function TodayDashboard(): JSX.Element {
             <button
               type="button"
               className="min-h-[40px] rounded-md bg-[#f6f7f9] px-3 text-left text-sm font-semibold text-slate-800 hover:bg-[#ebedf0]"
+              onClick={() => {
+                setIsAddMenuOpen(false);
+                setEventCreateStatus(null);
+                setIsAddEventOpen(true);
+              }}
+            >
+              Add event
+            </button>
+            <button
+              type="button"
+              className="min-h-[40px] rounded-md bg-[#f6f7f9] px-3 text-left text-sm font-semibold text-slate-800 hover:bg-[#ebedf0]"
               onClick={() => navigate("/chores?add=1")}
             >
               Add task
@@ -832,10 +868,37 @@ export function TodayDashboard(): JSX.Element {
             >
               Add meal
             </button>
-            <div className="rounded-md border border-[#ecebe8] px-3 py-2 text-xs text-slate-500">
-              Event creation from calendar is coming in a later version.
-            </div>
           </div>
+        ) : null}
+        {eventCreateStatus ? (
+          <div
+            role="status"
+            className="absolute bottom-5 left-1/2 z-40 -translate-x-1/2 rounded-full bg-emerald-800 px-4 py-2 text-sm font-semibold text-white shadow-lg"
+          >
+            {eventCreateStatus}
+          </div>
+        ) : null}
+        {isAddEventOpen ? (
+          <CalendarEventCreateDialog
+            accounts={calendarAccountsQuery.data?.accounts ?? []}
+            sources={calendarSourcesQuery.data?.sources ?? []}
+            timezone={timezone}
+            defaultDate={todayKey}
+            loading={
+              calendarAccountsQuery.isLoading || calendarSourcesQuery.isLoading
+            }
+            onClose={() => setIsAddEventOpen(false)}
+            onCreated={async (message) => {
+              await Promise.all([
+                calendarQuery.refetch(),
+                queryClient.invalidateQueries({
+                  queryKey: ["calendar-week"],
+                }),
+              ]);
+              setEventCreateStatus(message);
+              setIsAddEventOpen(false);
+            }}
+          />
         ) : null}
         {selectedEvent ? (
           <div

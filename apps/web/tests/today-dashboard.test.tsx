@@ -413,6 +413,92 @@ describe("TodayDashboard", () => {
     expect(screen.getByText("Calendars")).toBeInTheDocument();
   });
 
+  it("creates an event in an explicitly writable calendar", async () => {
+    const [household] = await app.db.select().from(households).limit(1);
+    const [account] = await app.db
+      .insert(connectedAccounts)
+      .values({
+        householdId: household.id,
+        provider: "google",
+        providerAccountId: "google-event-ui-test",
+        displayName: "Family Gmail",
+        email: "family@example.com",
+        encryptedAccessToken: encryptToken("test-access-token"),
+        scopes: [
+          "https://www.googleapis.com/auth/calendar.readonly",
+          "https://www.googleapis.com/auth/calendar.events",
+        ],
+      })
+      .returning();
+    await app.db.insert(calendarSources).values({
+      householdId: household.id,
+      connectedAccountId: account.id,
+      provider: "google",
+      externalCalendarId: "family@example.com",
+      displayName: "Family",
+      enabled: true,
+      allowEventWrites: true,
+      sortOrder: 0,
+    });
+    let createdBody: Record<string, unknown> | null = null;
+    let createCalls = 0;
+    let calendarReadCalls = 0;
+    restoreFetch?.();
+    restoreFetch = installRealApiFetch(app, {
+      externalFetch: async (_input, init) => {
+        if (init?.method === "POST") {
+          createCalls += 1;
+          createdBody = JSON.parse(String(init.body));
+          return new Response(
+            JSON.stringify({
+              id: "created-event",
+              htmlLink: "https://example.com",
+            }),
+            { status: 201, headers: { "Content-Type": "application/json" } },
+          );
+        }
+        calendarReadCalls += 1;
+        return new Response(JSON.stringify({ items: [] }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      },
+    });
+
+    renderTodayDashboard();
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: "Add" }));
+    await user.click(await screen.findByRole("button", { name: "Add event" }));
+
+    const dialog = await screen.findByRole("dialog", { name: "Add event" });
+    expect(
+      within(dialog).getByRole("option", {
+        name: "Family — family@example.com",
+      }),
+    ).toBeInTheDocument();
+    await user.type(within(dialog).getByLabelText("Event title"), "Dentist");
+    await user.clear(within(dialog).getByLabelText("Start time"));
+    await user.type(within(dialog).getByLabelText("Start time"), "10:30");
+    await user.clear(within(dialog).getByLabelText("End time"));
+    await user.type(within(dialog).getByLabelText("End time"), "11:15");
+    await user.type(within(dialog).getByLabelText(/Location/), "Campbell");
+    await user.type(within(dialog).getByLabelText(/Guests/), "kid@example.com");
+    await user.click(within(dialog).getByRole("button", { name: "Add event" }));
+
+    expect(
+      await screen.findByText("Event added to calendar."),
+    ).toBeInTheDocument();
+    expect(createCalls).toBe(1);
+    expect(calendarReadCalls).toBeGreaterThanOrEqual(2);
+    expect(createdBody).toMatchObject({
+      summary: "Dentist",
+      location: "Campbell",
+      attendees: [{ email: "kid@example.com" }],
+      start: { timeZone: "America/Los_Angeles" },
+      end: { timeZone: "America/Los_Angeles" },
+    });
+  });
+
   it("opens add actions and navigates to the task quick-add route", async () => {
     renderTodayDashboard();
     const user = userEvent.setup();
