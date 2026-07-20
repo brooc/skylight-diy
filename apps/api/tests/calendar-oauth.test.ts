@@ -1660,6 +1660,26 @@ describe("calendar and google integration routes", () => {
       timezone: "America/Los_Angeles",
     };
 
+    const tooEarlyRecurrenceEnd = await app.inject({
+      method: "POST",
+      url: "/api/calendar/events",
+      payload: {
+        ...payload,
+        requestId: "33333333-3333-4333-8333-333333333333",
+        recurrence: {
+          frequency: "weekly",
+          ends: "on_date",
+          days: ["TU", "WE"],
+          until: "2026-07-22",
+        },
+      },
+    });
+    expect(tooEarlyRecurrenceEnd.statusCode).toBe(400);
+    expect(tooEarlyRecurrenceEnd.json().details.fieldErrors.recurrence).toContain(
+      "The recurrence end date must be 2026-07-23 or later.",
+    );
+    expect(fetchSpy).not.toHaveBeenCalled();
+
     const created = await app.inject({
       method: "POST",
       url: "/api/calendar/events",

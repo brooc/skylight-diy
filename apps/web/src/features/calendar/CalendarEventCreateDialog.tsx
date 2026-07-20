@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { apiFetch } from "../../api/client";
 import { dateFromDateKeyInTimeZone, shiftDateKey } from "./dateKeys";
@@ -34,6 +34,16 @@ type Props = {
 
 type WeekdayCode = "MO" | "TU" | "WE" | "TH" | "FR" | "SA" | "SU";
 
+const weekdayIndex: Record<WeekdayCode, number> = {
+  SU: 0,
+  MO: 1,
+  TU: 2,
+  WE: 3,
+  TH: 4,
+  FR: 5,
+  SA: 6,
+};
+
 const weekdays: Array<{ code: WeekdayCode; label: string; short: string }> = [
   { code: "MO", label: "Monday", short: "M" },
   { code: "TU", label: "Tuesday", short: "T" },
@@ -47,6 +57,21 @@ const weekdays: Array<{ code: WeekdayCode; label: string; short: string }> = [
 function weekdayForDate(dateKey: string): WeekdayCode {
   const codes: WeekdayCode[] = ["SU", "MO", "TU", "WE", "TH", "FR", "SA"];
   return codes[new Date(`${dateKey}T00:00:00.000Z`).getUTCDay()] ?? "MO";
+}
+
+export function minimumRecurrenceUntil(
+  dateKey: string,
+  frequency: "daily" | "weekly" | "monthly",
+  days: WeekdayCode[],
+): string {
+  if (frequency !== "weekly" || days.length === 0) {
+    return shiftDateKey(dateKey, 1);
+  }
+  const startDay = new Date(`${dateKey}T00:00:00.000Z`).getUTCDay();
+  const finalOffset = Math.max(
+    ...days.map((day) => (weekdayIndex[day] - startDay + 7) % 7),
+  );
+  return shiftDateKey(dateKey, finalOffset + 1);
 }
 
 function requestId(): string {
@@ -130,6 +155,17 @@ export function CalendarEventCreateDialog({
   const [submissionId] = useState(requestId);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const minimumRepeatUntil = minimumRecurrenceUntil(
+    date,
+    repeat === "none" ? "daily" : repeat,
+    weeklyDays,
+  );
+
+  useEffect(() => {
+    if (repeatEnds === "on_date" && repeatUntil < minimumRepeatUntil) {
+      setRepeatUntil(minimumRepeatUntil);
+    }
+  }, [minimumRepeatUntil, repeatEnds, repeatUntil]);
 
   const submit = async (): Promise<void> => {
     if (!sourceId || !title.trim()) return;
@@ -483,19 +519,26 @@ export function CalendarEventCreateDialog({
               ) : null}
 
               {repeat !== "none" && repeatEnds === "on_date" ? (
-                <label className="grid min-w-0 gap-1">
-                  <span className="text-sm font-semibold text-slate-700">
+                <div className="grid min-w-0 gap-1">
+                  <label
+                    htmlFor="calendar-repeat-until"
+                    className="text-sm font-semibold text-slate-700"
+                  >
                     Last date
-                  </span>
+                  </label>
                   <input
+                    id="calendar-repeat-until"
                     type="date"
-                    min={date}
+                    min={minimumRepeatUntil}
                     required
                     value={repeatUntil}
                     onChange={(event) => setRepeatUntil(event.target.value)}
                     className="min-h-[42px] w-full min-w-0 rounded-xl border border-slate-300 px-3 text-base text-slate-950"
                   />
-                </label>
+                  <span className="text-xs text-slate-500">
+                    Must be after the first repeat cycle.
+                  </span>
+                </div>
               ) : null}
 
               {repeat !== "none" && repeatEnds === "after" ? (

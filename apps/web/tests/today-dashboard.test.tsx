@@ -34,7 +34,10 @@ import {
   hourInTimeZone,
   TodayDashboard,
 } from "../src/features/dashboard/TodayDashboard";
-import { addMinutesToTime } from "../src/features/calendar/CalendarEventCreateDialog";
+import {
+  addMinutesToTime,
+  minimumRecurrenceUntil,
+} from "../src/features/calendar/CalendarEventCreateDialog";
 import { createTestQueryClient } from "./helpers/test-utils";
 import {
   createRealApiApp,
@@ -81,6 +84,9 @@ describe("TodayDashboard", () => {
     ).toBeCloseTo(9.504, 3);
     expect(addMinutesToTime("09:30", 60)).toBe("10:30");
     expect(addMinutesToTime("23:30", 60)).toBe("00:30");
+    expect(
+      minimumRecurrenceUntil("2026-07-20", "weekly", ["MO", "TU", "WE"]),
+    ).toBe("2026-07-23");
   });
 
   it("renders an honest empty calendar state and force-refreshes from the real API", async () => {
@@ -450,6 +456,11 @@ describe("TodayDashboard", () => {
 
   it("creates an event in an explicitly writable calendar", async () => {
     const timeoutSpy = vi.spyOn(window, "setTimeout");
+    const expectedMinimumRepeatUntil = minimumRecurrenceUntil(
+      dateKeyInTimeZone(new Date(), "America/Los_Angeles"),
+      "weekly",
+      ["MO", "TU", "WE"],
+    );
     const [household] = await app.db.select().from(households).limit(1);
     const [account] = await app.db
       .insert(connectedAccounts)
@@ -557,6 +568,17 @@ describe("TodayDashboard", () => {
     await user.click(within(dialog).getByRole("checkbox", { name: "Tuesday" }));
     await user.click(within(dialog).getByRole("checkbox", { name: "Wednesday" }));
     await user.click(within(dialog).getByRole("checkbox", { name: "Sunday" }));
+    await user.selectOptions(
+      within(dialog).getByLabelText("Repeat ends"),
+      "on_date",
+    );
+    expect(within(dialog).getByLabelText("Last date")).toHaveAttribute(
+      "min",
+      expectedMinimumRepeatUntil,
+    );
+    expect(within(dialog).getByLabelText("Last date")).toHaveValue(
+      expectedMinimumRepeatUntil,
+    );
     await user.selectOptions(
       within(dialog).getByLabelText("Repeat ends"),
       "after",

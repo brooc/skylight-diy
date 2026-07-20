@@ -58,6 +58,48 @@ const importSourcesBodySchema = accountSourcesBodySchema.extend({
   externalCalendarIds: z.array(z.string().min(1)).max(250)
 });
 
+type RecurrenceWeekday = "MO" | "TU" | "WE" | "TH" | "FR" | "SA" | "SU";
+
+const recurrenceWeekdayIndex: Record<RecurrenceWeekday, number> = {
+  SU: 0,
+  MO: 1,
+  TU: 2,
+  WE: 3,
+  TH: 4,
+  FR: 5,
+  SA: 6
+};
+
+function shiftDateKey(dateKey: string, days: number): string {
+  const [year, month, day] = dateKey.split("-").map(Number);
+  const shifted = new Date(Date.UTC(year!, month! - 1, day! + days));
+  return `${shifted.getUTCFullYear()}-${String(shifted.getUTCMonth() + 1).padStart(2, "0")}-${String(shifted.getUTCDate()).padStart(2, "0")}`;
+}
+
+export function minimumRecurrenceUntil(
+  dateKey: string,
+  frequency: "daily" | "weekly" | "monthly",
+  days: RecurrenceWeekday[] = []
+): string {
+  if (frequency !== "weekly" || days.length === 0) return shiftDateKey(dateKey, 1);
+  const startDay = new Date(`${dateKey}T00:00:00.000Z`).getUTCDay();
+  const finalOffset = Math.max(
+    ...days.map((day) => (recurrenceWeekdayIndex[day] - startDay + 7) % 7)
+  );
+  return shiftDateKey(dateKey, finalOffset + 1);
+}
+
+function eventDateKey(value: string, timezone: string): string {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: timezone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  }).formatToParts(new Date(value));
+  const values = new Map(parts.map((part) => [part.type, part.value]));
+  return `${values.get("year")}-${values.get("month")}-${values.get("day")}`;
+}
+
 const calendarEventBodySchema = z
   .object({
     sourceId: z.string().uuid(),
@@ -109,15 +151,29 @@ const calendarEventBodySchema = z
         path: ["recurrence", "days"]
       });
     }
-    const eventStartDate = event.start.slice(0, 10);
+    let eventStartDate = event.start.slice(0, 10);
+    if (!event.allDay) {
+      try {
+        eventStartDate = eventDateKey(event.start, event.timezone);
+      } catch {
+        // Other schema checks report malformed dates or timezones.
+      }
+    }
+    const minimumUntil = event.recurrence
+      ? minimumRecurrenceUntil(
+          eventStartDate,
+          event.recurrence.frequency,
+          event.recurrence.days
+        )
+      : eventStartDate;
     if (
       event.recurrence?.ends === "on_date" &&
       event.recurrence.until &&
-      event.recurrence.until < eventStartDate
+      event.recurrence.until < minimumUntil
     ) {
       context.addIssue({
         code: z.ZodIssueCode.custom,
-        message: "The recurrence end date cannot be before the event date.",
+        message: `The recurrence end date must be ${minimumUntil} or later.`,
         path: ["recurrence", "until"]
       });
     }
