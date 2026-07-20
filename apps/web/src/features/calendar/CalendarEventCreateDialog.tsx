@@ -18,6 +18,8 @@ export type CalendarEventSource = {
   enabled: boolean;
   allowEventWrites: boolean;
   googleAccessRole?: string | null;
+  personId?: string | null;
+  personName?: string | null;
 };
 
 type Props = {
@@ -88,6 +90,9 @@ export function CalendarEventCreateDialog({
     );
   });
   const [sourceId, setSourceId] = useState(destinations[0]?.id ?? "");
+  const selectedDestination = destinations.find(
+    (source) => source.id === sourceId,
+  );
   const [title, setTitle] = useState("");
   const [date, setDate] = useState(defaultDate);
   const [startTime, setStartTime] = useState("09:00");
@@ -270,11 +275,15 @@ export function CalendarEventCreateDialog({
                 />
               </label>
 
-              <label className="grid min-w-0 gap-1">
-                <span className="text-sm font-semibold text-slate-700">
+              <div className="grid min-w-0 gap-1">
+                <label
+                  htmlFor="calendar-event-source"
+                  className="text-sm font-semibold text-slate-700"
+                >
                   Calendar
-                </span>
+                </label>
                 <select
+                  id="calendar-event-source"
                   required
                   value={sourceId}
                   onChange={(event) => setSourceId(event.target.value)}
@@ -291,14 +300,22 @@ export function CalendarEventCreateDialog({
                       accountLabel.toLocaleLowerCase()
                         ? source.displayName
                         : `${source.displayName} — ${accountLabel}`;
+                    const ownershipLabel = source.personName
+                      ? `${source.personName} — ${destinationLabel}`
+                      : `Unassigned — ${destinationLabel}`;
                     return (
                       <option key={source.id} value={source.id}>
-                        {destinationLabel}
+                        {ownershipLabel}
                       </option>
                     );
                   })}
                 </select>
-              </label>
+                <span className="text-xs text-slate-500">
+                  {selectedDestination?.personName
+                    ? `Shown as ${selectedDestination.personName} in Daymark.`
+                    : "This calendar is unassigned in Daymark settings."}
+                </span>
+              </div>
 
               <div className="grid min-w-0 gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,0.72fr)]">
                 <label className="grid min-w-0 gap-1">

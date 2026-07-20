@@ -16,6 +16,7 @@ import {
   calendarSources,
   connectedAccounts,
   households,
+  people,
 } from "../../../packages/db/src/index";
 import { encryptToken } from "../../api/src/modules/integrations/token-crypto";
 import {
@@ -447,6 +448,7 @@ describe("TodayDashboard", () => {
         ],
       })
       .returning();
+    const [parent] = await app.db.select().from(people);
     await app.db.insert(calendarSources).values({
       householdId: household.id,
       connectedAccountId: account.id,
@@ -456,6 +458,7 @@ describe("TodayDashboard", () => {
       enabled: true,
       allowEventWrites: true,
       googleAccessRole: "owner",
+      personId: parent.id,
       sortOrder: 0,
     });
     let createdBody: Record<string, unknown> | null = null;
@@ -513,8 +516,11 @@ describe("TodayDashboard", () => {
     );
     expect(
       within(dialog).getByRole("option", {
-        name: "Family — family@example.com",
+        name: "Parent — Family — family@example.com",
       }),
+    ).toBeInTheDocument();
+    expect(
+      within(dialog).getByText("Shown as Parent in Daymark."),
     ).toBeInTheDocument();
     await user.type(within(dialog).getByLabelText("Event title"), "Dentist");
     await user.clear(within(dialog).getByLabelText("Start time"));
