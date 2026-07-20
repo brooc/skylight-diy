@@ -1793,19 +1793,21 @@ describe("calendar and google integration routes", () => {
       googleAccessRole: "owner",
     }).returning();
 
+    let instanceItems = [{ id: "one" }, { id: "two" }];
+    let recurrenceRule = "RRULE:FREQ=WEEKLY;COUNT=5;BYDAY=MO";
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
       const url = input.toString();
       if (init?.method === "PATCH") return new Response(JSON.stringify({ id: "updated" }), { status: 200 });
       if (init?.method === "POST") return new Response(JSON.stringify({ id: "new-series" }), { status: 200 });
       if (url.includes("/instances")) {
-        return new Response(JSON.stringify({ items: [{ id: "one" }, { id: "two" }] }), { status: 200 });
+        return new Response(JSON.stringify({ items: instanceItems }), { status: 200 });
       }
       return new Response(JSON.stringify({
         id: "series-id",
         summary: "Gym",
         start: { dateTime: "2026-07-20T09:00:00-07:00", timeZone: "America/Los_Angeles" },
         end: { dateTime: "2026-07-20T10:00:00-07:00", timeZone: "America/Los_Angeles" },
-        recurrence: ["RRULE:FREQ=WEEKLY;COUNT=5;BYDAY=MO"],
+        recurrence: [recurrenceRule],
       }), { status: 200 });
     });
     const basePayload = {
@@ -1852,6 +1854,31 @@ describe("calendar and google integration routes", () => {
       summary: "Evening Gym",
       recurrence: ["RRULE:FREQ=WEEKLY;BYDAY=MO;UNTIL=20261001T065959Z"],
     }));
+
+    recurrenceRule = "RRULE:FREQ=DAILY;UNTIL=20260721T065959Z";
+    instanceItems = [];
+    fetchSpy.mockClear();
+    const firstOccurrence = await app.inject({
+      method: "PATCH",
+      url: "/api/calendar/events",
+      payload: {
+        ...basePayload,
+        targets: [basePayload.targets[0], basePayload.targets[0]],
+        scope: "following",
+        start: "2026-07-20T16:00:00.000Z",
+        end: "2026-07-20T17:00:00.000Z",
+        originalStart: "2026-07-20T16:00:00.000Z",
+        recurrenceEnd: { mode: "on_date", until: "2026-07-24" },
+      },
+    });
+    expect(firstOccurrence.statusCode).toBe(200);
+    expect(fetchSpy.mock.calls.filter((call) => call[1]?.method === "POST")).toHaveLength(0);
+    const masterPatches = fetchSpy.mock.calls.filter((call) => call[1]?.method === "PATCH");
+    expect(masterPatches).toHaveLength(1);
+    expect(JSON.parse(String(masterPatches[0]?.[1]?.body))).toMatchObject({
+      summary: "Evening Gym",
+      recurrence: ["RRULE:FREQ=DAILY;UNTIL=20260725T065959Z"],
+    });
   });
 });
 

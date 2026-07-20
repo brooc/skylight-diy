@@ -1318,8 +1318,17 @@ export const calendarRoutes: FastifyPluginAsync = async (app) => {
     const [household] = await app.db.select().from(households).limit(1);
     if (!household) return reply.status(404).send({ error: "setup_not_completed" });
 
+    const seenProviderEvents = new Set<string>();
+    const mutationTargets = parsed.data.targets.filter((target) => {
+      const providerIdentity = parsed.data.scope === "following"
+        ? target.recurringEventId ?? target.providerEventId
+        : target.providerEventId;
+      if (seenProviderEvents.has(providerIdentity)) return false;
+      seenProviderEvents.add(providerIdentity);
+      return true;
+    });
     const updated: Array<{ sourceId: string; providerEventId: string }> = [];
-    for (const target of parsed.data.targets) {
+    for (const target of mutationTargets) {
       const [destination] = await app.db
         .select({
           sourceId: calendarSources.id,
@@ -1406,25 +1415,22 @@ export const calendarRoutes: FastifyPluginAsync = async (app) => {
       }
       const originalRule = recurrence[ruleIndex]!;
       const countMatch = originalRule.match(/;COUNT=(\d+)/);
-      let previousCount = 0;
-      if (countMatch) {
-        const instancesUrl = new URL(`${eventUrl(masterId)}/instances`);
-        instancesUrl.searchParams.set(
-          "timeMax",
-          /^\d{4}-\d{2}-\d{2}$/.test(parsed.data.originalStart)
-            ? `${parsed.data.originalStart}T00:00:00.000Z`
-            : parsed.data.originalStart
-        );
-        instancesUrl.searchParams.set("maxResults", "2500");
-        const instancesResponse = await fetch(instancesUrl, { headers: { Authorization: `Bearer ${token.accessToken}` } });
-        if (!instancesResponse.ok) {
-          return reply.status(502).send({ error: "google_recurring_instances_load_failed", message: "The recurring occurrences could not be loaded." });
-        }
-        const instances = (await instancesResponse.json()) as { items?: unknown[] };
-        previousCount = instances.items?.length ?? 0;
+      const instancesUrl = new URL(`${eventUrl(masterId)}/instances`);
+      instancesUrl.searchParams.set(
+        "timeMax",
+        /^\d{4}-\d{2}-\d{2}$/.test(parsed.data.originalStart)
+          ? `${parsed.data.originalStart}T00:00:00.000Z`
+          : parsed.data.originalStart
+      );
+      instancesUrl.searchParams.set("maxResults", "2500");
+      const instancesResponse = await fetch(instancesUrl, { headers: { Authorization: `Bearer ${token.accessToken}` } });
+      if (!instancesResponse.ok) {
+        return reply.status(502).send({ error: "google_recurring_instances_load_failed", message: "The recurring occurrences could not be loaded." });
       }
+      const instances = (await instancesResponse.json()) as { items?: unknown[] };
+      const previousCount = instances.items?.length ?? 0;
 
-      if (previousCount === 0 && countMatch) {
+      if (previousCount === 0) {
         const updatedRule = changeRuleEnd(
           originalRule,
           parsed.data.recurrenceEnd,
