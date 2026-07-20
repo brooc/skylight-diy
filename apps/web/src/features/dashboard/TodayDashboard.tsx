@@ -803,7 +803,7 @@ export function TodayDashboard(): JSX.Element {
             data-calendar-end-hour={endHour}
             className="grid min-w-[720px]"
             style={{
-              gridTemplateColumns: `clamp(52px, 6vw, 76px) repeat(${days.length}, minmax(0, 1fr))`,
+              gridTemplateColumns: `clamp(58px, 7vw, 88px) repeat(${days.length}, minmax(0, 1fr))`,
             }}
           >
             <div className="sticky top-0 z-20 border-b border-r border-[#ecebe8] bg-white" />
@@ -863,12 +863,12 @@ export function TodayDashboard(): JSX.Element {
             {hourSlots.map((hour) => (
               <Fragment key={`row-${hour}`}>
                 <div
-                  className="border-r border-[#ecebe8] px-1.5 py-2 text-slate-500 md:px-2 xl:px-3"
+                  className="overflow-hidden border-r border-[#ecebe8] px-1 py-2 text-slate-500 md:px-1.5 xl:px-2"
                   style={{ height: slotHeight }}
                 >
                   <div
                     data-calendar-hour-label="true"
-                    className="whitespace-nowrap font-display text-[clamp(15px,1.7vw,28px)] leading-none"
+                    className="whitespace-nowrap font-display text-[clamp(14px,1.45vw,22px)] leading-none"
                   >
                     {formatHourLabel(hour)}
                   </div>

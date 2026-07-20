@@ -98,7 +98,7 @@ describe("TodayDashboard", () => {
     const calendarGrid = screen.getByTestId("dashboard-calendar-grid");
     expect(calendarGrid).toHaveClass("min-w-[720px]");
     expect(calendarGrid).toHaveStyle({
-      gridTemplateColumns: "clamp(52px, 6vw, 76px) repeat(7, minmax(0, 1fr))",
+      gridTemplateColumns: "clamp(58px, 7vw, 88px) repeat(7, minmax(0, 1fr))",
     });
     expect(calendarGrid.closest("section")?.parentElement).toHaveClass(
       "md:h-[calc(100dvh-1.5rem)]",
@@ -122,7 +122,7 @@ describe("TodayDashboard", () => {
     ).toHaveClass("text-[clamp(18px,2.5vw,34px)]");
     expect(
       document.querySelector('[data-calendar-hour-label="true"]'),
-    ).toHaveClass("text-[clamp(15px,1.7vw,28px)]", "whitespace-nowrap");
+    ).toHaveClass("text-[clamp(14px,1.45vw,22px)]", "whitespace-nowrap");
     expect(
       await screen.findByText("🍽 Tonight: Taco night"),
     ).toBeInTheDocument();
