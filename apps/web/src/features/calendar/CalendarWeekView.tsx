@@ -11,6 +11,7 @@ import { ErrorState } from "../../components/ErrorState";
 import { LoadingState } from "../../components/LoadingState";
 import { CalendarDayView } from "./CalendarDayView";
 import { CalendarStatusBadge } from "./CalendarStatusBadge";
+import { WeekNavigationControls } from "./WeekNavigationControls";
 import {
   familyMemberColorForSource,
   type FamilyMemberColor,
@@ -150,34 +151,12 @@ export function CalendarWeekView(): JSX.Element {
       <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-[#e7e7e5] bg-white p-4">
         <h1 className="font-display text-3xl text-slate-900">Agenda</h1>
         <div className="flex items-center gap-2">
-          <button
-            type="button"
-            aria-label="Previous week"
-            className="flex h-10 w-10 items-center justify-center rounded-full border border-[#d8cbb8] bg-[#fff7ea] text-xl text-slate-700 hover:bg-[#fcedd8]"
-            onClick={() => setWeekOffset((value) => value - 1)}
-          >
-            ‹
-          </button>
-          <button
-            type="button"
-            className="min-h-[40px] rounded-full border border-[#d8cbb8] bg-[#fff7ea] px-3 text-sm font-semibold text-slate-700 hover:bg-[#fcedd8]"
-            onClick={() => setWeekOffset(0)}
-          >
-            Today
-          </button>
-          <button
-            type="button"
-            aria-label="Next week"
-            className="flex h-10 w-10 items-center justify-center rounded-full border border-[#d8cbb8] bg-[#fff7ea] text-xl text-slate-700 hover:bg-[#fcedd8]"
-            onClick={() => setWeekOffset((value) => value + 1)}
-          >
-            ›
-          </button>
-          <button
-            type="button"
-            disabled={isRefreshing}
-            className="min-h-[40px] rounded-md border border-[#d8cbb8] bg-[#fff7ea] px-3 py-2 text-sm font-semibold text-slate-800 hover:bg-[#fcedd8]"
-            onClick={async () => {
+          <WeekNavigationControls
+            isRefreshing={isRefreshing}
+            onPrevious={() => setWeekOffset((value) => value - 1)}
+            onToday={() => setWeekOffset(0)}
+            onNext={() => setWeekOffset((value) => value + 1)}
+            onRefresh={async () => {
               setIsRefreshing(true);
               setRefreshError(null);
               try {
@@ -195,9 +174,7 @@ export function CalendarWeekView(): JSX.Element {
                 setIsRefreshing(false);
               }
             }}
-          >
-            {isRefreshing ? "Refreshing…" : "Refresh"}
-          </button>
+          />
           <CalendarStatusBadge cacheStatus={data.cacheStatus} />
         </div>
       </div>

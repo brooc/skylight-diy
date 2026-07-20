@@ -12,6 +12,7 @@ import {
 import { ErrorState } from "../../components/ErrorState";
 import { LoadingState } from "../../components/LoadingState";
 import { CalendarStatusBadge } from "../calendar/CalendarStatusBadge";
+import { WeekNavigationControls } from "../calendar/WeekNavigationControls";
 import {
   CalendarEventCreateDialog,
   type CalendarEventAccount,
@@ -649,34 +650,12 @@ export function TodayDashboard(): JSX.Element {
               ) : null}
             </div>
             <div className="flex items-center gap-2">
-              <button
-                type="button"
-                aria-label="Previous week"
-                className="flex h-10 w-10 items-center justify-center rounded-full bg-[#f6f7f9] text-xl text-slate-700 hover:bg-[#ebedf0]"
-                onClick={() => setWeekOffset((value) => value - 1)}
-              >
-                ‹
-              </button>
-              <button
-                type="button"
-                className="rounded-full bg-[#f6f7f9] px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-[#ebedf0]"
-                onClick={() => setWeekOffset(0)}
-              >
-                Today
-              </button>
-              <button
-                type="button"
-                aria-label="Next week"
-                className="flex h-10 w-10 items-center justify-center rounded-full bg-[#f6f7f9] text-xl text-slate-700 hover:bg-[#ebedf0]"
-                onClick={() => setWeekOffset((value) => value + 1)}
-              >
-                ›
-              </button>
-              <button
-                type="button"
-                disabled={isCalendarRefreshing}
-                className="rounded-full bg-[#f6f7f9] px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-[#ebedf0]"
-                onClick={async () => {
+              <WeekNavigationControls
+                isRefreshing={isCalendarRefreshing}
+                onPrevious={() => setWeekOffset((value) => value - 1)}
+                onToday={() => setWeekOffset(0)}
+                onNext={() => setWeekOffset((value) => value + 1)}
+                onRefresh={async () => {
                   setIsCalendarRefreshing(true);
                   setCalendarRefreshError(null);
                   try {
@@ -694,9 +673,7 @@ export function TodayDashboard(): JSX.Element {
                     setIsCalendarRefreshing(false);
                   }
                 }}
-              >
-                {isCalendarRefreshing ? "Refreshing…" : "Refresh"}
-              </button>
+              />
               <div className="relative">
                 <button
                   type="button"
