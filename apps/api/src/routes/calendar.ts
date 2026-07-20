@@ -73,6 +73,7 @@ const calendarEventBodySchema = z
       .object({
         frequency: z.enum(["daily", "weekly", "monthly"]),
         ends: z.enum(["never", "on_date", "after"]),
+        days: z.array(z.enum(["MO", "TU", "WE", "TH", "FR", "SA", "SU"])).min(1).max(7).optional(),
         until: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
         count: z.number().int().min(2).max(365).optional()
       })
@@ -99,6 +100,13 @@ const calendarEventBodySchema = z
         code: z.ZodIssueCode.custom,
         message: "Recurring events ending after occurrences require a count.",
         path: ["recurrence", "count"]
+      });
+    }
+    if (event.recurrence?.frequency === "weekly" && !event.recurrence.days?.length) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Weekly recurring events require at least one weekday.",
+        path: ["recurrence", "days"]
       });
     }
     const eventStartDate = event.start.slice(0, 10);
@@ -246,6 +254,9 @@ function googleRecurrenceRule(
   timeZone: string
 ): string {
   const parts = [`RRULE:FREQ=${recurrence.frequency.toUpperCase()}`];
+  if (recurrence.frequency === "weekly" && recurrence.days?.length) {
+    parts.push(`BYDAY=${recurrence.days.join(",")}`);
+  }
   if (recurrence.ends === "after") parts.push(`COUNT=${recurrence.count}`);
   if (recurrence.ends === "on_date" && recurrence.until) {
     const until = dateFromDateKeyInTimeZone(recurrence.until, timeZone, 23, 59, 59);

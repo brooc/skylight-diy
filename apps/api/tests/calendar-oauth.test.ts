@@ -1651,6 +1651,7 @@ describe("calendar and google integration routes", () => {
       recurrence: {
         frequency: "weekly",
         ends: "after",
+        days: ["MO", "TU", "WE"],
         count: 6,
       },
       allDay: false,
@@ -1682,7 +1683,7 @@ describe("calendar and google integration routes", () => {
       description: "Bring insurance card",
       location: "Campbell",
       attendees: [{ email: "kid@example.com" }],
-      recurrence: ["RRULE:FREQ=WEEKLY;COUNT=6"],
+      recurrence: ["RRULE:FREQ=WEEKLY;BYDAY=MO,TU,WE;COUNT=6"],
       start: {
         dateTime: "2026-07-21T17:00:00.000Z",
         timeZone: "America/Los_Angeles",

@@ -494,6 +494,11 @@ describe("TodayDashboard", () => {
       "overflow-hidden",
     );
     expect(dialog.querySelector("form")).toHaveClass(
+      "flex",
+      "overflow-hidden",
+      "min-w-0",
+    );
+    expect(within(dialog).getByTestId("event-form-scroll")).toHaveClass(
       "overflow-y-auto",
       "overflow-x-hidden",
       "min-w-0",
@@ -520,6 +525,11 @@ describe("TodayDashboard", () => {
     await user.type(within(dialog).getByLabelText(/Location/), "Campbell");
     await user.type(within(dialog).getByLabelText(/Guests/), "kid@example.com");
     await user.selectOptions(within(dialog).getByLabelText("Repeat"), "weekly");
+    expect(within(dialog).getByRole("checkbox", { name: "Sunday" })).toBeChecked();
+    await user.click(within(dialog).getByRole("checkbox", { name: "Monday" }));
+    await user.click(within(dialog).getByRole("checkbox", { name: "Tuesday" }));
+    await user.click(within(dialog).getByRole("checkbox", { name: "Wednesday" }));
+    await user.click(within(dialog).getByRole("checkbox", { name: "Sunday" }));
     await user.selectOptions(
       within(dialog).getByLabelText("Repeat ends"),
       "after",
@@ -540,7 +550,7 @@ describe("TodayDashboard", () => {
       summary: "Dentist",
       location: "Campbell",
       attendees: [{ email: "kid@example.com" }],
-      recurrence: ["RRULE:FREQ=WEEKLY;COUNT=6"],
+      recurrence: ["RRULE:FREQ=WEEKLY;BYDAY=MO,TU,WE;COUNT=6"],
       start: { timeZone: "America/Los_Angeles" },
       end: { timeZone: "America/Los_Angeles" },
     });

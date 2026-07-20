@@ -30,6 +30,23 @@ type Props = {
   onCreated: (message: string) => Promise<void> | void;
 };
 
+type WeekdayCode = "MO" | "TU" | "WE" | "TH" | "FR" | "SA" | "SU";
+
+const weekdays: Array<{ code: WeekdayCode; label: string; short: string }> = [
+  { code: "MO", label: "Monday", short: "M" },
+  { code: "TU", label: "Tuesday", short: "T" },
+  { code: "WE", label: "Wednesday", short: "W" },
+  { code: "TH", label: "Thursday", short: "T" },
+  { code: "FR", label: "Friday", short: "F" },
+  { code: "SA", label: "Saturday", short: "S" },
+  { code: "SU", label: "Sunday", short: "S" },
+];
+
+function weekdayForDate(dateKey: string): WeekdayCode {
+  const codes: WeekdayCode[] = ["SU", "MO", "TU", "WE", "TH", "FR", "SA"];
+  return codes[new Date(`${dateKey}T00:00:00.000Z`).getUTCDay()] ?? "MO";
+}
+
 function requestId(): string {
   if (typeof crypto.randomUUID === "function") return crypto.randomUUID();
   return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (value) => {
@@ -86,6 +103,9 @@ export function CalendarEventCreateDialog({
   );
   const [repeatUntil, setRepeatUntil] = useState(defaultDate);
   const [repeatCount, setRepeatCount] = useState(10);
+  const [weeklyDays, setWeeklyDays] = useState<WeekdayCode[]>([
+    weekdayForDate(defaultDate),
+  ]);
   const [submissionId] = useState(requestId);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -149,6 +169,7 @@ export function CalendarEventCreateDialog({
                 : {
                     frequency: repeat,
                     ends: repeatEnds,
+                    days: repeat === "weekly" ? weeklyDays : undefined,
                     until: repeatEnds === "on_date" ? repeatUntil : undefined,
                     count: repeatEnds === "after" ? repeatCount : undefined,
                   },
@@ -183,12 +204,16 @@ export function CalendarEventCreateDialog({
       >
         <div className="h-2 shrink-0 bg-gradient-to-r from-[#8ec5b8] via-[#dca1b4] to-[#b7abd8]" />
         <form
-          className="grid min-h-0 min-w-0 gap-3 overflow-x-hidden overflow-y-auto overscroll-contain p-4 sm:p-5"
+          className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
           onSubmit={(event) => {
             event.preventDefault();
             void submit();
           }}
         >
+          <div
+            data-testid="event-form-scroll"
+            className="grid min-h-0 min-w-0 flex-1 gap-3 overflow-x-hidden overflow-y-auto overscroll-contain p-4 sm:p-5"
+          >
           <div className="flex min-w-0 items-start justify-between gap-3">
             <div className="min-w-0">
               <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[#287f78]">
@@ -335,9 +360,13 @@ export function CalendarEventCreateDialog({
                   <select
                     aria-label="Repeat"
                     value={repeat}
-                    onChange={(event) =>
-                      setRepeat(event.target.value as typeof repeat)
-                    }
+                    onChange={(event) => {
+                      const nextRepeat = event.target.value as typeof repeat;
+                      setRepeat(nextRepeat);
+                      if (nextRepeat === "weekly") {
+                        setWeeklyDays([weekdayForDate(date)]);
+                      }
+                    }}
                     className="min-h-[42px] w-full min-w-0 rounded-xl border border-slate-300 bg-white px-3 text-base text-slate-950"
                   >
                     <option value="none">Does not repeat</option>
@@ -366,6 +395,51 @@ export function CalendarEventCreateDialog({
                   </label>
                 ) : null}
               </div>
+
+              {repeat === "weekly" ? (
+                <fieldset className="grid gap-1.5">
+                  <legend className="text-sm font-semibold text-slate-700">
+                    Repeats on
+                  </legend>
+                  <div className="grid grid-cols-7 gap-1.5">
+                    {weekdays.map((weekday) => {
+                      const selected = weeklyDays.includes(weekday.code);
+                      return (
+                        <label
+                          key={weekday.code}
+                          className={`flex min-h-[40px] cursor-pointer items-center justify-center rounded-xl border text-sm font-semibold transition-colors ${
+                            selected
+                              ? "border-[#0f766e] bg-[#dcefeb] text-[#0f5f59]"
+                              : "border-slate-300 bg-white text-slate-600"
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            aria-label={weekday.label}
+                            className="sr-only"
+                            checked={selected}
+                            onChange={() => {
+                              if (selected) {
+                                if (weeklyDays.length > 1) {
+                                  setWeeklyDays((days) =>
+                                    days.filter((day) => day !== weekday.code),
+                                  );
+                                }
+                              } else {
+                                setWeeklyDays((days) => [
+                                  ...days,
+                                  weekday.code,
+                                ]);
+                              }
+                            }}
+                          />
+                          {weekday.short}
+                        </label>
+                      );
+                    })}
+                  </div>
+                </fieldset>
+              ) : null}
 
               {repeat !== "none" && repeatEnds === "on_date" ? (
                 <label className="grid min-w-0 gap-1">
@@ -448,24 +522,27 @@ export function CalendarEventCreateDialog({
                 </p>
               ) : null}
 
-              <div className="sticky bottom-0 -mx-4 -mb-4 flex justify-end gap-2 border-t border-slate-100 bg-white/95 px-4 pb-4 pt-3 backdrop-blur sm:-mx-5 sm:-mb-5 sm:px-5 sm:pb-5">
-                <button
-                  type="button"
-                  className="min-h-[44px] rounded-xl px-4 font-semibold text-slate-600 hover:bg-slate-100"
-                  onClick={onClose}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSubmitting || !sourceId || !title.trim()}
-                  className="min-h-[44px] rounded-xl bg-[#0f766e] px-5 font-semibold text-white hover:bg-[#0d5f59] disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {isSubmitting ? "Adding event..." : "Add event"}
-                </button>
-              </div>
             </>
           )}
+          </div>
+          {!loading && destinations.length > 0 ? (
+            <div className="flex shrink-0 justify-end gap-2 border-t border-slate-100 bg-white px-4 py-3 sm:px-5 sm:py-4">
+              <button
+                type="button"
+                className="min-h-[44px] rounded-xl px-4 font-semibold text-slate-600 hover:bg-slate-100"
+                onClick={onClose}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={isSubmitting || !sourceId || !title.trim()}
+                className="min-h-[44px] rounded-xl bg-[#0f766e] px-5 font-semibold text-white hover:bg-[#0d5f59] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {isSubmitting ? "Adding event..." : "Add event"}
+              </button>
+            </div>
+          ) : null}
         </form>
       </div>
     </div>
