@@ -147,7 +147,7 @@ const unavailableStatus: TailscaleStatus = {
 
 export const tailscaleRoutes: FastifyPluginAsync = async (app) => {
   app.get("/integrations/tailscale/status", async () => {
-    if (!env.TAILSCALE_SOCKET_PATH) return unavailableStatus;
+    if (!env.TAILSCALE_ENABLED || !env.TAILSCALE_SOCKET_PATH) return unavailableStatus;
 
     try {
       const rawStatus = await readRawTailscaleStatus(env.TAILSCALE_SOCKET_PATH);
@@ -160,6 +160,9 @@ export const tailscaleRoutes: FastifyPluginAsync = async (app) => {
   });
 
   app.post("/integrations/tailscale/reset", async (request, reply) => {
+    if (!env.TAILSCALE_ENABLED) {
+      return reply.status(404).send({ error: "tailscale_disabled" });
+    }
     if (!request.isAdminUnlocked()) {
       return reply.status(401).send({ error: "admin_unlock_required" });
     }

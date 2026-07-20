@@ -99,6 +99,16 @@ describe("shell and settings", () => {
       "href",
       "/settings/unlock"
     );
+    expect(screen.queryByText("Tablet access")).not.toBeInTheDocument();
+  });
+
+  it("hides the optional Tailscale feature when it is disabled", async () => {
+    mockSettingsRequests(true);
+    renderWithRoute("/settings", <SettingsPage />);
+
+    expect(await screen.findByRole("heading", { name: "Settings" })).toBeInTheDocument();
+    expect(screen.queryByText("Tablet access")).not.toBeInTheDocument();
+    expect(screen.queryByText(/Tailscale/)).not.toBeInTheDocument();
   });
 
   it("shows Tailscale bootstrap sign-in without requiring settings unlock", async () => {

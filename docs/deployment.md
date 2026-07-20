@@ -1,11 +1,10 @@
 # Home Deployment
 
-The recommended Fire tablet deployment runs Daymark and Tailscale together in production containers. Tailscale Serve provides private HTTPS. This keeps Daymark off the public internet while providing the trusted HTTPS origin required by PWA installation, service workers, secure cookies, and Screen Wake Lock.
+The default Fire tablet deployment runs Daymark on the home LAN and opens it in Fully Kiosk Browser. Tailscale private HTTPS is optional and disabled by default.
 
 ## Prerequisites
 
 - A computer or home server that stays on and runs Docker
-- Tailscale from the Amazon Appstore on the Fire tablet
 - A Google OAuth web client if Google Calendar will be connected
 
 ## 1. Configure production secrets
@@ -28,7 +27,7 @@ Edit `.env.production`:
 
 Keep `.env.production` and the token encryption key with the database backups. They are intentionally excluded from Git.
 
-## 2. Start Daymark and connect Tailscale
+## 2. Start Daymark on the home LAN
 
 ```bash
 docker compose --env-file .env.production -f compose.production.yml up -d --build
@@ -40,7 +39,19 @@ The API container applies database migrations before starting. The web gateway s
 
 From another device on the same Wi-Fi, open `http://<server-lan-ip>:8080`. This HTTP fallback can display Daymark, but PWA installation, secure cookies, and Screen Wake Lock should use the Tailscale HTTPS address.
 
-On that computer, open [http://localhost:8080/settings](http://localhost:8080/settings). The **Tablet access** card is deliberately visible while settings are locked:
+On the tablet, configure Fully to open `http://<server-lan-ip>:8080`. Reserve the server's LAN address in the router's DHCP settings so this URL does not change. Also configure Docker Desktop to launch at login and prevent the server from sleeping while Daymark should remain available.
+
+On the server itself, Settings remains available at [http://localhost:8080/settings](http://localhost:8080/settings).
+
+## Optional: enable Tailscale private HTTPS
+
+Set `TAILSCALE_ENABLED=true` in `.env.production`, then recreate the services:
+
+```bash
+docker compose --env-file .env.production -f compose.production.yml up -d --force-recreate
+```
+
+The **Tablet access** card appears at the bottom of unlocked Settings and guides the optional setup:
 
 1. Select **Sign in to Tailscale**.
 2. Sign into an existing Tailscale account or create one in the new browser tab.
@@ -50,7 +61,7 @@ No auth key needs to be generated or copied. The official Tailscale container cr
 
 If this is a new tailnet and Tailscale asks to enable HTTPS certificates, approve that once in its admin console.
 
-## 3. Set the permanent HTTPS origin
+### Set the permanent HTTPS origin
 
 Copy the HTTPS address displayed in **Settings → Tablet access**, then update `.env.production`:
 
@@ -66,7 +77,7 @@ docker compose --env-file .env.production -f compose.production.yml up -d
 
 In Google Cloud Console, add the exact `GOOGLE_REDIRECT_URI` value to the OAuth client's authorized redirect URIs. Keep the localhost callback if local development is still used.
 
-## 4. Install on the Fire tablet
+### Install the optional PWA on the Fire tablet
 
 1. Install Tailscale from the Amazon Appstore.
 2. Open it, approve the VPN connection, and sign into the same Tailscale account used above.
@@ -77,7 +88,7 @@ In Google Cloud Console, add the exact `GOOGLE_REDIRECT_URI` value to the OAuth 
 
 ## Operations
 
-To replay or replace the Tailscale connection, unlock Daymark Settings and select **Log out & reset Tailscale** in the **Tablet access** card. This clears only the Daymark node login and Serve configuration; household, calendar, meal, list, and task data are unchanged. Tailnet-wide HTTPS approval is managed separately from the Tailscale admin console's DNS page.
+When `TAILSCALE_ENABLED=true`, replay or replace the Tailscale connection by unlocking Daymark Settings and selecting **Log out & reset Tailscale** in the **Tablet access** card. This clears only the Daymark node login and Serve configuration; household, calendar, meal, list, and task data are unchanged.
 
 View logs:
 

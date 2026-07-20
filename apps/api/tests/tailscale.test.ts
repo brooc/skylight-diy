@@ -1,7 +1,13 @@
 import { describe, expect, it } from "vitest";
+import { parseEnv } from "@daymark/config";
 import { findServeEnableUrl, parseTailscaleStatus } from "../src/routes/tailscale";
 
 describe("Tailscale status", () => {
+  it("defaults the optional integration off and enables it explicitly", () => {
+    expect(parseEnv({ ...process.env, TAILSCALE_ENABLED: undefined }).TAILSCALE_ENABLED).toBe(false);
+    expect(parseEnv({ ...process.env, TAILSCALE_ENABLED: "true" }).TAILSCALE_ENABLED).toBe(true);
+  });
+
   it("exposes the login URL while the node needs authentication", () => {
     expect(
       parseTailscaleStatus({

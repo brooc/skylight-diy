@@ -10,6 +10,10 @@ services:
       - -c
       - |
         set -u
+        if [ "$${TAILSCALE_ENABLED:-false}" != "true" ]; then
+          echo "Tailscale integration is disabled."
+          exec tail -f /dev/null
+        fi
         tailscaled \
           --socket=/var/run/tailscale/tailscaled.sock \
           --statedir=/var/lib/tailscale \
@@ -111,10 +115,16 @@ services:
     image: tailscale/tailscale:stable
     restart: unless-stopped
     network_mode: service:tailscale
+    env_file:
+      - ${DAYMARK_ENV_FILE:-.env.production}
     entrypoint: /bin/sh
     command:
       - -c
       - |
+        if [ "$${TAILSCALE_ENABLED:-false}" != "true" ]; then
+          echo "Tailscale Serve is disabled."
+          exec tail -f /dev/null
+        fi
         while true; do
           until tailscale --socket=/var/run/tailscale/tailscaled.sock ip -4 >/dev/null 2>&1; do
             sleep 2

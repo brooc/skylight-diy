@@ -1,6 +1,6 @@
 # Fire Tablet Setup
 
-Initial target device: Fire HD 8. The preferred setup is an installed Daymark PWA in Silk; Fully Kiosk Browser remains the fallback.
+Initial target device: Fire HD 8. The default setup uses Fully Kiosk Browser over the home LAN. An installed PWA over optional Tailscale HTTPS remains available for households that want it.
 
 ## Goals
 
@@ -13,26 +13,25 @@ Initial target device: Fire HD 8. The preferred setup is an installed Daymark PW
 ## Early setup checklist
 
 1. Update Fire OS.
-2. Open Daymark over HTTPS in Silk. Service workers, installation, and screen wake locks require a secure connection; a LAN IP over plain HTTP is not sufficient.
-3. Use Silk's **Add to Home Screen** or **Install** action and launch Daymark from the resulting icon.
-4. Confirm Daymark launches in landscape without browser chrome.
+2. Reserve the Daymark server's IP address in the router's DHCP settings.
+3. Configure Fully to open `http://<reserved-server-ip>:8080` and launch automatically.
+4. Confirm Fully launches Daymark in landscape without browser chrome and keeps the display awake.
 5. Set display brightness to a comfortable level.
-6. Keep the tablet connected to power and confirm Daymark's screen wake lock prevents normal display sleep.
+6. Keep the tablet connected to power and confirm Fully prevents normal display sleep.
 7. Use a right-angle USB-C charging cable for a cleaner counter or wall setup.
 8. Run on a counter for a week before wall mounting.
 9. Check the tablet periodically for heat or battery issues.
 10. Document the exact configuration that works best.
 
-## PWA validation checklist
+## Fully validation checklist
 
-- Launching the home-screen icon opens Daymark fullscreen in landscape.
+- Launching Fully opens Daymark fullscreen in landscape.
 - The tablet stays awake for at least two hours with Daymark visible.
-- Switching to Silk and back causes Daymark to reacquire its screen wake lock.
-- Rebooting the tablet leaves a straightforward path back to Daymark.
+- Rebooting the tablet returns to Fully and reloads Daymark.
 - Adding and reconnecting Google accounts opens authorization in Silk without `disallowed_useragent`.
 - Calendar data returns after a temporary network interruption. The application shell is cached, but API data is deliberately not cached as a substitute for the server.
 
-If installation, fullscreen, or wake lock behavior is unreliable on the tablet's Silk/Fire OS version, use Fully Kiosk Browser as the fallback.
+The optional PWA requires HTTPS because service workers and Screen Wake Lock require a secure origin. Enable `TAILSCALE_ENABLED=true` only if that setup is wanted.
 
 ## Google account authorization in Fully
 

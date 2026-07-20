@@ -66,9 +66,9 @@ export function SettingsPage(): JSX.Element {
         </button>
       </header>
       {lockError ? <ErrorState message={lockError} /> : null}
-      <TailscaleSettings canReset />
       <FamilySettings />
       <GoogleCalendarSettings />
+      <TailscaleSettings canReset />
     </section>
   );
 }
