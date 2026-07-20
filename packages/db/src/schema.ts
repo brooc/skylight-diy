@@ -212,6 +212,7 @@ export const calendarSources = pgTable(
     }),
     enabled: boolean("enabled").notNull().default(true),
     allowEventWrites: boolean("allow_event_writes").notNull().default(false),
+    googleAccessRole: text("google_access_role"),
     sortOrder: integer("sort_order").notNull().default(0),
     createdAt: createdAt(),
     updatedAt: updatedAt()

@@ -220,6 +220,74 @@ describe("GoogleCalendarSettings", () => {
     ).toBeInTheDocument();
   });
 
+  it("shows Daymark write control only for Google-writable calendars", async () => {
+    let permissionsRefreshed = false;
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const url = typeof input === "string" ? input : input.url;
+      if (url.startsWith("/api/calendar/sources/discover-from-google")) {
+        permissionsRefreshed = true;
+        return mockJsonResponse({ calendars: [] });
+      }
+      if (url.startsWith("/api/calendar/accounts")) {
+        return mockJsonResponse({
+          accounts: [
+            {
+              id: "account-1",
+              provider: "google",
+              displayName: "Family Gmail",
+              email: "family@example.com",
+              reauthorizationRequired: false,
+              calendarAccessGranted: true,
+              calendarWriteAccessGranted: true,
+            },
+          ],
+        });
+      }
+      if (url.startsWith("/api/calendar/sources")) {
+        return mockJsonResponse({
+          sources: [
+            {
+              id: "source-writer",
+              connectedAccountId: "account-1",
+              externalCalendarId: "family",
+              displayName: "Family",
+              enabled: true,
+              allowEventWrites: false,
+              googleAccessRole: permissionsRefreshed ? "owner" : null,
+            },
+            {
+              id: "source-reader",
+              connectedAccountId: "account-1",
+              externalCalendarId: "parent",
+              displayName: "Parent calendar",
+              enabled: true,
+              allowEventWrites: false,
+              googleAccessRole: permissionsRefreshed ? "reader" : null,
+            },
+          ],
+        });
+      }
+      if (url.startsWith("/api/household/current")) {
+        return mockJsonResponse({ household: {}, people: [] });
+      }
+      if (url.startsWith("/api/integrations/google/status")) {
+        return mockJsonResponse({ available: true, redirectUri: "callback" });
+      }
+      return mockJsonResponse({}, 404);
+    });
+
+    renderWithProviders(<GoogleCalendarSettings />, { route: "/settings" });
+
+    expect(await screen.findByText("Parent calendar")).toBeInTheDocument();
+    expect(screen.getByText("View only in Google")).toBeInTheDocument();
+    expect(permissionsRefreshed).toBe(true);
+    expect(
+      screen.getAllByRole("checkbox", {
+        name: /Allow Daymark to add events/,
+      }),
+    ).toHaveLength(1);
+  });
+
   it("requires reconnect when Google identity was granted without Calendar access", async () => {
     let reconnectUrl = "";
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {

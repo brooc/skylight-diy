@@ -677,6 +677,7 @@ describe("calendar and google integration routes", () => {
         displayName: "Family",
         color: "#8ec5b8",
         enabled: true,
+        googleAccessRole: "owner",
         sortOrder: 0,
       })
       .returning();
@@ -869,6 +870,90 @@ describe("calendar and google integration routes", () => {
     ).toBe(true);
   });
 
+  it("refreshes Google access roles and disables Daymark writes for reader calendars", async () => {
+    const setup = await setupHousehold(app);
+    const [account] = await app.db
+      .insert(connectedAccounts)
+      .values({
+        householdId: setup.household.id,
+        provider: "google",
+        providerAccountId: "google-permission-refresh",
+        displayName: "Google",
+        encryptedAccessToken: encryptToken("token-value"),
+        scopes: ["https://www.googleapis.com/auth/calendar.readonly"],
+      })
+      .returning();
+    await app.db.insert(calendarSources).values([
+      {
+        householdId: setup.household.id,
+        connectedAccountId: account.id,
+        provider: "google",
+        externalCalendarId: "family",
+        displayName: "Family",
+        enabled: true,
+        allowEventWrites: true,
+      },
+      {
+        householdId: setup.household.id,
+        connectedAccountId: account.id,
+        provider: "google",
+        externalCalendarId: "school",
+        displayName: "School",
+        enabled: true,
+        allowEventWrites: true,
+      },
+    ]);
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          items: [
+            { id: "family", summary: "Family", accessRole: "owner" },
+            { id: "school", summary: "School", accessRole: "reader" },
+          ],
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+
+    const { cookie } = await unlockAdmin(app);
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/calendar/sources/discover-from-google",
+      headers: { cookie },
+      payload: { accountId: account.id },
+    });
+    expect(response.statusCode).toBe(200);
+    expect(response.json().calendars).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          externalCalendarId: "family",
+          accessRole: "owner",
+          writable: true,
+        }),
+        expect.objectContaining({
+          externalCalendarId: "school",
+          accessRole: "reader",
+          writable: false,
+        }),
+      ]),
+    );
+    const sources = await app.db.select().from(calendarSources);
+    expect(sources).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          externalCalendarId: "family",
+          googleAccessRole: "owner",
+          allowEventWrites: true,
+        }),
+        expect.objectContaining({
+          externalCalendarId: "school",
+          googleAccessRole: "reader",
+          allowEventWrites: false,
+        }),
+      ]),
+    );
+  });
+
   it("returns an explicit error when Google calendar-list import fails", async () => {
     const setup = await setupHousehold(app);
     const [account] = await app.db
@@ -964,6 +1049,7 @@ describe("calendar and google integration routes", () => {
         displayName: "Family",
         color: "#8ec5b8",
         enabled: true,
+        googleAccessRole: "owner",
         sortOrder: 0,
       })
       .returning();
@@ -1440,6 +1526,7 @@ describe("calendar and google integration routes", () => {
         externalCalendarId: "parent@example.com",
         displayName: "Parent",
         enabled: true,
+        googleAccessRole: "owner",
       })
       .returning();
     const payload = {
@@ -1506,6 +1593,7 @@ describe("calendar and google integration routes", () => {
         displayName: "Family",
         enabled: true,
         allowEventWrites: true,
+        googleAccessRole: "writer",
       })
       .returning();
     await app.db.insert(calendarEventCache).values({

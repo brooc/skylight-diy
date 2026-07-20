@@ -50,6 +50,13 @@
       "when": 1784508500000,
       "tag": "0006_calendar_event_write_log",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1784510000000,
+      "tag": "0007_google_calendar_access_role",
+      "breakpoints": true
     }
   ]
 }

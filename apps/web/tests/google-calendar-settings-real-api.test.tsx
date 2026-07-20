@@ -72,6 +72,7 @@ describe("GoogleCalendarSettings with the real API", () => {
       displayName: "Family Calendar",
       color: "#8ec5b8",
       enabled: true,
+      googleAccessRole: "writer",
       sortOrder: 0,
     });
 

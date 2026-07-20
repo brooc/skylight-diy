@@ -25,6 +25,7 @@ type SourcesResponse = {
     color?: string | null;
     enabled: boolean;
     allowEventWrites: boolean;
+    googleAccessRole?: string | null;
     personId?: string | null;
     personName?: string | null;
   }>;
@@ -44,6 +45,8 @@ type DiscoveredCalendar = {
   tracked: boolean;
   sourceId?: string | null;
   enabled: boolean;
+  accessRole: string;
+  writable: boolean;
 };
 
 type DiscoveryResponse = {
@@ -140,6 +143,8 @@ function CalendarSourceCard({
   const hasChanges =
     displayName.trim() !== source.displayName ||
     normalizedColor !== (source.color ?? "#8ec5b8");
+  const googleWritable =
+    source.googleAccessRole === "owner" || source.googleAccessRole === "writer";
 
   useEffect(() => {
     setDisplayName(source.displayName);
@@ -263,34 +268,51 @@ function CalendarSourceCard({
           ))}
         </select>
       </label>
-      <label className="flex min-h-[44px] items-start gap-3 rounded-md border border-[#e4dbcc] bg-[#fffaf1] px-3 py-2">
-        <input
-          type="checkbox"
-          checked={source.allowEventWrites}
-          disabled={isBusy}
-          className="mt-1"
-          onChange={async (event) => {
-            setSourceError(null);
-            try {
-              await onPatch(source.id, {
-                allowEventWrites: event.target.checked,
-              });
-            } catch (error) {
-              setSourceError(
-                getErrorMessage(error, "Failed to update event permission."),
-              );
-            }
-          }}
-        />
-        <span>
-          <span className="block text-sm font-semibold text-slate-800">
-            Allow Daymark to add events
+      {source.googleAccessRole == null ? (
+        <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+          Google write permission has not been checked yet. Refresh permissions
+          for this account.
+        </div>
+      ) : googleWritable ? (
+        <label className="flex min-h-[44px] items-start gap-3 rounded-md border border-[#e4dbcc] bg-[#fffaf1] px-3 py-2">
+          <input
+            type="checkbox"
+            checked={source.allowEventWrites}
+            disabled={isBusy}
+            className="mt-1"
+            onChange={async (event) => {
+              setSourceError(null);
+              try {
+                await onPatch(source.id, {
+                  allowEventWrites: event.target.checked,
+                });
+              } catch (error) {
+                setSourceError(
+                  getErrorMessage(error, "Failed to update event permission."),
+                );
+              }
+            }}
+          />
+          <span>
+            <span className="block text-sm font-semibold text-slate-800">
+              Allow Daymark to add events
+            </span>
+            <span className="block text-xs text-slate-600">
+              Google allows edits. Keep this off for calendars family members
+              should only view.
+            </span>
           </span>
-          <span className="block text-xs text-slate-600">
-            Keep this off for calendars family members should only view.
-          </span>
-        </span>
-      </label>
+        </label>
+      ) : (
+        <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
+          <div className="text-sm font-semibold text-slate-700">
+            View only in Google
+          </div>
+          <div className="text-xs text-slate-500">
+            This Google account cannot add events to this calendar.
+          </div>
+        </div>
+      )}
       <div className="flex justify-end border-t border-[#ece6db] pt-3">
         <button
           type="button"
@@ -327,6 +349,11 @@ export function GoogleCalendarSettings(): JSX.Element {
   const [status, setStatus] = useState<string | null>(null);
   const [busySourceId, setBusySourceId] = useState<string | null>(null);
   const [busyAccountId, setBusyAccountId] = useState<string | null>(null);
+  const [busyPermissionAccountId, setBusyPermissionAccountId] = useState<
+    string | null
+  >(null);
+  const [permissionAutoRefreshStarted, setPermissionAutoRefreshStarted] =
+    useState(false);
   const [discoveredCalendars, setDiscoveredCalendars] = useState<
     DiscoveredCalendar[] | null
   >(null);
@@ -415,6 +442,53 @@ export function GoogleCalendarSettings(): JSX.Element {
       window.removeEventListener("focus", refreshAfterExternalAuth);
     };
   }, []);
+
+  useEffect(() => {
+    if (
+      permissionAutoRefreshStarted ||
+      !accountsQuery.data ||
+      !sourcesQuery.data
+    ) {
+      return;
+    }
+    const unknownAccountIds = new Set(
+      sourcesQuery.data.sources
+        .filter((source) => source.googleAccessRole == null)
+        .map((source) => source.connectedAccountId),
+    );
+    const refreshableAccountIds = accountsQuery.data.accounts
+      .filter(
+        (account) =>
+          unknownAccountIds.has(account.id) &&
+          account.calendarAccessGranted &&
+          !account.reauthorizationRequired,
+      )
+      .map((account) => account.id);
+    if (refreshableAccountIds.length === 0) return;
+
+    setPermissionAutoRefreshStarted(true);
+    void Promise.all(
+      refreshableAccountIds.map((accountId) =>
+        apiFetch<DiscoveryResponse>("/calendar/sources/discover-from-google", {
+          method: "POST",
+          body: JSON.stringify({ accountId }),
+        }),
+      ),
+    )
+      .then(() =>
+        queryClient.invalidateQueries({ queryKey: ["calendar-sources"] }),
+      )
+      .catch(() => {
+        setStatus(
+          "Google calendar permissions could not be checked automatically. Use Refresh permissions.",
+        );
+      });
+  }, [
+    accountsQuery.data,
+    permissionAutoRefreshStarted,
+    queryClient,
+    sourcesQuery.data,
+  ]);
 
   if (
     accountsQuery.isLoading ||
@@ -508,11 +582,30 @@ export function GoogleCalendarSettings(): JSX.Element {
       setSelectedCalendarIds([]);
       setCalendarSearch("");
       setStatus("Choose the calendars Daymark should track.");
+      await queryClient.invalidateQueries({ queryKey: ["calendar-sources"] });
     } catch (error) {
       setDiscoveredCalendars(null);
       setStatus(getErrorMessage(error, "Failed to load calendars."));
     } finally {
       setIsDiscovering(false);
+    }
+  };
+  const refreshGooglePermissions = async (accountId: string): Promise<void> => {
+    setBusyPermissionAccountId(accountId);
+    try {
+      await apiFetch<DiscoveryResponse>(
+        "/calendar/sources/discover-from-google",
+        {
+          method: "POST",
+          body: JSON.stringify({ accountId }),
+        },
+      );
+      await queryClient.invalidateQueries({ queryKey: ["calendar-sources"] });
+      setStatus("Google calendar permissions refreshed.");
+    } catch (error) {
+      setStatus(getErrorMessage(error, "Failed to refresh permissions."));
+    } finally {
+      setBusyPermissionAccountId(null);
     }
   };
   const patchSource = async (
@@ -835,6 +928,20 @@ export function GoogleCalendarSettings(): JSX.Element {
                 ) : null}
               </div>
               <div className="flex flex-wrap items-center gap-2 md:justify-end">
+                <button
+                  type="button"
+                  disabled={
+                    !account.calendarAccessGranted ||
+                    account.reauthorizationRequired ||
+                    busyPermissionAccountId === account.id
+                  }
+                  className="min-h-[40px] rounded-md border border-[#c7b8a2] bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                  onClick={() => void refreshGooglePermissions(account.id)}
+                >
+                  {busyPermissionAccountId === account.id
+                    ? "Refreshing permissions..."
+                    : "Refresh permissions"}
+                </button>
                 <button
                   type="button"
                   disabled={

@@ -17,6 +17,7 @@ export type CalendarEventSource = {
   displayName: string;
   enabled: boolean;
   allowEventWrites: boolean;
+  googleAccessRole?: string | null;
 };
 
 type Props = {
@@ -63,6 +64,8 @@ export function CalendarEventCreateDialog({
     return (
       source.enabled &&
       source.allowEventWrites &&
+      (source.googleAccessRole === "owner" ||
+        source.googleAccessRole === "writer") &&
       account?.calendarWriteAccessGranted &&
       !account.reauthorizationRequired
     );

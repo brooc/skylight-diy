@@ -438,6 +438,7 @@ describe("TodayDashboard", () => {
       displayName: "Family",
       enabled: true,
       allowEventWrites: true,
+      googleAccessRole: "owner",
       sortOrder: 0,
     });
     let createdBody: Record<string, unknown> | null = null;

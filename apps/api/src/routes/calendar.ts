@@ -132,6 +132,7 @@ type GoogleCalendarCandidate = {
   externalCalendarId: string;
   displayName: string;
   color: string;
+  accessRole: string;
   sortOrder: number;
 };
 
@@ -195,6 +196,10 @@ function hasGoogleCalendarReadScope(scopes: string[]): boolean {
     scopes.includes(GOOGLE_CALENDAR_READ_SCOPE) ||
     scopes.includes(GOOGLE_CALENDAR_FULL_SCOPE)
   );
+}
+
+function isGoogleCalendarWritable(accessRole: string | null): boolean {
+  return accessRole === "owner" || accessRole === "writer";
 }
 
 async function requireGoogleAccessToken(
@@ -335,7 +340,12 @@ async function loadGoogleCalendars(accessToken: string): Promise<GoogleCalendarL
       }
 
       const payload = (await response.json()) as {
-        items?: Array<{ id?: string; summary?: string; backgroundColor?: string }>;
+        items?: Array<{
+          id?: string;
+          summary?: string;
+          backgroundColor?: string;
+          accessRole?: string;
+        }>;
         nextPageToken?: string;
       };
       for (const item of payload.items ?? []) {
@@ -345,6 +355,7 @@ async function loadGoogleCalendars(accessToken: string): Promise<GoogleCalendarL
           externalCalendarId: item.id,
           displayName: item.summary,
           color: item.backgroundColor ?? fallbackColors[index % fallbackColors.length]!,
+          accessRole: item.accessRole ?? "reader",
           sortOrder: index
         });
       }
@@ -456,6 +467,7 @@ export const calendarRoutes: FastifyPluginAsync = async (app) => {
         color: calendarSources.color,
         enabled: calendarSources.enabled,
         allowEventWrites: calendarSources.allowEventWrites,
+        googleAccessRole: calendarSources.googleAccessRole,
         personId: calendarSources.personId,
         personName: people.displayName
       })
@@ -528,13 +540,30 @@ export const calendarRoutes: FastifyPluginAsync = async (app) => {
       .select({
         id: calendarSources.id,
         externalCalendarId: calendarSources.externalCalendarId,
-        enabled: calendarSources.enabled
+        enabled: calendarSources.enabled,
+        allowEventWrites: calendarSources.allowEventWrites
       })
       .from(calendarSources)
       .where(eq(calendarSources.connectedAccountId, account.id));
     const trackedByExternalId = new Map(
       trackedSources.map((source) => [source.externalCalendarId, source])
     );
+
+    for (const calendar of loaded.calendars) {
+      const trackedSource = trackedByExternalId.get(calendar.externalCalendarId);
+      if (!trackedSource) continue;
+      await app.db
+        .update(calendarSources)
+        .set({
+          googleAccessRole: calendar.accessRole,
+          ...(!isGoogleCalendarWritable(calendar.accessRole) &&
+          trackedSource.allowEventWrites
+            ? { allowEventWrites: false }
+            : {}),
+          updatedAt: new Date()
+        })
+        .where(eq(calendarSources.id, trackedSource.id));
+    }
 
     return {
       calendars: loaded.calendars.map((calendar) => {
@@ -543,7 +572,8 @@ export const calendarRoutes: FastifyPluginAsync = async (app) => {
           ...calendar,
           tracked: Boolean(trackedSource),
           sourceId: trackedSource?.id ?? null,
-          enabled: trackedSource?.enabled ?? false
+          enabled: trackedSource?.enabled ?? false,
+          writable: isGoogleCalendarWritable(calendar.accessRole)
         };
       })
     };
@@ -625,6 +655,7 @@ export const calendarRoutes: FastifyPluginAsync = async (app) => {
         displayName: source.displayName,
         color: source.color,
         enabled: true,
+        googleAccessRole: source.accessRole,
         sortOrder: source.sortOrder
       });
     }
@@ -637,6 +668,7 @@ export const calendarRoutes: FastifyPluginAsync = async (app) => {
         color: calendarSources.color,
         enabled: calendarSources.enabled,
         allowEventWrites: calendarSources.allowEventWrites,
+        googleAccessRole: calendarSources.googleAccessRole,
         externalCalendarId: calendarSources.externalCalendarId,
         personId: calendarSources.personId
       })
@@ -667,12 +699,24 @@ export const calendarRoutes: FastifyPluginAsync = async (app) => {
 
     const sourceId = (request.params as { sourceId: string }).sourceId;
     const [source] = await app.db
-      .select({ id: calendarSources.id })
+      .select({
+        id: calendarSources.id,
+        googleAccessRole: calendarSources.googleAccessRole
+      })
       .from(calendarSources)
       .where(and(eq(calendarSources.id, sourceId), eq(calendarSources.householdId, household.id)))
       .limit(1);
     if (!source) {
       return reply.status(404).send({ error: "source_not_found" });
+    }
+    if (
+      parsed.data.allowEventWrites === true &&
+      !isGoogleCalendarWritable(source.googleAccessRole)
+    ) {
+      return reply.status(409).send({
+        error: "google_calendar_not_writable",
+        message: "Google has not granted write access to this calendar."
+      });
     }
 
     if (typeof parsed.data.personId !== "undefined" && parsed.data.personId !== null) {
@@ -774,6 +818,7 @@ export const calendarRoutes: FastifyPluginAsync = async (app) => {
         displayName: calendarSources.displayName,
         enabled: calendarSources.enabled,
         allowEventWrites: calendarSources.allowEventWrites,
+        googleAccessRole: calendarSources.googleAccessRole,
         accountId: connectedAccounts.id,
         encryptedAccessToken: connectedAccounts.encryptedAccessToken,
         encryptedRefreshToken: connectedAccounts.encryptedRefreshToken,
@@ -801,6 +846,12 @@ export const calendarRoutes: FastifyPluginAsync = async (app) => {
       return reply.status(409).send({
         error: "calendar_source_disabled",
         message: "Enable this calendar before adding events to it."
+      });
+    }
+    if (!isGoogleCalendarWritable(destination.googleAccessRole)) {
+      return reply.status(403).send({
+        error: "google_calendar_not_writable",
+        message: `Google only allows viewing events on "${destination.displayName}".`
       });
     }
     if (!destination.allowEventWrites) {
