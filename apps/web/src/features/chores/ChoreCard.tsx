@@ -6,8 +6,15 @@ type ChoreCardProps = {
   points: number;
   assignedPersonName?: string | null;
   assignedPersonColor?: string | null;
+  assignedPersonId?: string | null;
+  frequency?: "daily" | "weekly" | "once";
+  dueDate?: string | null;
+  weekdays?: string[] | null;
+  completedByPersonName?: string | null;
   completed: boolean;
   onToggle: (nextCompleted: boolean) => void;
+  onEdit?: () => void;
+  onRemove?: () => void;
 };
 
 export function ChoreCard({
@@ -15,8 +22,14 @@ export function ChoreCard({
   points,
   assignedPersonName,
   assignedPersonColor,
+  frequency = "daily",
+  dueDate,
+  weekdays,
+  completedByPersonName,
   completed,
-  onToggle
+  onToggle,
+  onEdit,
+  onRemove
 }: ChoreCardProps): JSX.Element {
   const palettes = [
     { card: "bg-[#fbeef0] border-[#f3d9df]", chip: "bg-[#f8dce3]" },
@@ -29,6 +42,11 @@ export function ChoreCard({
   const appearance = assignedPersonColor
     ? memberAppearance(assignedPersonColor, "#0f766e")
     : null;
+  const scheduleLabel = frequency === "daily"
+    ? "Every day"
+    : frequency === "once"
+      ? `Once${dueDate ? ` · ${new Date(`${dueDate}T00:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric" })}` : ""}`
+      : `Weekly · ${(weekdays ?? []).join(", ")}`;
 
   return (
     <article
@@ -42,7 +60,8 @@ export function ChoreCard({
       <div className="flex items-start justify-between gap-3">
         <div>
           <h3 className="text-base font-semibold text-slate-900">{title}</h3>
-          <p className="text-sm text-slate-600">{assignedPersonName ?? "Unassigned"}</p>
+          <p className="text-sm text-slate-600">{assignedPersonName ?? "Anyone"} · {scheduleLabel}</p>
+          {completed && completedByPersonName ? <p className="text-xs text-slate-500">Completed by {completedByPersonName}</p> : null}
         </div>
         <span
           className={`rounded-md px-2 py-1 text-sm font-medium text-slate-700 ${
@@ -64,6 +83,12 @@ export function ChoreCard({
       >
         {completed ? "Completed" : "Mark complete"}
       </button>
+      {onEdit || onRemove ? (
+        <div className="flex gap-2 border-t border-black/5 pt-2">
+          {onEdit ? <button type="button" className="min-h-[40px] flex-1 rounded-md bg-white/70 px-3 text-sm font-semibold text-slate-700" onClick={onEdit}>Edit</button> : null}
+          {onRemove ? <button type="button" className="min-h-[40px] flex-1 rounded-md bg-white/70 px-3 text-sm font-semibold text-rose-700" onClick={onRemove}>Remove</button> : null}
+        </div>
+      ) : null}
     </article>
   );
 }

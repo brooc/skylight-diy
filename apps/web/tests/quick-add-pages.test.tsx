@@ -8,7 +8,8 @@ import { MealPlanWeek } from "../src/features/meals/MealPlanWeek";
 import {
   createRealApiApp,
   installRealApiFetch,
-  resetRealApiApp
+  resetRealApiApp,
+  unlockRealApiAdmin
 } from "./helpers/real-api";
 import { renderWithProviders } from "./helpers/test-utils";
 
@@ -35,6 +36,9 @@ describe("quick add page states", () => {
   });
 
   it("opens tasks add form from the route and creates a task through the API", async () => {
+    restoreFetch?.();
+    const cookie = await unlockRealApiAdmin(app);
+    restoreFetch = installRealApiFetch(app, { cookie });
     renderWithProviders(<ChoresPage />, { route: "/chores?add=1" });
     const user = userEvent.setup();
 
@@ -45,6 +49,48 @@ describe("quick add page states", () => {
 
     expect(await screen.findByText("Pack lunches")).toBeInTheDocument();
     expect(screen.getAllByText("Kiddo").length).toBeGreaterThan(0);
+  });
+
+  it("edits, completes, spends, resets, archives, and restores a task", async () => {
+    restoreFetch?.();
+    const cookie = await unlockRealApiAdmin(app);
+    await app.inject({
+      method: "POST",
+      url: "/api/chores",
+      headers: { cookie },
+      payload: { title: "Pack lunches", points: 3, assignedPersonId: (await app.inject({ method: "GET", url: "/api/household/current" })).json().people.find((person: { displayName: string }) => person.displayName === "Kiddo").id }
+    });
+    restoreFetch = installRealApiFetch(app, { cookie });
+    renderWithProviders(<ChoresPage />, { route: "/chores" });
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByRole("button", { name: "Manage tasks" }));
+    await user.click(screen.getByRole("button", { name: "Edit" }));
+    const title = screen.getByLabelText("Title");
+    await user.clear(title);
+    await user.type(title, "Pack school lunches");
+    await user.click(screen.getByRole("button", { name: "Save changes" }));
+    expect(await screen.findByText("Pack school lunches")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Mark complete" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Completed" })).toBeInTheDocument());
+    let useButton: HTMLElement | undefined;
+    await waitFor(() => {
+      useButton = screen.getAllByRole("button", { name: "Use" }).find((button) => !button.hasAttribute("disabled"));
+      expect(useButton).toBeTruthy();
+    });
+    await user.click(useButton!);
+    await user.type(screen.getByLabelText("Reason"), "Movie night");
+    await user.click(screen.getByRole("button", { name: "Use points" }));
+    expect(await screen.findByText("1 points used for Kiddo.")).toBeInTheDocument();
+    const resetButton = screen.getAllByRole("button", { name: "Reset" }).find((button) => !button.hasAttribute("disabled"));
+    await user.click(resetButton!);
+    expect(await screen.findByText("Kiddo's balance was reset.")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Remove" }));
+    expect(await screen.findByText("Archived tasks")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Restore" }));
+    expect(await screen.findByText("Task restored.")).toBeInTheDocument();
   });
 
   it("opens lists add form from the route and creates list data through the API", async () => {

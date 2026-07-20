@@ -20,7 +20,7 @@ describe("chore components", () => {
     );
 
     expect(screen.getByText("Take out trash")).toBeInTheDocument();
-    expect(screen.getByText("Kiddo")).toBeInTheDocument();
+    expect(screen.getByText("Kiddo · Every day")).toBeInTheDocument();
     expect(screen.getByText("2 pts")).toBeInTheDocument();
     expect(screen.getByText("Take out trash").closest("article")).toHaveStyle({
       backgroundColor: "#d8e2ec"
@@ -53,8 +53,8 @@ describe("chore components", () => {
       />
     );
 
-    expect(screen.getByText("Today's chores")).toBeInTheDocument();
-    expect(screen.getByText("Unassigned")).toBeInTheDocument();
+    expect(screen.getByText("Today's tasks")).toBeInTheDocument();
+    expect(screen.getByText("Anyone · Every day")).toBeInTheDocument();
 
     await userEvent.setup().click(screen.getByRole("button", { name: "Completed" }));
     expect(toggleCalls).toEqual([{ id: "chore-1", title: "Feed dog", completed: false }]);

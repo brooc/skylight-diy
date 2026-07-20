@@ -583,11 +583,11 @@ describe("TodayDashboard", () => {
     await user.type(within(dialog).getByLabelText(/Location/), "Campbell");
     await user.type(within(dialog).getByLabelText(/Guests/), "kid@example.com");
     await user.selectOptions(within(dialog).getByLabelText("Repeat"), "weekly");
-    expect(within(dialog).getByRole("checkbox", { name: "Sunday" })).toBeChecked();
-    await user.click(within(dialog).getByRole("checkbox", { name: "Monday" }));
-    await user.click(within(dialog).getByRole("checkbox", { name: "Tuesday" }));
-    await user.click(within(dialog).getByRole("checkbox", { name: "Wednesday" }));
-    await user.click(within(dialog).getByRole("checkbox", { name: "Sunday" }));
+    for (const day of ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]) {
+      const checkbox = within(dialog).getByRole("checkbox", { name: day }) as HTMLInputElement;
+      const shouldBeChecked = ["Monday", "Tuesday", "Wednesday"].includes(day);
+      if (checkbox.checked !== shouldBeChecked) await user.click(checkbox);
+    }
     await user.selectOptions(
       within(dialog).getByLabelText("Repeat ends"),
       "on_date",

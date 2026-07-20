@@ -1,10 +1,11 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { apiFetch } from "../../api/client";
 import { ErrorState } from "../../components/ErrorState";
 
 export function AdminPinUnlock(): JSX.Element {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [pin, setPin] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -25,7 +26,8 @@ export function AdminPinUnlock(): JSX.Element {
               method: "POST",
               body: JSON.stringify({ pin })
             });
-            navigate("/settings");
+            const returnTo = searchParams.get("returnTo");
+            navigate(returnTo?.startsWith("/") && !returnTo.startsWith("//") ? returnTo : "/settings");
           } catch (err) {
             setError(err instanceof Error ? err.message : "Unlock failed");
           } finally {
