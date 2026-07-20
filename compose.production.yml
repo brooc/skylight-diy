@@ -105,7 +105,7 @@ services:
       tailscale:
         condition: service_started
     ports:
-      - "127.0.0.1:${DAYMARK_HTTP_PORT:-8080}:8080"
+      - "${DAYMARK_BIND_ADDRESS:-0.0.0.0}:${DAYMARK_HTTP_PORT:-8080}:8080"
 
   tailscale-serve:
     image: tailscale/tailscale:stable

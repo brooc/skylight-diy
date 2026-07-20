@@ -23,6 +23,7 @@ Edit `.env.production`:
 - Set `TOKEN_ENCRYPTION_KEY` to the base64 output from the first command.
 - Set `SESSION_SECRET` to the hex output from the second command.
 - Leave the bootstrap `APP_BASE_URL` and `API_BASE_URL` values as `http://localhost:8080` for now.
+- Leave `DAYMARK_BIND_ADDRESS=0.0.0.0` to provide a home-LAN fallback for the tablet. Set it to `127.0.0.1` only if LAN access is not wanted.
 - Leave the Google variables commented out until the private HTTPS address is known.
 
 Keep `.env.production` and the token encryption key with the database backups. They are intentionally excluded from Git.
@@ -35,7 +36,9 @@ docker compose --env-file .env.production -f compose.production.yml ps
 curl http://127.0.0.1:8080/api/health
 ```
 
-The API container applies database migrations before starting. The web gateway serves the built PWA and proxies `/api/*` to the API, keeping the browser on one origin. The local bootstrap port is bound only to the computer's loopback interface; it is not exposed to the LAN or public internet.
+The API container applies database migrations before starting. The web gateway serves the built PWA and proxies `/api/*` to the API, keeping the browser on one origin. By default the HTTP port is available on the home LAN as a fallback when the tablet's Tailscale VPN is offline; the router does not expose it to the public internet unless port forwarding is configured separately.
+
+From another device on the same Wi-Fi, open `http://<server-lan-ip>:8080`. This HTTP fallback can display Daymark, but PWA installation, secure cookies, and Screen Wake Lock should use the Tailscale HTTPS address.
 
 On that computer, open [http://localhost:8080/settings](http://localhost:8080/settings). The **Tablet access** card is deliberately visible while settings are locked:
 
