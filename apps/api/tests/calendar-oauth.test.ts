@@ -1,6 +1,7 @@
 import { createHmac } from "node:crypto";
 import {
   calendarEventCache,
+  calendarEventWriteLogs,
   calendarFetchLogs,
   calendarSources,
   connectedAccounts,
@@ -182,7 +183,7 @@ describe("calendar and google integration routes", () => {
       expect(authUrl.origin).toBe("https://accounts.google.com");
       expect(authUrl.searchParams.get("client_id")).toBe("client-id");
       expect(authUrl.searchParams.get("scope")).toBe(
-        "https://www.googleapis.com/auth/calendar.readonly",
+        "https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/calendar.events",
       );
       const state = authUrl.searchParams.get("state");
       expect(state).toBeTruthy();
@@ -377,6 +378,7 @@ describe("calendar and google integration routes", () => {
         .limit(1);
       expect(updatedAccount.scopes).toEqual([
         "https://www.googleapis.com/auth/calendar.readonly",
+        "https://www.googleapis.com/auth/calendar.events",
       ]);
       expect(updatedAccount.encryptedRefreshToken).toBe(
         "malformed-refresh-token",
@@ -1007,6 +1009,7 @@ describe("calendar and google integration routes", () => {
       headers: { cookie },
       payload: {
         enabled: false,
+        allowEventWrites: true,
         personId: kiddo.id,
         displayName: "Kid calendar",
         color: "#f7d8d4",
@@ -1016,6 +1019,7 @@ describe("calendar and google integration routes", () => {
     expect(patched.json().source).toMatchObject({
       displayName: "Kid calendar",
       enabled: false,
+      allowEventWrites: true,
       personId: kiddo.id,
       color: "#f7d8d4",
     });
@@ -1409,6 +1413,188 @@ describe("calendar and google integration routes", () => {
         .where(eq(connectedAccounts.id, account.id));
       expect(updatedAccount.reauthorizationRequired).toBe(true);
     });
+  });
+
+  it("requires both account authorization and an explicit writable-calendar opt-in", async () => {
+    const setup = await setupHousehold(app);
+    const [account] = await app.db
+      .insert(connectedAccounts)
+      .values({
+        householdId: setup.household.id,
+        provider: "google",
+        providerAccountId: "google-write-guard",
+        displayName: "Google",
+        encryptedAccessToken: encryptToken("token-value"),
+        scopes: [
+          "https://www.googleapis.com/auth/calendar.readonly",
+          "https://www.googleapis.com/auth/calendar.events",
+        ],
+      })
+      .returning();
+    const [source] = await app.db
+      .insert(calendarSources)
+      .values({
+        householdId: setup.household.id,
+        connectedAccountId: account.id,
+        provider: "google",
+        externalCalendarId: "parent@example.com",
+        displayName: "Parent",
+        enabled: true,
+      })
+      .returning();
+    const payload = {
+      sourceId: source.id,
+      requestId: "11111111-1111-4111-8111-111111111111",
+      title: "Family appointment",
+      allDay: false,
+      start: "2026-07-21T17:00:00.000Z",
+      end: "2026-07-21T18:00:00.000Z",
+      timezone: "America/Los_Angeles",
+    };
+
+    const disabled = await app.inject({
+      method: "POST",
+      url: "/api/calendar/events",
+      payload,
+    });
+    expect(disabled.statusCode).toBe(403);
+    expect(disabled.json().error).toBe("calendar_writes_disabled");
+
+    await app.db
+      .update(calendarSources)
+      .set({ allowEventWrites: true })
+      .where(eq(calendarSources.id, source.id));
+    await app.db
+      .update(connectedAccounts)
+      .set({ scopes: ["https://www.googleapis.com/auth/calendar.readonly"] })
+      .where(eq(connectedAccounts.id, account.id));
+
+    const unauthorized = await app.inject({
+      method: "POST",
+      url: "/api/calendar/events",
+      payload,
+    });
+    expect(unauthorized.statusCode).toBe(409);
+    expect(unauthorized.json().error).toBe(
+      "google_write_authorization_required",
+    );
+  });
+
+  it("creates an event idempotently and clears cached calendar data", async () => {
+    const setup = await setupHousehold(app);
+    const [account] = await app.db
+      .insert(connectedAccounts)
+      .values({
+        householdId: setup.household.id,
+        provider: "google",
+        providerAccountId: "google-event-create",
+        displayName: "Google",
+        encryptedAccessToken: encryptToken("token-value"),
+        scopes: [
+          "https://www.googleapis.com/auth/calendar.readonly",
+          "https://www.googleapis.com/auth/calendar.events",
+        ],
+      })
+      .returning();
+    const [source] = await app.db
+      .insert(calendarSources)
+      .values({
+        householdId: setup.household.id,
+        connectedAccountId: account.id,
+        provider: "google",
+        externalCalendarId: "family/calendar@example.com",
+        displayName: "Family",
+        enabled: true,
+        allowEventWrites: true,
+      })
+      .returning();
+    await app.db.insert(calendarEventCache).values({
+      householdId: setup.household.id,
+      cacheKey: "event-create-cache",
+      rangeStart: new Date("2026-07-21T00:00:00.000Z"),
+      rangeEnd: new Date("2026-07-22T00:00:00.000Z"),
+      timezone: "America/Los_Angeles",
+      sourceFingerprint: source.id,
+      payloadJsonb: { events: [] },
+      fetchedAt: new Date(),
+      expiresAt: new Date(Date.now() + 60_000),
+      staleUntil: new Date(Date.now() + 120_000),
+    });
+
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            id: "22222222222242228222222222222222",
+            htmlLink: "https://calendar.google.com/event?eid=created",
+          }),
+          { status: 201, headers: { "Content-Type": "application/json" } },
+        ),
+      )
+      .mockResolvedValueOnce(new Response("duplicate", { status: 409 }));
+    const payload = {
+      sourceId: source.id,
+      requestId: "22222222-2222-4222-8222-222222222222",
+      title: "Dentist",
+      description: "Bring insurance card",
+      location: "Campbell",
+      attendees: ["kid@example.com"],
+      allDay: false,
+      start: "2026-07-21T17:00:00.000Z",
+      end: "2026-07-21T18:00:00.000Z",
+      timezone: "America/Los_Angeles",
+    };
+
+    const created = await app.inject({
+      method: "POST",
+      url: "/api/calendar/events",
+      payload,
+    });
+    expect(created.statusCode).toBe(201);
+    expect(created.json()).toMatchObject({
+      created: true,
+      duplicate: false,
+      sourceId: source.id,
+    });
+    expect(await app.db.select().from(calendarEventCache)).toHaveLength(0);
+    expect(fetchSpy.mock.calls[0]?.[0].toString()).toContain(
+      "calendars/family%2Fcalendar%40example.com/events",
+    );
+    expect(fetchSpy.mock.calls[0]?.[0].toString()).toContain("sendUpdates=all");
+    const requestBody = JSON.parse(String(fetchSpy.mock.calls[0]?.[1]?.body));
+    expect(requestBody).toMatchObject({
+      id: "22222222222242228222222222222222",
+      summary: "Dentist",
+      description: "Bring insurance card",
+      location: "Campbell",
+      attendees: [{ email: "kid@example.com" }],
+      start: {
+        dateTime: "2026-07-21T17:00:00.000Z",
+        timeZone: "America/Los_Angeles",
+      },
+    });
+
+    const duplicate = await app.inject({
+      method: "POST",
+      url: "/api/calendar/events",
+      payload,
+    });
+    expect(duplicate.statusCode).toBe(200);
+    expect(duplicate.json()).toMatchObject({
+      created: true,
+      duplicate: true,
+      eventId: "22222222222242228222222222222222",
+    });
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(await app.db.select().from(calendarEventWriteLogs)).toMatchObject([
+      {
+        calendarSourceId: source.id,
+        requestId: "22222222-2222-4222-8222-222222222222",
+        providerEventId: "22222222222242228222222222222222",
+        title: "Dentist",
+      },
+    ]);
   });
 });
 

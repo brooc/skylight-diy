@@ -12,6 +12,12 @@ import {
 const GOOGLE_STATE_TTL_SECONDS = 60 * 10;
 const GOOGLE_CALENDAR_SCOPE =
   "https://www.googleapis.com/auth/calendar.readonly";
+const GOOGLE_CALENDAR_WRITE_SCOPE =
+  "https://www.googleapis.com/auth/calendar.events";
+const GOOGLE_CALENDAR_SCOPES = [
+  GOOGLE_CALENDAR_SCOPE,
+  GOOGLE_CALENDAR_WRITE_SCOPE,
+];
 
 const callbackQuerySchema = z.object({
   code: z.string().optional(),
@@ -166,7 +172,7 @@ export const googleOauthRoutes: FastifyPluginAsync = async (app) => {
     authUrl.searchParams.set("client_id", env.GOOGLE_CLIENT_ID as string);
     authUrl.searchParams.set("redirect_uri", env.GOOGLE_REDIRECT_URI as string);
     authUrl.searchParams.set("response_type", "code");
-    authUrl.searchParams.set("scope", GOOGLE_CALENDAR_SCOPE);
+    authUrl.searchParams.set("scope", GOOGLE_CALENDAR_SCOPES.join(" "));
     authUrl.searchParams.set("access_type", "offline");
     authUrl.searchParams.set(
       "prompt",
@@ -355,9 +361,9 @@ export const googleOauthRoutes: FastifyPluginAsync = async (app) => {
       typeof tokenPayload.expires_in === "number"
         ? new Date(Date.now() + tokenPayload.expires_in * 1000)
         : null;
-    const scopes = tokenPayload.scope?.split(/\s+/).filter(Boolean) ?? [
-      GOOGLE_CALENDAR_SCOPE,
-    ];
+    const scopes =
+      tokenPayload.scope?.split(/\s+/).filter(Boolean) ??
+      GOOGLE_CALENDAR_SCOPES;
     const calendarAccessGranted = scopes.includes(GOOGLE_CALENDAR_SCOPE);
 
     if (existingAccount) {

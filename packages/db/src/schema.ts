@@ -211,6 +211,7 @@ export const calendarSources = pgTable(
       onDelete: "set null"
     }),
     enabled: boolean("enabled").notNull().default(true),
+    allowEventWrites: boolean("allow_event_writes").notNull().default(false),
     sortOrder: integer("sort_order").notNull().default(0),
     createdAt: createdAt(),
     updatedAt: updatedAt()
@@ -237,6 +238,29 @@ export const calendarFetchLogs = pgTable("calendar_fetch_logs", {
   errorMessage: text("error_message"),
   fetchedAt: timestamp("fetched_at", { withTimezone: true }).notNull().defaultNow()
 });
+
+export const calendarEventWriteLogs = pgTable(
+  "calendar_event_write_logs",
+  {
+    id: id(),
+    householdId: uuid("household_id")
+      .notNull()
+      .references(() => households.id, { onDelete: "cascade" }),
+    calendarSourceId: uuid("calendar_source_id").references(
+      () => calendarSources.id,
+      { onDelete: "set null" }
+    ),
+    requestId: uuid("request_id").notNull(),
+    providerEventId: text("provider_event_id").notNull(),
+    title: text("title").notNull(),
+    createdAt: createdAt()
+  },
+  (table) => ({
+    uniqueRequest: uniqueIndex(
+      "calendar_event_write_logs_unique_household_request"
+    ).on(table.householdId, table.requestId)
+  })
+);
 
 export const calendarEventCache = pgTable(
   "calendar_event_cache",

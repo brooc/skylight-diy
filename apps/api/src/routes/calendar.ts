@@ -1,5 +1,6 @@
 import {
   calendarEventCache,
+  calendarEventWriteLogs,
   calendarFetchLogs,
   calendarSources,
   connectedAccounts,
@@ -43,6 +44,7 @@ const eventsQuerySchema = z
 
 const patchSourceBodySchema = z.object({
   enabled: z.boolean().optional(),
+  allowEventWrites: z.boolean().optional(),
   personId: z.string().uuid().nullable().optional(),
   displayName: z.string().trim().min(1).max(120).optional(),
   color: z.string().regex(/^#[0-9a-f]{6}$/i).nullable().optional()
@@ -55,6 +57,76 @@ const accountSourcesBodySchema = z.object({
 const importSourcesBodySchema = accountSourcesBodySchema.extend({
   externalCalendarIds: z.array(z.string().min(1)).max(250)
 });
+
+const calendarEventBodySchema = z
+  .object({
+    sourceId: z.string().uuid(),
+    requestId: z.string().uuid(),
+    title: z.string().trim().min(1).max(200),
+    description: z.string().trim().max(8_000).optional(),
+    location: z.string().trim().max(500).optional(),
+    attendees: z.array(z.string().email()).max(50).optional(),
+    allDay: z.boolean(),
+    start: z.string().min(1),
+    end: z.string().min(1),
+    timezone: z.string().min(1).refine((timezone) => {
+      try {
+        new Intl.DateTimeFormat("en-US", { timeZone: timezone });
+        return true;
+      } catch {
+        return false;
+      }
+    }, "Invalid IANA timezone.")
+  })
+  .superRefine((event, context) => {
+    if (event.allDay) {
+      const datePattern = /^\d{4}-\d{2}-\d{2}$/;
+      if (!datePattern.test(event.start) || !datePattern.test(event.end)) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "All-day events require YYYY-MM-DD dates.",
+          path: ["start"]
+        });
+        return;
+      }
+      if (event.end <= event.start) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "End must be after start.",
+          path: ["end"]
+        });
+      }
+      return;
+    }
+
+    const start = z.string().datetime().safeParse(event.start);
+    const end = z.string().datetime().safeParse(event.end);
+    if (!start.success) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Timed events require an ISO start timestamp.",
+        path: ["start"]
+      });
+    }
+    if (!end.success) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Timed events require an ISO end timestamp.",
+        path: ["end"]
+      });
+    }
+    if (
+      start.success &&
+      end.success &&
+      new Date(event.end).getTime() <= new Date(event.start).getTime()
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "End must be after start.",
+        path: ["end"]
+      });
+    }
+  });
 
 type GoogleCalendarCandidate = {
   externalCalendarId: string;
@@ -104,6 +176,26 @@ type GoogleAccessTokenResult =
   | { ok: false; error: string; message: string; reauthorizationRequired: boolean };
 
 const GOOGLE_TOKEN_REFRESH_MARGIN_MS = 60_000;
+const GOOGLE_CALENDAR_READ_SCOPE =
+  "https://www.googleapis.com/auth/calendar.readonly";
+const GOOGLE_CALENDAR_WRITE_SCOPE =
+  "https://www.googleapis.com/auth/calendar.events";
+const GOOGLE_CALENDAR_FULL_SCOPE =
+  "https://www.googleapis.com/auth/calendar";
+
+function hasGoogleCalendarWriteScope(scopes: string[]): boolean {
+  return (
+    scopes.includes(GOOGLE_CALENDAR_WRITE_SCOPE) ||
+    scopes.includes(GOOGLE_CALENDAR_FULL_SCOPE)
+  );
+}
+
+function hasGoogleCalendarReadScope(scopes: string[]): boolean {
+  return (
+    scopes.includes(GOOGLE_CALENDAR_READ_SCOPE) ||
+    scopes.includes(GOOGLE_CALENDAR_FULL_SCOPE)
+  );
+}
 
 async function requireGoogleAccessToken(
   app: FastifyInstance,
@@ -343,9 +435,8 @@ export const calendarRoutes: FastifyPluginAsync = async (app) => {
     return {
       accounts: accounts.map((account) => ({
         ...account,
-        calendarAccessGranted: account.scopes.includes(
-          "https://www.googleapis.com/auth/calendar.readonly"
-        )
+        calendarAccessGranted: hasGoogleCalendarReadScope(account.scopes),
+        calendarWriteAccessGranted: hasGoogleCalendarWriteScope(account.scopes)
       }))
     };
   });
@@ -364,6 +455,7 @@ export const calendarRoutes: FastifyPluginAsync = async (app) => {
         displayName: calendarSources.displayName,
         color: calendarSources.color,
         enabled: calendarSources.enabled,
+        allowEventWrites: calendarSources.allowEventWrites,
         personId: calendarSources.personId,
         personName: people.displayName
       })
@@ -544,6 +636,7 @@ export const calendarRoutes: FastifyPluginAsync = async (app) => {
         displayName: calendarSources.displayName,
         color: calendarSources.color,
         enabled: calendarSources.enabled,
+        allowEventWrites: calendarSources.allowEventWrites,
         externalCalendarId: calendarSources.externalCalendarId,
         personId: calendarSources.personId
       })
@@ -595,6 +688,7 @@ export const calendarRoutes: FastifyPluginAsync = async (app) => {
 
     const updatePayload: {
       enabled?: boolean;
+      allowEventWrites?: boolean;
       personId?: string | null;
       displayName?: string;
       color?: string | null;
@@ -604,6 +698,9 @@ export const calendarRoutes: FastifyPluginAsync = async (app) => {
     };
     if (typeof parsed.data.enabled === "boolean") {
       updatePayload.enabled = parsed.data.enabled;
+    }
+    if (typeof parsed.data.allowEventWrites === "boolean") {
+      updatePayload.allowEventWrites = parsed.data.allowEventWrites;
     }
     if (typeof parsed.data.personId !== "undefined") {
       updatePayload.personId = parsed.data.personId;
@@ -622,6 +719,7 @@ export const calendarRoutes: FastifyPluginAsync = async (app) => {
         id: calendarSources.id,
         displayName: calendarSources.displayName,
         enabled: calendarSources.enabled,
+        allowEventWrites: calendarSources.allowEventWrites,
         personId: calendarSources.personId,
         color: calendarSources.color
       });
@@ -653,6 +751,215 @@ export const calendarRoutes: FastifyPluginAsync = async (app) => {
       .where(eq(calendarEventCache.householdId, household.id));
 
     return { untracked: true, sourceId: deleted.id };
+  });
+
+  app.post("/calendar/events", async (request, reply) => {
+    const parsed = calendarEventBodySchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.status(400).send({
+        error: "invalid_calendar_event",
+        details: parsed.error.flatten()
+      });
+    }
+
+    const [household] = await app.db.select().from(households).limit(1);
+    if (!household) {
+      return reply.status(404).send({ error: "setup_not_completed" });
+    }
+
+    const [destination] = await app.db
+      .select({
+        sourceId: calendarSources.id,
+        externalCalendarId: calendarSources.externalCalendarId,
+        displayName: calendarSources.displayName,
+        enabled: calendarSources.enabled,
+        allowEventWrites: calendarSources.allowEventWrites,
+        accountId: connectedAccounts.id,
+        encryptedAccessToken: connectedAccounts.encryptedAccessToken,
+        encryptedRefreshToken: connectedAccounts.encryptedRefreshToken,
+        accessTokenExpiresAt: connectedAccounts.accessTokenExpiresAt,
+        scopes: connectedAccounts.scopes
+      })
+      .from(calendarSources)
+      .innerJoin(
+        connectedAccounts,
+        eq(calendarSources.connectedAccountId, connectedAccounts.id)
+      )
+      .where(
+        and(
+          eq(calendarSources.id, parsed.data.sourceId),
+          eq(calendarSources.householdId, household.id),
+          eq(connectedAccounts.provider, "google")
+        )
+      )
+      .limit(1);
+
+    if (!destination) {
+      return reply.status(404).send({ error: "calendar_source_not_found" });
+    }
+    if (!destination.enabled) {
+      return reply.status(409).send({
+        error: "calendar_source_disabled",
+        message: "Enable this calendar before adding events to it."
+      });
+    }
+    if (!destination.allowEventWrites) {
+      return reply.status(403).send({
+        error: "calendar_writes_disabled",
+        message: `Event creation is disabled for "${destination.displayName}" in Daymark settings.`
+      });
+    }
+    if (!hasGoogleCalendarWriteScope(destination.scopes)) {
+      return reply.status(409).send({
+        error: "google_write_authorization_required",
+        message: "Reconnect this Google account and allow event creation."
+      });
+    }
+
+    const [existingWrite] = await app.db
+      .select({ providerEventId: calendarEventWriteLogs.providerEventId })
+      .from(calendarEventWriteLogs)
+      .where(
+        and(
+          eq(calendarEventWriteLogs.householdId, household.id),
+          eq(calendarEventWriteLogs.requestId, parsed.data.requestId)
+        )
+      )
+      .limit(1);
+    if (existingWrite) {
+      return {
+        created: true,
+        duplicate: true,
+        eventId: existingWrite.providerEventId,
+        sourceId: destination.sourceId
+      };
+    }
+
+    const token = await requireGoogleAccessToken(app, {
+      id: destination.accountId,
+      encryptedAccessToken: destination.encryptedAccessToken,
+      encryptedRefreshToken: destination.encryptedRefreshToken,
+      accessTokenExpiresAt: destination.accessTokenExpiresAt,
+      scopes: destination.scopes
+    });
+    if (!token.ok) {
+      return reply
+        .status(token.reauthorizationRequired ? 409 : 502)
+        .send({ error: token.error, message: token.message });
+    }
+
+    const eventId = parsed.data.requestId.replaceAll("-", "");
+    const googleEvent = {
+      id: eventId,
+      summary: parsed.data.title,
+      ...(parsed.data.description
+        ? { description: parsed.data.description }
+        : {}),
+      ...(parsed.data.location ? { location: parsed.data.location } : {}),
+      ...(parsed.data.attendees?.length
+        ? {
+            attendees: parsed.data.attendees.map((email) => ({ email }))
+          }
+        : {}),
+      start: parsed.data.allDay
+        ? { date: parsed.data.start }
+        : { dateTime: parsed.data.start, timeZone: parsed.data.timezone },
+      end: parsed.data.allDay
+        ? { date: parsed.data.end }
+        : { dateTime: parsed.data.end, timeZone: parsed.data.timezone }
+    };
+
+    const createEventUrl = new URL(
+      `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(destination.externalCalendarId)}/events`
+    );
+    if (parsed.data.attendees?.length) {
+      createEventUrl.searchParams.set("sendUpdates", "all");
+    }
+    let googleResponse: Response;
+    try {
+      googleResponse = await fetch(
+        createEventUrl,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token.accessToken}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify(googleEvent)
+        }
+      );
+    } catch {
+      return reply.status(502).send({
+        error: "google_event_create_request_failed",
+        message: "Google Calendar could not be reached. Try again."
+      });
+    }
+
+    if (googleResponse.status === 401) {
+      await app.db
+        .update(connectedAccounts)
+        .set({ reauthorizationRequired: true, updatedAt: new Date() })
+        .where(eq(connectedAccounts.id, destination.accountId));
+      return reply.status(409).send({
+        error: "google_reauthorization_required",
+        message: "Reconnect this Google account before adding events."
+      });
+    }
+    if (googleResponse.status === 403) {
+      return reply.status(403).send({
+        error: "google_calendar_not_writable",
+        message: `Google does not allow this account to add events to "${destination.displayName}".`
+      });
+    }
+    if (!googleResponse.ok && googleResponse.status !== 409) {
+      return reply.status(502).send({
+        error: "google_event_create_failed",
+        message: "Google Calendar did not accept the event. Try again.",
+        statusCode: googleResponse.status
+      });
+    }
+
+    await app.db
+      .delete(calendarEventCache)
+      .where(eq(calendarEventCache.householdId, household.id));
+
+    let providerEventId = eventId;
+    let htmlLink: string | null = null;
+    if (googleResponse.status !== 409) {
+      const createdEvent = (await googleResponse.json()) as {
+        id?: string;
+        htmlLink?: string;
+      };
+      providerEventId = createdEvent.id ?? eventId;
+      htmlLink = createdEvent.htmlLink ?? null;
+    }
+    await app.db
+      .insert(calendarEventWriteLogs)
+      .values({
+        householdId: household.id,
+        calendarSourceId: destination.sourceId,
+        requestId: parsed.data.requestId,
+        providerEventId,
+        title: parsed.data.title
+      })
+      .onConflictDoNothing();
+
+    if (googleResponse.status === 409) {
+      return {
+        created: true,
+        duplicate: true,
+        eventId: providerEventId,
+        sourceId: destination.sourceId
+      };
+    }
+
+    return reply.status(201).send({
+      created: true,
+      duplicate: false,
+      eventId: providerEventId,
+      htmlLink,
+      sourceId: destination.sourceId
+    });
   });
 
   app.get("/calendar/events", async (request, reply) => {
@@ -692,6 +999,7 @@ export const calendarRoutes: FastifyPluginAsync = async (app) => {
         displayName: calendarSources.displayName,
         color: calendarSources.color,
         enabled: calendarSources.enabled,
+        allowEventWrites: calendarSources.allowEventWrites,
         personId: calendarSources.personId,
         personName: people.displayName,
         encryptedAccessToken: connectedAccounts.encryptedAccessToken,
@@ -712,6 +1020,7 @@ export const calendarRoutes: FastifyPluginAsync = async (app) => {
       displayName: source.displayName,
       color: source.color,
       enabled: source.enabled,
+      allowEventWrites: source.allowEventWrites,
       personId: source.personId
     }));
 

@@ -4,6 +4,7 @@ import { buildServer } from "../../src/server";
 
 const TABLES = [
   "calendar_event_cache",
+  "calendar_event_write_logs",
   "calendar_fetch_logs",
   "calendar_sources",
   "connected_accounts",
