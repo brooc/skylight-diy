@@ -34,6 +34,8 @@ import {
 } from "../family/memberAppearance";
 import { weatherIconForCode } from "../weather/weatherIcons";
 
+export const EVENT_STATUS_DURATION_MS = 4_000;
+
 type RewardsResponse = {
   balances: Array<{
     personId: string;
@@ -197,6 +199,15 @@ export function TodayDashboard(): JSX.Element {
     const clockInterval = window.setInterval(() => setNow(new Date()), 1_000);
     return () => window.clearInterval(clockInterval);
   }, []);
+
+  useEffect(() => {
+    if (!eventCreateStatus) return;
+    const dismissTimeout = window.setTimeout(
+      () => setEventCreateStatus(null),
+      EVENT_STATUS_DURATION_MS,
+    );
+    return () => window.clearTimeout(dismissTimeout);
+  }, [eventCreateStatus]);
 
   const householdQuery = useQuery({
     queryKey: queryKeys.household,
