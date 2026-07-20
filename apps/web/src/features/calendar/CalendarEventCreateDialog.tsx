@@ -78,7 +78,6 @@ export function CalendarEventCreateDialog({
   const [allDay, setAllDay] = useState(false);
   const [location, setLocation] = useState("");
   const [guests, setGuests] = useState("");
-  const [description, setDescription] = useState("");
   const [submissionId] = useState(requestId);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -134,7 +133,6 @@ export function CalendarEventCreateDialog({
             sourceId,
             requestId: submissionId,
             title: title.trim(),
-            description: description.trim() || undefined,
             location: location.trim() || undefined,
             attendees: attendees.length ? attendees : undefined,
             allDay,
@@ -337,19 +335,6 @@ export function CalendarEventCreateDialog({
                 <span className="text-xs text-slate-500">
                   Google will email invitations to these guests.
                 </span>
-              </label>
-
-              <label className="grid min-w-0 gap-1">
-                <span className="text-sm font-semibold text-slate-700">
-                  Notes <span className="font-normal">(optional)</span>
-                </span>
-                <textarea
-                  rows={2}
-                  maxLength={8_000}
-                  value={description}
-                  onChange={(event) => setDescription(event.target.value)}
-                  className="w-full min-w-0 resize-none rounded-xl border border-slate-300 px-3 py-2 text-base text-slate-950"
-                />
               </label>
 
               {error ? (
