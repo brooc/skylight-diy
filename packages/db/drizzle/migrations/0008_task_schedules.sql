@@ -1,0 +1,2 @@
+ALTER TABLE chores ADD COLUMN IF NOT EXISTS due_date date;
+ALTER TABLE chores ADD COLUMN IF NOT EXISTS weekdays jsonb;

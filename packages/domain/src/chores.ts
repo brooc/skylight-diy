@@ -8,6 +8,8 @@ export type Chore = {
   description: string | null;
   points: number;
   frequency: ChoreFrequency;
+  dueDate: string | null;
+  weekdays: string[] | null;
   active: boolean;
   sortOrder: number;
 };

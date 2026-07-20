@@ -58,6 +58,8 @@ export const chores = pgTable("chores", {
   description: text("description"),
   points: integer("points").notNull().default(1),
   frequency: text("frequency").notNull().default("daily"),
+  dueDate: date("due_date"),
+  weekdays: jsonb("weekdays").$type<string[]>(),
   active: boolean("active").notNull().default(true),
   sortOrder: integer("sort_order").notNull().default(0),
   createdAt: createdAt(),
