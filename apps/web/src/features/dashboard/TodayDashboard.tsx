@@ -17,6 +17,7 @@ import {
   type CalendarEventAccount,
   type CalendarEventSource,
 } from "../calendar/CalendarEventCreateDialog";
+import { CalendarEventEditDialog } from "../calendar/CalendarEventEditDialog";
 import {
   dateFromDateKeyInTimeZone,
   dateKeyInTimeZone,
@@ -76,6 +77,7 @@ type CalendarResponse = {
     start: string;
     end: string;
     isAllDay: boolean;
+    location?: string;
     sourceName?: string;
     sourceNames?: string[];
     color?: string;
@@ -120,6 +122,10 @@ type EventDetail = {
   colors: string[];
   providerRefs: NonNullable<CalendarResponse["events"][number]["providerRefs"]>;
   isRecurring: boolean;
+  start: string;
+  end: string;
+  isAllDay: boolean;
+  location?: string;
 };
 
 type RenderEvent = EventDetail & {
@@ -202,6 +208,7 @@ export function TodayDashboard(): JSX.Element {
     string[]
   >([]);
   const [selectedEvent, setSelectedEvent] = useState<EventDetail | null>(null);
+  const [isEditEventOpen, setIsEditEventOpen] = useState(false);
   const [deleteChoiceOpen, setDeleteChoiceOpen] = useState(false);
   const [isDeletingEvent, setIsDeletingEvent] = useState(false);
   const [eventDeleteError, setEventDeleteError] = useState<string | null>(null);
@@ -442,6 +449,10 @@ export function TodayDashboard(): JSX.Element {
           event.recurringEventId ||
           event.providerRefs?.some((reference) => reference.recurringEventId),
         ),
+        start: event.start,
+        end: event.end,
+        isAllDay: false,
+        location: event.location,
       };
     })
     .filter((event) => event.dayIndex >= 0);
@@ -498,6 +509,10 @@ export function TodayDashboard(): JSX.Element {
           event.recurringEventId ||
           event.providerRefs?.some((reference) => reference.recurringEventId),
         ),
+        start: event.start,
+        end: event.end,
+        isAllDay: true,
+        location: event.location,
       };
     })
     .filter((event) => eventMatchesFilter(event.sourceNames));
@@ -1200,6 +1215,15 @@ export function TodayDashboard(): JSX.Element {
                   {writableSelectedEventRefs.length > 0 && !deleteChoiceOpen ? (
                     <button
                       type="button"
+                      className="min-h-[44px] rounded-xl bg-[#0f766e] px-4 text-sm font-semibold text-white transition-colors hover:bg-[#0d5f59]"
+                      onClick={() => setIsEditEventOpen(true)}
+                    >
+                      Edit
+                    </button>
+                  ) : null}
+                  {writableSelectedEventRefs.length > 0 && !deleteChoiceOpen ? (
+                    <button
+                      type="button"
                       className="min-h-[44px] rounded-xl px-4 text-sm font-semibold text-rose-700 transition-colors hover:bg-rose-50"
                       onClick={() => setDeleteChoiceOpen(true)}
                     >
@@ -1217,6 +1241,23 @@ export function TodayDashboard(): JSX.Element {
               </div>
             </div>
           </div>
+        ) : null}
+        {selectedEvent && isEditEventOpen ? (
+          <CalendarEventEditDialog
+            event={selectedEvent}
+            targets={writableSelectedEventRefs}
+            timezone={timezone}
+            onClose={() => setIsEditEventOpen(false)}
+            onUpdated={async () => {
+              await Promise.all([
+                calendarQuery.refetch(),
+                queryClient.invalidateQueries({ queryKey: ["calendar-week"] }),
+              ]);
+              setIsEditEventOpen(false);
+              setSelectedEvent(null);
+              setEventCreateStatus("Event updated.");
+            }}
+          />
         ) : null}
       </section>
     </section>

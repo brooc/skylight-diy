@@ -1769,6 +1769,72 @@ describe("calendar and google integration routes", () => {
     expect(fetchSpy.mock.calls[1]?.[1]?.method).toBe("DELETE");
     expect(await app.db.select().from(calendarEventCache)).toHaveLength(0);
   });
+
+  it("edits one occurrence and splits a counted series for following occurrences", async () => {
+    const setup = await setupHousehold(app);
+    const [account] = await app.db.insert(connectedAccounts).values({
+      householdId: setup.household.id,
+      provider: "google",
+      providerAccountId: "google-event-edit",
+      encryptedAccessToken: encryptToken("token-value"),
+      scopes: [
+        "https://www.googleapis.com/auth/calendar.readonly",
+        "https://www.googleapis.com/auth/calendar.events",
+      ],
+    }).returning();
+    const [source] = await app.db.insert(calendarSources).values({
+      householdId: setup.household.id,
+      connectedAccountId: account.id,
+      provider: "google",
+      externalCalendarId: "family@example.com",
+      displayName: "Family",
+      enabled: true,
+      allowEventWrites: true,
+      googleAccessRole: "owner",
+    }).returning();
+
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url = input.toString();
+      if (init?.method === "PATCH") return new Response(JSON.stringify({ id: "updated" }), { status: 200 });
+      if (init?.method === "POST") return new Response(JSON.stringify({ id: "new-series" }), { status: 200 });
+      if (url.includes("/instances")) {
+        return new Response(JSON.stringify({ items: [{ id: "one" }, { id: "two" }] }), { status: 200 });
+      }
+      return new Response(JSON.stringify({
+        id: "series-id",
+        summary: "Gym",
+        start: { dateTime: "2026-07-20T09:00:00-07:00", timeZone: "America/Los_Angeles" },
+        end: { dateTime: "2026-07-20T10:00:00-07:00", timeZone: "America/Los_Angeles" },
+        recurrence: ["RRULE:FREQ=WEEKLY;COUNT=5;BYDAY=MO"],
+      }), { status: 200 });
+    });
+    const basePayload = {
+      targets: [{ sourceId: source.id, providerEventId: "instance-id", recurringEventId: "series-id" }],
+      title: "Evening Gym",
+      location: "Community center",
+      allDay: false,
+      start: "2026-08-03T01:00:00.000Z",
+      end: "2026-08-03T02:00:00.000Z",
+      originalStart: "2026-08-03T16:00:00.000Z",
+      timezone: "America/Los_Angeles",
+    };
+
+    const occurrence = await app.inject({ method: "PATCH", url: "/api/calendar/events", payload: { ...basePayload, scope: "event" } });
+    expect(occurrence.statusCode).toBe(200);
+    expect(JSON.parse(String(fetchSpy.mock.calls[0]?.[1]?.body))).toMatchObject({
+      summary: "Evening Gym",
+      location: "Community center",
+    });
+
+    const following = await app.inject({ method: "PATCH", url: "/api/calendar/events", payload: { ...basePayload, scope: "following" } });
+    expect(following.statusCode).toBe(200);
+    const requestBodies = fetchSpy.mock.calls.map((call) => call[1]?.body ? JSON.parse(String(call[1]?.body)) : null);
+    expect(requestBodies).toContainEqual({ recurrence: ["RRULE:FREQ=WEEKLY;BYDAY=MO;COUNT=2"] });
+    expect(requestBodies).toContainEqual(expect.objectContaining({
+      summary: "Evening Gym",
+      recurrence: ["RRULE:FREQ=WEEKLY;BYDAY=MO;COUNT=3"],
+    }));
+  });
 });
 
 function calendarEventsUrl(): string {

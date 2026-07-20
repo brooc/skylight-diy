@@ -261,8 +261,16 @@ describe("TodayDashboard", () => {
 
     restoreFetch?.();
     let deletedUrl = "";
+    let editedBody: Record<string, unknown> | null = null;
     restoreFetch = installRealApiFetch(app, {
       externalFetch: async (input, init) => {
+        if (init?.method === "PATCH") {
+          editedBody = JSON.parse(String(init.body));
+          return new Response(JSON.stringify({ id: "half-hour" }), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          });
+        }
         if (init?.method === "DELETE") {
           deletedUrl = String(input);
           return new Response(null, { status: 204 });
@@ -339,6 +347,18 @@ describe("TodayDashboard", () => {
     expect(
       screen.getByRole("button", { name: "Close event details" }),
     ).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Edit" }));
+    const editDialog = await screen.findByRole("dialog", { name: "Edit event" });
+    const titleInput = within(editDialog).getByLabelText("Event title");
+    await user.clear(titleInput);
+    await user.type(titleInput, "Updated alignment");
+    await user.click(within(editDialog).getByRole("button", { name: "Save changes" }));
+    expect(await screen.findByText("Event updated.")).toBeInTheDocument();
+    expect(editedBody).toMatchObject({
+      summary: "Updated alignment",
+    });
+
+    await user.click((await screen.findByText("Half-hour alignment")).closest("button")!);
     await user.click(screen.getByRole("button", { name: "Delete" }));
     await user.click(screen.getByRole("button", { name: "Delete event" }));
     expect(await screen.findByText("Event deleted.")).toBeInTheDocument();
