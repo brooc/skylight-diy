@@ -402,32 +402,45 @@ export function CalendarEventCreateDialog({
                 </label>
               ) : null}
 
-              <label className="grid min-w-0 gap-1">
-                <span className="text-sm font-semibold text-slate-700">
-                  Location <span className="font-normal">(optional)</span>
-                </span>
-                <input
-                  maxLength={500}
-                  value={location}
-                  onChange={(event) => setLocation(event.target.value)}
-                  className="min-h-[42px] w-full min-w-0 rounded-xl border border-slate-300 px-3 text-base text-slate-950"
-                />
-              </label>
+              <details className="group rounded-2xl border border-slate-200 bg-slate-50/70">
+                <summary className="flex min-h-[44px] cursor-pointer list-none items-center justify-between gap-3 px-4 text-sm font-semibold text-slate-700 marker:content-none">
+                  <span>More options</span>
+                  <span
+                    aria-hidden="true"
+                    className="text-lg leading-none text-slate-500 transition-transform group-open:rotate-180"
+                  >
+                    ⌄
+                  </span>
+                </summary>
+                <div className="grid gap-3 border-t border-slate-200 p-3">
+                  <label className="grid min-w-0 gap-1">
+                    <span className="text-sm font-semibold text-slate-700">
+                      Location <span className="font-normal">(optional)</span>
+                    </span>
+                    <input
+                      maxLength={500}
+                      value={location}
+                      onChange={(event) => setLocation(event.target.value)}
+                      className="min-h-[42px] w-full min-w-0 rounded-xl border border-slate-300 bg-white px-3 text-base text-slate-950"
+                    />
+                  </label>
 
-              <label className="grid min-w-0 gap-1">
-                <span className="text-sm font-semibold text-slate-700">
-                  Guests <span className="font-normal">(optional)</span>
-                </span>
-                <input
-                  value={guests}
-                  placeholder="name@example.com, another@example.com"
-                  onChange={(event) => setGuests(event.target.value)}
-                  className="min-h-[42px] w-full min-w-0 rounded-xl border border-slate-300 px-3 text-base text-slate-950"
-                />
-                <span className="text-xs text-slate-500">
-                  Google will email invitations to these guests.
-                </span>
-              </label>
+                  <label className="grid min-w-0 gap-1">
+                    <span className="text-sm font-semibold text-slate-700">
+                      Guests <span className="font-normal">(optional)</span>
+                    </span>
+                    <input
+                      value={guests}
+                      placeholder="name@example.com, another@example.com"
+                      onChange={(event) => setGuests(event.target.value)}
+                      className="min-h-[42px] w-full min-w-0 rounded-xl border border-slate-300 bg-white px-3 text-base text-slate-950"
+                    />
+                    <span className="text-xs text-slate-500">
+                      Google will email invitations to these guests.
+                    </span>
+                  </label>
+                </div>
+              </details>
 
               {error ? (
                 <p role="alert" className="text-sm font-medium text-rose-700">

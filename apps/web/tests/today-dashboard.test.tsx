@@ -514,6 +514,9 @@ describe("TodayDashboard", () => {
     await user.type(within(dialog).getByLabelText("Start time"), "10:30");
     await user.clear(within(dialog).getByLabelText("End time"));
     await user.type(within(dialog).getByLabelText("End time"), "11:15");
+    expect(within(dialog).getByLabelText(/Location/)).not.toBeVisible();
+    await user.click(within(dialog).getByText("More options"));
+    expect(within(dialog).getByLabelText(/Location/)).toBeVisible();
     await user.type(within(dialog).getByLabelText(/Location/), "Campbell");
     await user.type(within(dialog).getByLabelText(/Guests/), "kid@example.com");
     await user.selectOptions(within(dialog).getByLabelText("Repeat"), "weekly");
