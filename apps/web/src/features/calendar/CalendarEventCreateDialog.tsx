@@ -58,6 +58,21 @@ function requestId(): string {
   });
 }
 
+export function addMinutesToTime(time: string, minutes: number): string {
+  const [hour = 0, minute = 0] = time.split(":").map(Number);
+  const total = (hour * 60 + minute + minutes) % (24 * 60);
+  return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
+}
+
+function clockDurationMinutes(start: string, end: string): number {
+  const [startHour = 0, startMinute = 0] = start.split(":").map(Number);
+  const [endHour = 0, endMinute = 0] = end.split(":").map(Number);
+  const difference =
+    (endHour * 60 + endMinute - (startHour * 60 + startMinute) + 24 * 60) %
+    (24 * 60);
+  return difference || 60;
+}
+
 function errorMessage(error: unknown): string {
   if (!(error instanceof Error)) return "The event could not be created.";
   try {
@@ -97,6 +112,7 @@ export function CalendarEventCreateDialog({
   const [date, setDate] = useState(defaultDate);
   const [startTime, setStartTime] = useState("09:00");
   const [endTime, setEndTime] = useState("10:00");
+  const [durationMinutes, setDurationMinutes] = useState(60);
   const [allDay, setAllDay] = useState(false);
   const [location, setLocation] = useState("");
   const [guests, setGuests] = useState("");
@@ -143,15 +159,11 @@ export function CalendarEventCreateDialog({
         startMinute,
       );
       const endDate = dateFromDateKeyInTimeZone(
-        date,
+        endTime <= startTime ? shiftDateKey(date, 1) : date,
         timezone,
         endHour,
         endMinute,
       );
-      if (endDate.getTime() <= startDate.getTime()) {
-        setError("End time must be after start time.");
-        return;
-      }
       start = startDate.toISOString();
       end = endDate.toISOString();
     }
@@ -350,7 +362,13 @@ export function CalendarEventCreateDialog({
                       type="time"
                       required
                       value={startTime}
-                      onChange={(event) => setStartTime(event.target.value)}
+                      onChange={(event) => {
+                        const nextStart = event.target.value;
+                        setStartTime(nextStart);
+                        setEndTime(
+                          addMinutesToTime(nextStart, durationMinutes),
+                        );
+                      }}
                       className="min-h-[42px] w-full min-w-0 rounded-xl border border-slate-300 px-3 text-base text-slate-950"
                     />
                   </label>
@@ -362,7 +380,13 @@ export function CalendarEventCreateDialog({
                       type="time"
                       required
                       value={endTime}
-                      onChange={(event) => setEndTime(event.target.value)}
+                      onChange={(event) => {
+                        const nextEnd = event.target.value;
+                        setEndTime(nextEnd);
+                        setDurationMinutes(
+                          clockDurationMinutes(startTime, nextEnd),
+                        );
+                      }}
                       className="min-h-[42px] w-full min-w-0 rounded-xl border border-slate-300 px-3 text-base text-slate-950"
                     />
                   </label>

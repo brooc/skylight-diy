@@ -31,8 +31,10 @@ import {
 import {
   calendarHourRange,
   EVENT_STATUS_DURATION_MS,
+  hourInTimeZone,
   TodayDashboard,
 } from "../src/features/dashboard/TodayDashboard";
+import { addMinutesToTime } from "../src/features/calendar/CalendarEventCreateDialog";
 import { createTestQueryClient } from "./helpers/test-utils";
 import {
   createRealApiApp,
@@ -70,6 +72,17 @@ describe("TodayDashboard", () => {
     ).toEqual({ startHour: 1, endHour: 23 });
   });
 
+  it("calculates calendar clock helpers across timezones and midnight", () => {
+    expect(
+      hourInTimeZone(
+        new Date("2026-07-19T16:30:15.000Z"),
+        "America/Los_Angeles",
+      ),
+    ).toBeCloseTo(9.504, 3);
+    expect(addMinutesToTime("09:30", 60)).toBe("10:30");
+    expect(addMinutesToTime("23:30", 60)).toBe("00:30");
+  });
+
   it("renders an honest empty calendar state and force-refreshes from the real API", async () => {
     const todayKey = dateKeyInTimeZone(new Date(), "America/Los_Angeles");
     const meal = await app.inject({
@@ -99,6 +112,11 @@ describe("TodayDashboard", () => {
     expect(screen.getByTestId("dashboard-calendar-scroll")).not.toHaveClass(
       "max-h-[72vh]",
     );
+    expect(
+      screen.getByTestId("dashboard-calendar-grid").querySelector(
+        '[data-current-time-line="true"]',
+      ),
+    ).toBeInTheDocument();
     expect(
       document.querySelector('[data-calendar-day-header="true"]'),
     ).toHaveClass("text-[clamp(18px,2.5vw,34px)]");
@@ -525,6 +543,7 @@ describe("TodayDashboard", () => {
     await user.type(within(dialog).getByLabelText("Event title"), "Dentist");
     await user.clear(within(dialog).getByLabelText("Start time"));
     await user.type(within(dialog).getByLabelText("Start time"), "10:30");
+    expect(within(dialog).getByLabelText("End time")).toHaveValue("11:30");
     await user.clear(within(dialog).getByLabelText("End time"));
     await user.type(within(dialog).getByLabelText("End time"), "11:15");
     expect(within(dialog).getByLabelText(/Location/)).not.toBeVisible();

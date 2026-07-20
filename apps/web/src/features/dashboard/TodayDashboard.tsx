@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiFetch } from "../../api/client";
 import { DegradedStateBanner } from "../../components/DegradedStateBanner";
@@ -153,6 +153,19 @@ function formatCompactEventTime(start: Date, end: Date): string {
   return `${compact(start)}–${compact(end)}`;
 }
 
+export function hourInTimeZone(date: Date, timezone: string): number {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: timezone,
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(date);
+  const value = (type: "hour" | "minute" | "second") =>
+    Number(parts.find((part) => part.type === type)?.value ?? 0);
+  return (value("hour") % 24) + value("minute") / 60 + value("second") / 3600;
+}
+
 export function calendarHourRange(
   events: Array<{ startHour: number; durationHours: number }>,
 ): { startHour: number; endHour: number } {
@@ -172,6 +185,8 @@ export function calendarHourRange(
 
 export function TodayDashboard(): JSX.Element {
   const [now, setNow] = useState(() => new Date());
+  const calendarScrollRef = useRef<HTMLDivElement>(null);
+  const currentTimeLineRef = useRef<HTMLDivElement>(null);
   const deviceTimezone =
     Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
   const [weekOffset, setWeekOffset] = useState(0);
@@ -272,6 +287,25 @@ export function TodayDashboard(): JSX.Element {
     refetchInterval: CALENDAR_AUTO_REFRESH_MS,
     refetchIntervalInBackground: true,
   });
+  const currentHour = hourInTimeZone(now, timezone);
+  const currentMinuteKey = `${todayKey}-${Math.floor(currentHour * 60)}`;
+
+  useEffect(() => {
+    if (weekOffset !== 0 || !calendarQuery.isSuccess) return;
+    const scrollContainer = calendarScrollRef.current;
+    const currentTimeLine = currentTimeLineRef.current;
+    const hourCell = currentTimeLine?.parentElement;
+    if (!scrollContainer || !currentTimeLine || !hourCell) return;
+    const top =
+      hourCell.offsetTop +
+      currentTimeLine.offsetTop -
+      scrollContainer.clientHeight / 2;
+    if (typeof scrollContainer.scrollTo === "function") {
+      scrollContainer.scrollTo({ top: Math.max(0, top), behavior: "smooth" });
+    } else {
+      scrollContainer.scrollTop = Math.max(0, top);
+    }
+  }, [calendarQuery.isSuccess, currentMinuteKey, weekOffset]);
 
   if (
     householdQuery.isLoading ||
@@ -467,7 +501,15 @@ export function TodayDashboard(): JSX.Element {
       };
     })
     .filter((event) => eventMatchesFilter(event.sourceNames));
-  const { startHour, endHour } = calendarHourRange(scheduleEvents);
+  const eventHourRange = calendarHourRange(scheduleEvents);
+  const visibleToday = days.some((day) => day.isToday);
+  const currentWholeHour = Math.floor(currentHour);
+  const startHour = visibleToday
+    ? Math.min(eventHourRange.startHour, currentWholeHour)
+    : eventHourRange.startHour;
+  const endHour = visibleToday
+    ? Math.max(eventHourRange.endHour, currentWholeHour)
+    : eventHourRange.endHour;
   const hourSlots = Array.from(
     { length: endHour - startHour + 1 },
     (_, i) => startHour + i,
@@ -752,6 +794,7 @@ export function TodayDashboard(): JSX.Element {
         ) : null}
         <div
           data-testid="dashboard-calendar-scroll"
+          ref={calendarScrollRef}
           className="min-h-0 flex-1 overflow-auto"
         >
           <div
@@ -848,6 +891,20 @@ export function TodayDashboard(): JSX.Element {
                         data-half-hour-line="true"
                         className="pointer-events-none absolute inset-x-0 top-1/2 border-t border-dashed border-[#ecebe8]"
                       />
+                      {day.isToday && hour === currentWholeHour ? (
+                        <div
+                          ref={currentTimeLineRef}
+                          aria-hidden="true"
+                          data-current-time-line="true"
+                          className="pointer-events-none absolute inset-x-0 z-20 flex items-center"
+                          style={{
+                            top: (currentHour - currentWholeHour) * slotHeight,
+                          }}
+                        >
+                          <span className="-ml-1.5 h-3 w-3 shrink-0 rounded-full bg-[#ff5c45] shadow-sm" />
+                          <span className="w-full border-t-2 border-[#ff5c45]" />
+                        </div>
+                      ) : null}
                       {hourEvents.map((event) => {
                         const offset = (event.startHour - hour) * slotHeight;
                         const availableHeight = Math.max(
