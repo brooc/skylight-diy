@@ -5,23 +5,35 @@ import {
   calendarSources,
   connectedAccounts,
   households,
-  people
+  people,
 } from "@daymark/db";
 import { eq } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 import { env } from "../src/env";
 import {
   buildCalendarCacheKey,
-  buildSourceFingerprint
+  buildSourceFingerprint,
 } from "../src/modules/calendar/cache";
-import { decryptToken, encryptToken } from "../src/modules/integrations/token-crypto";
+import {
+  decryptToken,
+  encryptToken,
+} from "../src/modules/integrations/token-crypto";
 import {
   buildCookieHeader,
   createTestApp,
   resetTestDb,
   setupHousehold,
-  unlockAdmin
+  unlockAdmin,
 } from "./helpers/test-app";
 
 const missingUuid = "00000000-0000-0000-0000-000000000000";
@@ -52,21 +64,23 @@ describe("calendar and google integration routes", () => {
 
     const response = await app.inject({
       method: "GET",
-      url: `/api/calendar/events?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}&timezone=${encodeURIComponent("America/Los_Angeles")}`
+      url: `/api/calendar/events?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}&timezone=${encodeURIComponent("America/Los_Angeles")}`,
     });
     expect(response.statusCode).toBe(200);
     const json = response.json();
     expect(json.degraded).toBe(true);
     expect(json.events).toEqual([]);
-    expect(json.warnings.some((warning: { code: string }) => warning.code === "NO_ENABLED_SOURCES")).toBe(
-      true
-    );
+    expect(
+      json.warnings.some(
+        (warning: { code: string }) => warning.code === "NO_ENABLED_SOURCES",
+      ),
+    ).toBe(true);
   });
 
   it("returns setup warning before setup and validates calendar query parameters", async () => {
     const invalid = await app.inject({
       method: "GET",
-      url: "/api/calendar/events?start=nope&end=nope&timezone="
+      url: "/api/calendar/events?start=nope&end=nope&timezone=",
     });
     expect(invalid.statusCode).toBe(400);
     expect(invalid.json().error).toBe("invalid_calendar_query");
@@ -75,21 +89,21 @@ describe("calendar and google integration routes", () => {
     const end = new Date("2026-06-08T00:00:00.000Z").toISOString();
     const invalidTimezone = await app.inject({
       method: "GET",
-      url: `/api/calendar/events?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}&timezone=Not%2FA_Timezone`
+      url: `/api/calendar/events?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}&timezone=Not%2FA_Timezone`,
     });
     expect(invalidTimezone.statusCode).toBe(400);
     expect(invalidTimezone.json().error).toBe("invalid_calendar_query");
 
     const reversedRange = await app.inject({
       method: "GET",
-      url: `/api/calendar/events?start=${encodeURIComponent(end)}&end=${encodeURIComponent(start)}&timezone=UTC`
+      url: `/api/calendar/events?start=${encodeURIComponent(end)}&end=${encodeURIComponent(start)}&timezone=UTC`,
     });
     expect(reversedRange.statusCode).toBe(400);
     expect(reversedRange.json().error).toBe("invalid_calendar_query");
 
     const response = await app.inject({
       method: "GET",
-      url: `/api/calendar/events?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}&timezone=UTC`
+      url: `/api/calendar/events?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}&timezone=UTC`,
     });
     expect(response.statusCode).toBe(200);
     expect(response.json().events).toHaveLength(0);
@@ -99,14 +113,14 @@ describe("calendar and google integration routes", () => {
   it("returns empty calendar accounts and sources before setup", async () => {
     const accounts = await app.inject({
       method: "GET",
-      url: "/api/calendar/accounts"
+      url: "/api/calendar/accounts",
     });
     expect(accounts.statusCode).toBe(200);
     expect(accounts.json()).toEqual({ accounts: [] });
 
     const sources = await app.inject({
       method: "GET",
-      url: "/api/calendar/sources"
+      url: "/api/calendar/sources",
     });
     expect(sources.statusCode).toBe(200);
     expect(sources.json()).toEqual({ sources: [] });
@@ -117,14 +131,14 @@ describe("calendar and google integration routes", () => {
       await setupHousehold(app);
       const status = await app.inject({
         method: "GET",
-        url: "/api/integrations/google/status"
+        url: "/api/integrations/google/status",
       });
       expect(status.statusCode).toBe(200);
       expect(status.json().available).toBe(false);
 
       const connect = await app.inject({
         method: "GET",
-        url: "/api/integrations/google/connect"
+        url: "/api/integrations/google/connect",
       });
       expect(connect.statusCode).toBe(401);
 
@@ -132,7 +146,7 @@ describe("calendar and google integration routes", () => {
       const connectUnlocked = await app.inject({
         method: "GET",
         url: "/api/integrations/google/connect",
-        headers: { cookie }
+        headers: { cookie },
       });
       expect(connectUnlocked.statusCode).toBe(400);
     });
@@ -143,31 +157,39 @@ describe("calendar and google integration routes", () => {
     const originalGoogleEnv = {
       clientId: env.GOOGLE_CLIENT_ID,
       clientSecret: env.GOOGLE_CLIENT_SECRET,
-      redirectUri: env.GOOGLE_REDIRECT_URI
+      redirectUri: env.GOOGLE_REDIRECT_URI,
     };
     env.GOOGLE_CLIENT_ID = "client-id";
     env.GOOGLE_CLIENT_SECRET = "client-secret";
-    env.GOOGLE_REDIRECT_URI = "http://localhost:3000/api/integrations/google/callback";
+    env.GOOGLE_REDIRECT_URI =
+      "http://localhost:3000/api/integrations/google/callback";
 
     try {
       const { cookie } = await unlockAdmin(app);
       const response = await app.inject({
         method: "GET",
         url: "/api/integrations/google/connect",
-        headers: { cookie }
+        headers: { cookie },
       });
       expect(response.statusCode).toBe(200);
-      expect(response.json().available).toBe(true);
-      const authUrl = new URL(response.json().authUrl);
+      const responseBody = response.json();
+      expect(responseBody.available).toBe(true);
+      expect(responseBody.expiresAt).toBeGreaterThan(Date.now());
+      expect(responseBody.expiresAt).toBeLessThanOrEqual(
+        Date.now() + 10 * 60 * 1_000,
+      );
+      const authUrl = new URL(responseBody.authUrl);
       expect(authUrl.origin).toBe("https://accounts.google.com");
       expect(authUrl.searchParams.get("client_id")).toBe("client-id");
       expect(authUrl.searchParams.get("scope")).toBe(
-        "https://www.googleapis.com/auth/calendar.readonly"
+        "https://www.googleapis.com/auth/calendar.readonly",
       );
       const state = authUrl.searchParams.get("state");
       expect(state).toBeTruthy();
       expect(isTestOauthStateValid(state ?? "")).toBe(true);
-      expect(buildCookieHeader(response)).not.toContain("daymark_google_oauth_state=");
+      expect(buildCookieHeader(response)).not.toContain(
+        "daymark_google_oauth_state=",
+      );
     } finally {
       env.GOOGLE_CLIENT_ID = originalGoogleEnv.clientId;
       env.GOOGLE_CLIENT_SECRET = originalGoogleEnv.clientSecret;
@@ -178,21 +200,21 @@ describe("calendar and google integration routes", () => {
   it("rejects Google OAuth callbacks without a valid signed state", async () => {
     const missingState = await app.inject({
       method: "GET",
-      url: "/api/integrations/google/callback?code=auth-code&state=missing"
+      url: "/api/integrations/google/callback?code=auth-code&state=missing",
     });
     expect(missingState.statusCode).toBe(400);
     expect(missingState.json().error).toBe("invalid_oauth_state");
 
     const mismatchedState = await app.inject({
       method: "GET",
-      url: `/api/integrations/google/callback?code=auth-code&state=${encodeURIComponent(createTestOauthState({ tamperSignature: true }))}`
+      url: `/api/integrations/google/callback?code=auth-code&state=${encodeURIComponent(createTestOauthState({ tamperSignature: true }))}`,
     });
     expect(mismatchedState.statusCode).toBe(400);
     expect(mismatchedState.json().error).toBe("invalid_oauth_state");
 
     const expiredState = await app.inject({
       method: "GET",
-      url: `/api/integrations/google/callback?code=auth-code&state=${encodeURIComponent(createTestOauthState({ expiresAt: Date.now() - 1_000 }))}`
+      url: `/api/integrations/google/callback?code=auth-code&state=${encodeURIComponent(createTestOauthState({ expiresAt: Date.now() - 1_000 }))}`,
     });
     expect(expiredState.statusCode).toBe(400);
     expect(expiredState.json().error).toBe("invalid_oauth_state");
@@ -202,18 +224,18 @@ describe("calendar and google integration routes", () => {
     const state = createTestOauthState();
     const providerError = await app.inject({
       method: "GET",
-      url: `/api/integrations/google/callback?error=access_denied&state=${encodeURIComponent(state)}`
+      url: `/api/integrations/google/callback?error=access_denied&state=${encodeURIComponent(state)}`,
     });
     expect(providerError.statusCode).toBe(400);
     expect(providerError.json()).toEqual({
       connected: false,
       error: "access_denied",
-      message: "Google OAuth was not completed."
+      message: "Google OAuth was not completed.",
     });
 
     const missingCode = await app.inject({
       method: "GET",
-      url: `/api/integrations/google/callback?state=${encodeURIComponent(createTestOauthState())}`
+      url: `/api/integrations/google/callback?state=${encodeURIComponent(createTestOauthState())}`,
     });
     expect(missingCode.statusCode).toBe(400);
     expect(missingCode.json().error).toBe("missing_oauth_code");
@@ -223,7 +245,7 @@ describe("calendar and google integration routes", () => {
     await withGoogleOauthConfigCleared(async () => {
       const callback = await app.inject({
         method: "GET",
-        url: `/api/integrations/google/callback?code=auth-code&state=${encodeURIComponent(createTestOauthState())}`
+        url: `/api/integrations/google/callback?code=auth-code&state=${encodeURIComponent(createTestOauthState())}`,
       });
       expect(callback.statusCode).toBe(400);
       expect(callback.json().error).toBe("oauth_not_configured");
@@ -234,19 +256,19 @@ describe("calendar and google integration routes", () => {
     await withGoogleOauthConfig(async () => {
       vi.spyOn(globalThis, "fetch").mockResolvedValue(
         new Response("invalid_grant", {
-          status: 400
-        })
+          status: 400,
+        }),
       );
 
       const callback = await app.inject({
         method: "GET",
-        url: `/api/integrations/google/callback?code=auth-code&state=${encodeURIComponent(createTestOauthState())}`
+        url: `/api/integrations/google/callback?code=auth-code&state=${encodeURIComponent(createTestOauthState())}`,
       });
       expect(callback.statusCode).toBe(400);
       expect(callback.json()).toEqual({
         connected: false,
         error: "token_exchange_failed",
-        details: "invalid_grant"
+        details: "invalid_grant",
       });
     });
   });
@@ -254,15 +276,20 @@ describe("calendar and google integration routes", () => {
   it("rejects OAuth token responses without an access token", async () => {
     await withGoogleOauthConfig(async () => {
       vi.spyOn(globalThis, "fetch").mockResolvedValue(
-        new Response(JSON.stringify({ scope: "https://www.googleapis.com/auth/calendar.readonly" }), {
-          status: 200,
-          headers: { "Content-Type": "application/json" }
-        })
+        new Response(
+          JSON.stringify({
+            scope: "https://www.googleapis.com/auth/calendar.readonly",
+          }),
+          {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          },
+        ),
       );
 
       const callback = await app.inject({
         method: "GET",
-        url: `/api/integrations/google/callback?code=auth-code&state=${encodeURIComponent(createTestOauthState())}`
+        url: `/api/integrations/google/callback?code=auth-code&state=${encodeURIComponent(createTestOauthState())}`,
       });
       expect(callback.statusCode).toBe(400);
       expect(callback.json().error).toBe("missing_access_token");
@@ -274,13 +301,13 @@ describe("calendar and google integration routes", () => {
       vi.spyOn(globalThis, "fetch").mockResolvedValue(
         new Response(JSON.stringify({ access_token: "access-token" }), {
           status: 200,
-          headers: { "Content-Type": "application/json" }
-        })
+          headers: { "Content-Type": "application/json" },
+        }),
       );
 
       const callback = await app.inject({
         method: "GET",
-        url: `/api/integrations/google/callback?code=auth-code&state=${encodeURIComponent(createTestOauthState())}`
+        url: `/api/integrations/google/callback?code=auth-code&state=${encodeURIComponent(createTestOauthState())}`,
       });
       expect(callback.statusCode).toBe(404);
       expect(callback.json().error).toBe("setup_not_completed");
@@ -295,9 +322,9 @@ describe("calendar and google integration routes", () => {
           access_token: "access-token-1",
           refresh_token: "refresh-token-1",
           expires_in: 3600,
-          scope: "https://www.googleapis.com/auth/calendar.readonly"
+          scope: "https://www.googleapis.com/auth/calendar.readonly",
         },
-        { access_token: "access-token-2" }
+        { access_token: "access-token-2" },
       ];
       vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
         const url = typeof input === "string" ? input : input.url;
@@ -306,16 +333,18 @@ describe("calendar and google integration routes", () => {
           : tokenResponses.shift();
         return new Response(JSON.stringify(payload), {
           status: 200,
-          headers: { "Content-Type": "application/json" }
+          headers: { "Content-Type": "application/json" },
         });
       });
 
       const created = await app.inject({
         method: "GET",
-        url: `/api/integrations/google/callback?code=auth-code&state=${encodeURIComponent(createTestOauthState())}`
+        url: `/api/integrations/google/callback?code=auth-code&state=${encodeURIComponent(createTestOauthState())}`,
       });
       expect(created.statusCode).toBe(302);
-      expect(created.headers.location).toBe(`${env.APP_BASE_URL.replace(/\/$/, "")}/settings?google=connected`);
+      expect(created.headers.location).toBe(
+        `${env.APP_BASE_URL.replace(/\/$/, "")}/settings?google=connected`,
+      );
 
       const [account] = await app.db
         .select()
@@ -328,7 +357,7 @@ describe("calendar and google integration routes", () => {
         displayName: "Family Gmail",
         email: "family@example.com",
         scopes: ["https://www.googleapis.com/auth/calendar.readonly"],
-        reauthorizationRequired: false
+        reauthorizationRequired: false,
       });
 
       await app.db
@@ -337,7 +366,7 @@ describe("calendar and google integration routes", () => {
         .where(eq(connectedAccounts.id, account.id));
       const updated = await app.inject({
         method: "GET",
-        url: `/api/integrations/google/callback?code=auth-code&state=${encodeURIComponent(createTestOauthState())}`
+        url: `/api/integrations/google/callback?code=auth-code&state=${encodeURIComponent(createTestOauthState())}`,
       });
       expect(updated.statusCode).toBe(302);
 
@@ -347,9 +376,11 @@ describe("calendar and google integration routes", () => {
         .where(eq(connectedAccounts.id, account.id))
         .limit(1);
       expect(updatedAccount.scopes).toEqual([
-        "https://www.googleapis.com/auth/calendar.readonly"
+        "https://www.googleapis.com/auth/calendar.readonly",
       ]);
-      expect(updatedAccount.encryptedRefreshToken).toBe("malformed-refresh-token");
+      expect(updatedAccount.encryptedRefreshToken).toBe(
+        "malformed-refresh-token",
+      );
     });
   });
 
@@ -358,7 +389,7 @@ describe("calendar and google integration routes", () => {
     await withGoogleOauthConfig(async () => {
       const identities = [
         { id: "parent@example.com", summary: "Parent Gmail" },
-        { id: "family@example.com", summary: "Family Gmail" }
+        { id: "family@example.com", summary: "Family Gmail" },
       ];
       let identityIndex = 0;
       vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
@@ -368,18 +399,18 @@ describe("calendar and google integration routes", () => {
           : {
               access_token: `access-token-${identityIndex + 1}`,
               refresh_token: `refresh-token-${identityIndex + 1}`,
-              scope: "https://www.googleapis.com/auth/calendar.readonly"
+              scope: "https://www.googleapis.com/auth/calendar.readonly",
             };
         return new Response(JSON.stringify(payload), {
           status: 200,
-          headers: { "Content-Type": "application/json" }
+          headers: { "Content-Type": "application/json" },
         });
       });
 
       for (const code of ["first-account", "second-account"]) {
         const callback = await app.inject({
           method: "GET",
-          url: `/api/integrations/google/callback?code=${code}&state=${encodeURIComponent(createTestOauthState())}`
+          url: `/api/integrations/google/callback?code=${code}&state=${encodeURIComponent(createTestOauthState())}`,
         });
         expect(callback.statusCode).toBe(302);
       }
@@ -391,7 +422,7 @@ describe("calendar and google integration routes", () => {
       expect(accounts).toHaveLength(2);
       expect(accounts.map((account) => account.email).sort()).toEqual([
         "family@example.com",
-        "parent@example.com"
+        "parent@example.com",
       ]);
     });
   });
@@ -406,7 +437,7 @@ describe("calendar and google integration routes", () => {
         providerAccountId: "family@example.com",
         displayName: "Family Gmail",
         email: "family@example.com",
-        scopes: ["https://www.googleapis.com/auth/calendar.readonly"]
+        scopes: ["https://www.googleapis.com/auth/calendar.readonly"],
       })
       .returning();
 
@@ -415,7 +446,7 @@ describe("calendar and google integration routes", () => {
       const connect = await app.inject({
         method: "GET",
         url: `/api/integrations/google/connect?accountId=${account.id}`,
-        headers: { cookie }
+        headers: { cookie },
       });
       expect(connect.statusCode).toBe(200);
       const authUrl = new URL(connect.json().authUrl);
@@ -428,20 +459,22 @@ describe("calendar and google integration routes", () => {
           ? { id: "different@example.com", summary: "Different Gmail" }
           : {
               access_token: "different-access-token",
-              scope: "https://www.googleapis.com/auth/calendar.readonly"
+              scope: "https://www.googleapis.com/auth/calendar.readonly",
             };
         return new Response(JSON.stringify(payload), {
           status: 200,
-          headers: { "Content-Type": "application/json" }
+          headers: { "Content-Type": "application/json" },
         });
       });
 
       const callback = await app.inject({
         method: "GET",
-        url: `/api/integrations/google/callback?code=wrong-account&state=${encodeURIComponent(authUrl.searchParams.get("state")!)}`
+        url: `/api/integrations/google/callback?code=wrong-account&state=${encodeURIComponent(authUrl.searchParams.get("state")!)}`,
       });
       expect(callback.statusCode).toBe(409);
-      expect(callback.json()).toMatchObject({ error: "google_account_mismatch" });
+      expect(callback.json()).toMatchObject({
+        error: "google_account_mismatch",
+      });
 
       const [unchanged] = await app.db
         .select()
@@ -463,7 +496,11 @@ describe("calendar and google integration routes", () => {
         email: "family@example.com",
         encryptedAccessToken: encryptToken("access-token"),
         encryptedRefreshToken: encryptToken("refresh-token"),
-        scopes: ["openid", "email", "https://www.googleapis.com/auth/calendar.readonly"]
+        scopes: [
+          "openid",
+          "email",
+          "https://www.googleapis.com/auth/calendar.readonly",
+        ],
       })
       .returning();
     await app.db.insert(calendarSources).values({
@@ -473,7 +510,7 @@ describe("calendar and google integration routes", () => {
       externalCalendarId: "family",
       displayName: "Family",
       enabled: true,
-      sortOrder: 0
+      sortOrder: 0,
     });
     await app.db.insert(calendarEventCache).values({
       householdId: setup.household.id,
@@ -485,13 +522,15 @@ describe("calendar and google integration routes", () => {
       payloadJsonb: { events: [] },
       fetchedAt: new Date(),
       expiresAt: new Date(Date.now() + 60_000),
-      staleUntil: new Date(Date.now() + 120_000)
+      staleUntil: new Date(Date.now() + 120_000),
     });
-    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(null, { status: 200 }));
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response(null, { status: 200 }));
 
     const blocked = await app.inject({
       method: "DELETE",
-      url: `/api/integrations/google/accounts/${account.id}`
+      url: `/api/integrations/google/accounts/${account.id}`,
     });
     expect(blocked.statusCode).toBe(401);
 
@@ -499,13 +538,16 @@ describe("calendar and google integration routes", () => {
     const disconnected = await app.inject({
       method: "DELETE",
       url: `/api/integrations/google/accounts/${account.id}`,
-      headers: { cookie }
+      headers: { cookie },
     });
     expect(disconnected.statusCode).toBe(200);
-    expect(disconnected.json()).toMatchObject({ disconnected: true, revocationSucceeded: true });
+    expect(disconnected.json()).toMatchObject({
+      disconnected: true,
+      revocationSucceeded: true,
+    });
     expect(fetchSpy).toHaveBeenCalledWith(
       "https://oauth2.googleapis.com/revoke",
-      expect.objectContaining({ method: "POST" })
+      expect.objectContaining({ method: "POST" }),
     );
     expect(await app.db.select().from(connectedAccounts)).toHaveLength(0);
     expect(await app.db.select().from(calendarSources)).toHaveLength(0);
@@ -518,7 +560,7 @@ describe("calendar and google integration routes", () => {
     const blocked = await app.inject({
       method: "POST",
       url: "/api/calendar/sources/import-from-google",
-      payload: { externalCalendarIds: [] }
+      payload: { externalCalendarIds: [] },
     });
     expect(blocked.statusCode).toBe(401);
 
@@ -527,10 +569,12 @@ describe("calendar and google integration routes", () => {
       method: "POST",
       url: "/api/calendar/sources/import-from-google",
       headers: { cookie },
-      payload: { accountId: missingUuid, externalCalendarIds: [] }
+      payload: { accountId: missingUuid, externalCalendarIds: [] },
     });
     expect(imported.statusCode).toBe(409);
-    expect(imported.json()).toMatchObject({ error: "google_account_not_connected" });
+    expect(imported.json()).toMatchObject({
+      error: "google_account_not_connected",
+    });
   });
 
   it("returns no fabricated events when a source has no access token", async () => {
@@ -542,7 +586,7 @@ describe("calendar and google integration routes", () => {
         provider: "google",
         providerAccountId: "google-1",
         displayName: "Google",
-        scopes: ["https://www.googleapis.com/auth/calendar.readonly"]
+        scopes: ["https://www.googleapis.com/auth/calendar.readonly"],
       })
       .returning();
     await app.db.insert(calendarSources).values({
@@ -552,17 +596,19 @@ describe("calendar and google integration routes", () => {
       externalCalendarId: "family",
       displayName: "Family",
       enabled: true,
-      sortOrder: 0
+      sortOrder: 0,
     });
 
     const response = await app.inject({
       method: "GET",
-      url: calendarEventsUrl()
+      url: calendarEventsUrl(),
     });
     expect(response.statusCode).toBe(200);
     expect(response.json().events).toEqual([]);
-    expect(response.json().warnings.map((warning: { code: string }) => warning.code)).toEqual(
-      expect.arrayContaining(["SOURCE_MISSING_TOKEN", "NO_CALENDAR_DATA"])
+    expect(
+      response.json().warnings.map((warning: { code: string }) => warning.code),
+    ).toEqual(
+      expect.arrayContaining(["SOURCE_MISSING_TOKEN", "NO_CALENDAR_DATA"]),
     );
   });
 
@@ -576,7 +622,7 @@ describe("calendar and google integration routes", () => {
         providerAccountId: "google-1",
         displayName: "Google",
         encryptedAccessToken: "not-an-encrypted-token",
-        scopes: ["https://www.googleapis.com/auth/calendar.readonly"]
+        scopes: ["https://www.googleapis.com/auth/calendar.readonly"],
       })
       .returning();
 
@@ -588,17 +634,22 @@ describe("calendar and google integration routes", () => {
       displayName: "Family",
       color: "#8ec5b8",
       enabled: true,
-      sortOrder: 0
+      sortOrder: 0,
     });
 
     const response = await app.inject({
       method: "GET",
-      url: calendarEventsUrl()
+      url: calendarEventsUrl(),
     });
     expect(response.statusCode).toBe(200);
     expect(response.json().events).toEqual([]);
-    expect(response.json().warnings.map((warning: { code: string }) => warning.code)).toEqual(
-      expect.arrayContaining(["SOURCE_REAUTHORIZATION_REQUIRED", "NO_CALENDAR_DATA"])
+    expect(
+      response.json().warnings.map((warning: { code: string }) => warning.code),
+    ).toEqual(
+      expect.arrayContaining([
+        "SOURCE_REAUTHORIZATION_REQUIRED",
+        "NO_CALENDAR_DATA",
+      ]),
     );
   });
 
@@ -611,7 +662,7 @@ describe("calendar and google integration routes", () => {
         provider: "google",
         providerAccountId: "google-1",
         displayName: "Google",
-        scopes: ["https://www.googleapis.com/auth/calendar.readonly"]
+        scopes: ["https://www.googleapis.com/auth/calendar.readonly"],
       })
       .returning();
     const [source] = await app.db
@@ -624,7 +675,7 @@ describe("calendar and google integration routes", () => {
         displayName: "Family",
         color: "#8ec5b8",
         enabled: true,
-        sortOrder: 0
+        sortOrder: 0,
       })
       .returning();
     const start = "2026-06-01T00:00:00.000Z";
@@ -638,14 +689,14 @@ describe("calendar and google integration routes", () => {
         displayName: "Family",
         color: "#8ec5b8",
         personId: null,
-        personName: null
-      }
+        personName: null,
+      },
     ]);
     const cacheKey = buildCalendarCacheKey({
       rangeStart: start,
       rangeEnd: end,
       timezone,
-      sourceFingerprint
+      sourceFingerprint,
     });
     const now = new Date();
     await app.db.insert(calendarEventCache).values({
@@ -667,8 +718,8 @@ describe("calendar and google integration routes", () => {
             end: "2026-06-02T17:00:00.000Z",
             isAllDay: false,
             sourceName: "Family",
-            color: "#8ec5b8"
-          }
+            color: "#8ec5b8",
+          },
         ],
         sources: [
           {
@@ -678,29 +729,29 @@ describe("calendar and google integration routes", () => {
             displayName: "Family",
             color: "#8ec5b8",
             enabled: true,
-            personId: null
-          }
+            personId: null,
+          },
         ],
-        warnings: [{ code: "OLD_WARNING", message: "Old warning." }]
+        warnings: [{ code: "OLD_WARNING", message: "Old warning." }],
       },
       fetchedAt: new Date(now.getTime() - 10_000),
       expiresAt: new Date(now.getTime() - 1_000),
-      staleUntil: new Date(now.getTime() + 60_000)
+      staleUntil: new Date(now.getTime() + 60_000),
     });
 
     const response = await app.inject({
       method: "GET",
-      url: `/api/calendar/events?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}&timezone=${timezone}`
+      url: `/api/calendar/events?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}&timezone=${timezone}`,
     });
     expect(response.statusCode).toBe(200);
     expect(response.json()).toMatchObject({
       cacheStatus: "stale",
-      degraded: true
+      degraded: true,
     });
     expect(response.json().events[0].title).toBe("Cached appointment");
-    expect(response.json().warnings.map((warning: { code: string }) => warning.code)).toEqual(
-      ["OLD_WARNING", "SOURCE_MISSING_TOKEN"]
-    );
+    expect(
+      response.json().warnings.map((warning: { code: string }) => warning.code),
+    ).toEqual(["OLD_WARNING", "SOURCE_MISSING_TOKEN"]);
   });
 
   it("discovers without tracking and imports only selected Google calendars", async () => {
@@ -711,7 +762,7 @@ describe("calendar and google integration routes", () => {
       providerAccountId: "decoy-google-account",
       displayName: "Other Google",
       encryptedAccessToken: encryptToken("decoy-token"),
-      scopes: ["https://www.googleapis.com/auth/calendar.readonly"]
+      scopes: ["https://www.googleapis.com/auth/calendar.readonly"],
     });
     const [account] = await app.db
       .insert(connectedAccounts)
@@ -721,66 +772,99 @@ describe("calendar and google integration routes", () => {
         providerAccountId: "google-1",
         displayName: "Google",
         encryptedAccessToken: encryptToken("token-value"),
-        scopes: ["https://www.googleapis.com/auth/calendar.readonly"]
+        scopes: ["https://www.googleapis.com/auth/calendar.readonly"],
       })
       .returning();
     expect(account.id).toBeTruthy();
-    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
-      const pageToken = new URL(input.toString()).searchParams.get("pageToken");
-      return new Response(
-        JSON.stringify(pageToken
-          ? {
-              items: [
-                { id: "school", summary: "School" },
-                { summary: "Ignored missing id" }
-              ]
-            }
-          : {
-              items: [{ id: "primary", summary: "Family", backgroundColor: "#8ec5b8" }],
-              nextPageToken: "calendar-page-2"
-            }),
-        {
-          status: 200,
-          headers: { "Content-Type": "application/json" }
-        }
-      );
-    });
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async (input) => {
+        const pageToken = new URL(input.toString()).searchParams.get(
+          "pageToken",
+        );
+        return new Response(
+          JSON.stringify(
+            pageToken
+              ? {
+                  items: [
+                    { id: "school", summary: "School" },
+                    { summary: "Ignored missing id" },
+                  ],
+                }
+              : {
+                  items: [
+                    {
+                      id: "primary",
+                      summary: "Family",
+                      backgroundColor: "#8ec5b8",
+                    },
+                  ],
+                  nextPageToken: "calendar-page-2",
+                },
+          ),
+          {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          },
+        );
+      });
 
     const { cookie } = await unlockAdmin(app);
     const discovered = await app.inject({
       method: "POST",
       url: "/api/calendar/sources/discover-from-google",
       headers: { cookie },
-      payload: { accountId: account.id }
+      payload: { accountId: account.id },
     });
     expect(discovered.statusCode).toBe(200);
     expect(discovered.json().calendars).toEqual([
-      expect.objectContaining({ externalCalendarId: "primary", displayName: "Family", tracked: false }),
-      expect.objectContaining({ externalCalendarId: "school", displayName: "School", tracked: false })
+      expect.objectContaining({
+        externalCalendarId: "primary",
+        displayName: "Family",
+        tracked: false,
+      }),
+      expect.objectContaining({
+        externalCalendarId: "school",
+        displayName: "School",
+        tracked: false,
+      }),
     ]);
-    const beforeImport = await app.inject({ method: "GET", url: "/api/calendar/sources" });
+    const beforeImport = await app.inject({
+      method: "GET",
+      url: "/api/calendar/sources",
+    });
     expect(beforeImport.json().sources).toHaveLength(0);
 
     const imported = await app.inject({
       method: "POST",
       url: "/api/calendar/sources/import-from-google",
       headers: { cookie },
-      payload: { accountId: account.id, externalCalendarIds: ["school"] }
+      payload: { accountId: account.id, externalCalendarIds: ["school"] },
     });
     expect(imported.statusCode).toBe(200);
     expect(imported.json().imported).toBe(1);
-    expect(imported.json().sources.map((source: { displayName: string }) => source.displayName)).toEqual([
-      "School"
-    ]);
-    expect(imported.json().sources[0]).toMatchObject({ enabled: true, personId: null });
+    expect(
+      imported
+        .json()
+        .sources.map((source: { displayName: string }) => source.displayName),
+    ).toEqual(["School"]);
+    expect(imported.json().sources[0]).toMatchObject({
+      enabled: true,
+      personId: null,
+    });
     expect(imported.json().sources[0].connectedAccountId).toBe(account.id);
     expect(fetchSpy).toHaveBeenCalledTimes(4);
     expect(fetchSpy).toHaveBeenCalledWith(
       expect.anything(),
-      expect.objectContaining({ headers: { Authorization: "Bearer token-value" } })
+      expect.objectContaining({
+        headers: { Authorization: "Bearer token-value" },
+      }),
     );
-    expect(fetchSpy.mock.calls.some(([input]) => input.toString().includes("pageToken=calendar-page-2")))
-      .toBe(true);
+    expect(
+      fetchSpy.mock.calls.some(([input]) =>
+        input.toString().includes("pageToken=calendar-page-2"),
+      ),
+    ).toBe(true);
   });
 
   it("returns an explicit error when Google calendar-list import fails", async () => {
@@ -793,13 +877,13 @@ describe("calendar and google integration routes", () => {
         providerAccountId: "google-1",
         displayName: "Google",
         encryptedAccessToken: encryptToken("token-value"),
-        scopes: ["https://www.googleapis.com/auth/calendar.readonly"]
+        scopes: ["https://www.googleapis.com/auth/calendar.readonly"],
       })
       .returning();
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response("rate limit", {
-        status: 429
-      })
+        status: 429,
+      }),
     );
 
     const { cookie } = await unlockAdmin(app);
@@ -807,17 +891,17 @@ describe("calendar and google integration routes", () => {
       method: "POST",
       url: "/api/calendar/sources/import-from-google",
       headers: { cookie },
-      payload: { accountId: account.id, externalCalendarIds: ["primary"] }
+      payload: { accountId: account.id, externalCalendarIds: ["primary"] },
     });
     expect(imported.statusCode).toBe(502);
     expect(imported.json()).toMatchObject({
       error: "google_calendar_list_failed",
-      statusCode: 429
+      statusCode: 429,
     });
 
     const sources = await app.inject({
       method: "GET",
-      url: "/api/calendar/sources"
+      url: "/api/calendar/sources",
     });
     expect(sources.statusCode).toBe(200);
     expect(sources.json().sources).toHaveLength(0);
@@ -833,7 +917,7 @@ describe("calendar and google integration routes", () => {
         providerAccountId: "google-1",
         displayName: "Google",
         encryptedAccessToken: "not-an-encrypted-token",
-        scopes: ["https://www.googleapis.com/auth/calendar.readonly"]
+        scopes: ["https://www.googleapis.com/auth/calendar.readonly"],
       })
       .returning();
 
@@ -842,11 +926,11 @@ describe("calendar and google integration routes", () => {
       method: "POST",
       url: "/api/calendar/sources/import-from-google",
       headers: { cookie },
-      payload: { accountId: account.id, externalCalendarIds: ["primary"] }
+      payload: { accountId: account.id, externalCalendarIds: ["primary"] },
     });
     expect(imported.statusCode).toBe(409);
     expect(imported.json()).toMatchObject({
-      error: "google_reauthorization_required"
+      error: "google_reauthorization_required",
     });
   });
 
@@ -865,7 +949,7 @@ describe("calendar and google integration routes", () => {
         provider: "google",
         providerAccountId: "google-1",
         displayName: "Google",
-        scopes: ["https://www.googleapis.com/auth/calendar.readonly"]
+        scopes: ["https://www.googleapis.com/auth/calendar.readonly"],
       })
       .returning();
     const [source] = await app.db
@@ -878,14 +962,14 @@ describe("calendar and google integration routes", () => {
         displayName: "Family",
         color: "#8ec5b8",
         enabled: true,
-        sortOrder: 0
+        sortOrder: 0,
       })
       .returning();
 
     const blocked = await app.inject({
       method: "PATCH",
       url: `/api/calendar/sources/${source.id}`,
-      payload: { displayName: "Blocked" }
+      payload: { displayName: "Blocked" },
     });
     expect(blocked.statusCode).toBe(401);
 
@@ -894,7 +978,7 @@ describe("calendar and google integration routes", () => {
       method: "PATCH",
       url: `/api/calendar/sources/${source.id}`,
       headers: { cookie },
-      payload: { enabled: "yes" }
+      payload: { enabled: "yes" },
     });
     expect(invalidBody.statusCode).toBe(400);
     expect(invalidBody.json().error).toBe("invalid_body");
@@ -903,7 +987,7 @@ describe("calendar and google integration routes", () => {
       method: "PATCH",
       url: `/api/calendar/sources/${missingUuid}`,
       headers: { cookie },
-      payload: { displayName: "Missing source" }
+      payload: { displayName: "Missing source" },
     });
     expect(missingSource.statusCode).toBe(404);
     expect(missingSource.json().error).toBe("source_not_found");
@@ -912,7 +996,7 @@ describe("calendar and google integration routes", () => {
       method: "PATCH",
       url: `/api/calendar/sources/${source.id}`,
       headers: { cookie },
-      payload: { personId: "00000000-0000-0000-0000-000000000000" }
+      payload: { personId: "00000000-0000-0000-0000-000000000000" },
     });
     expect(invalidPerson.statusCode).toBe(400);
     expect(invalidPerson.json().error).toBe("invalid_person_id");
@@ -925,15 +1009,15 @@ describe("calendar and google integration routes", () => {
         enabled: false,
         personId: kiddo.id,
         displayName: "Kid calendar",
-        color: "#f7d8d4"
-      }
+        color: "#f7d8d4",
+      },
     });
     expect(patched.statusCode).toBe(200);
     expect(patched.json().source).toMatchObject({
       displayName: "Kid calendar",
       enabled: false,
       personId: kiddo.id,
-      color: "#f7d8d4"
+      color: "#f7d8d4",
     });
 
     const cleared = await app.inject({
@@ -942,13 +1026,13 @@ describe("calendar and google integration routes", () => {
       headers: { cookie },
       payload: {
         personId: null,
-        color: null
-      }
+        color: null,
+      },
     });
     expect(cleared.statusCode).toBe(200);
     expect(cleared.json().source).toMatchObject({
       personId: null,
-      color: null
+      color: null,
     });
 
     await app.db.insert(calendarEventCache).values({
@@ -961,18 +1045,18 @@ describe("calendar and google integration routes", () => {
       payloadJsonb: { events: [{ sourceId: source.id }] },
       fetchedAt: new Date(),
       expiresAt: new Date(Date.now() + 60_000),
-      staleUntil: new Date(Date.now() + 120_000)
+      staleUntil: new Date(Date.now() + 120_000),
     });
     const blockedDelete = await app.inject({
       method: "DELETE",
-      url: `/api/calendar/sources/${source.id}`
+      url: `/api/calendar/sources/${source.id}`,
     });
     expect(blockedDelete.statusCode).toBe(401);
 
     const untracked = await app.inject({
       method: "DELETE",
       url: `/api/calendar/sources/${source.id}`,
-      headers: { cookie }
+      headers: { cookie },
     });
     expect(untracked.statusCode).toBe(200);
     expect(untracked.json()).toEqual({ untracked: true, sourceId: source.id });
@@ -982,7 +1066,7 @@ describe("calendar and google integration routes", () => {
     const missingDelete = await app.inject({
       method: "DELETE",
       url: `/api/calendar/sources/${source.id}`,
-      headers: { cookie }
+      headers: { cookie },
     });
     expect(missingDelete.statusCode).toBe(404);
     expect(missingDelete.json().error).toBe("source_not_found");
@@ -1002,7 +1086,7 @@ describe("calendar and google integration routes", () => {
         providerAccountId: "google-1",
         displayName: "Google",
         encryptedAccessToken: encryptToken("token-value"),
-        scopes: ["https://www.googleapis.com/auth/calendar.readonly"]
+        scopes: ["https://www.googleapis.com/auth/calendar.readonly"],
       })
       .returning();
 
@@ -1016,46 +1100,52 @@ describe("calendar and google integration routes", () => {
         displayName: "Parent",
         color: "#bee8ea",
         enabled: true,
-        sortOrder: 0
+        sortOrder: 0,
       })
       .returning();
 
-    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
-      const pageToken = new URL(input.toString()).searchParams.get("pageToken");
-      const providerPayload = pageToken
-        ? {
-            items: [{
-              id: "evt-2",
-              summary: "School closed",
-              start: { date: "2026-06-03" },
-              end: { date: "2026-06-04" }
-            }]
-          }
-        : {
-            items: [
-              {
-                id: "evt-1",
-                summary: "Dentist",
-                description: "Bring insurance card",
-                location: "Main clinic",
-                start: { dateTime: "2026-06-02T16:00:00.000Z" },
-                end: { dateTime: "2026-06-02T17:00:00.000Z" }
-              },
-              {
-                id: "evt-cancelled",
-                summary: "Cancelled",
-                status: "cancelled",
-                start: { dateTime: "2026-06-04T16:00:00.000Z" },
-                end: { dateTime: "2026-06-04T17:00:00.000Z" }
-              }
-            ],
-            nextPageToken: "event-page-2"
-          };
-      return new Response(JSON.stringify(providerPayload), {
-        status: 200,
-        headers: { "Content-Type": "application/json" }
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async (input) => {
+        const pageToken = new URL(input.toString()).searchParams.get(
+          "pageToken",
+        );
+        const providerPayload = pageToken
+          ? {
+              items: [
+                {
+                  id: "evt-2",
+                  summary: "School closed",
+                  start: { date: "2026-06-03" },
+                  end: { date: "2026-06-04" },
+                },
+              ],
+            }
+          : {
+              items: [
+                {
+                  id: "evt-1",
+                  summary: "Dentist",
+                  description: "Bring insurance card",
+                  location: "Main clinic",
+                  start: { dateTime: "2026-06-02T16:00:00.000Z" },
+                  end: { dateTime: "2026-06-02T17:00:00.000Z" },
+                },
+                {
+                  id: "evt-cancelled",
+                  summary: "Cancelled",
+                  status: "cancelled",
+                  start: { dateTime: "2026-06-04T16:00:00.000Z" },
+                  end: { dateTime: "2026-06-04T17:00:00.000Z" },
+                },
+              ],
+              nextPageToken: "event-page-2",
+            };
+        return new Response(JSON.stringify(providerPayload), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
       });
-    });
 
     const start = new Date("2026-06-01T00:00:00.000Z").toISOString();
     const end = new Date("2026-06-08T00:00:00.000Z").toISOString();
@@ -1063,7 +1153,7 @@ describe("calendar and google integration routes", () => {
 
     const first = await app.inject({
       method: "GET",
-      url
+      url,
     });
     expect(first.statusCode).toBe(200);
     expect(first.json().cacheStatus).toBe("refreshed");
@@ -1073,18 +1163,20 @@ describe("calendar and google integration routes", () => {
       title: "Dentist",
       description: "Bring insurance card",
       location: "Main clinic",
-      isAllDay: false
+      isAllDay: false,
     });
     expect(first.json().events[1]).toMatchObject({
       sourceId: source.id,
       title: "School closed",
-      isAllDay: true
+      isAllDay: true,
     });
-    expect(first.json().events.map((event: { title: string }) => event.title)).not.toContain("Cancelled");
+    expect(
+      first.json().events.map((event: { title: string }) => event.title),
+    ).not.toContain("Cancelled");
 
     const second = await app.inject({
       method: "GET",
-      url
+      url,
     });
     expect(second.statusCode).toBe(200);
     expect(second.json().cacheStatus).toBe("fresh");
@@ -1093,32 +1185,36 @@ describe("calendar and google integration routes", () => {
 
     const forced = await app.inject({
       method: "GET",
-      url: `${url}&refresh=true`
+      url: `${url}&refresh=true`,
     });
     expect(forced.statusCode).toBe(200);
     expect(forced.json().cacheStatus).toBe("refreshed");
     expect(fetchSpy).toHaveBeenCalledTimes(4);
-    expect(fetchSpy.mock.calls[0]?.[0].toString()).toContain("timeZone=America%2FLos_Angeles");
-    expect(fetchSpy.mock.calls[1]?.[0].toString()).toContain("pageToken=event-page-2");
+    expect(fetchSpy.mock.calls[0]?.[0].toString()).toContain(
+      "timeZone=America%2FLos_Angeles",
+    );
+    expect(fetchSpy.mock.calls[1]?.[0].toString()).toContain(
+      "pageToken=event-page-2",
+    );
 
     const logs = await app.db
       .select({
         calendarSourceId: calendarFetchLogs.calendarSourceId,
         status: calendarFetchLogs.status,
-        errorMessage: calendarFetchLogs.errorMessage
+        errorMessage: calendarFetchLogs.errorMessage,
       })
       .from(calendarFetchLogs);
     expect(logs).toEqual([
       {
         calendarSourceId: source.id,
         status: "success",
-        errorMessage: null
+        errorMessage: null,
       },
       {
         calendarSourceId: source.id,
         status: "success",
-        errorMessage: null
-      }
+        errorMessage: null,
+      },
     ]);
   });
 
@@ -1132,7 +1228,7 @@ describe("calendar and google integration routes", () => {
         providerAccountId: "google-1",
         displayName: "Google",
         encryptedAccessToken: encryptToken("token-value"),
-        scopes: ["https://www.googleapis.com/auth/calendar.readonly"]
+        scopes: ["https://www.googleapis.com/auth/calendar.readonly"],
       })
       .returning();
     const [source] = await app.db
@@ -1145,33 +1241,33 @@ describe("calendar and google integration routes", () => {
         displayName: "Family",
         color: "#bee8ea",
         enabled: true,
-        sortOrder: 0
+        sortOrder: 0,
       })
       .returning();
 
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(JSON.stringify({ items: [] }), {
         status: 200,
-        headers: { "Content-Type": "application/json" }
-      })
+        headers: { "Content-Type": "application/json" },
+      }),
     );
 
     const response = await app.inject({
       method: "GET",
-      url: calendarEventsUrl()
+      url: calendarEventsUrl(),
     });
     expect(response.statusCode).toBe(200);
     expect(response.json()).toMatchObject({
       cacheStatus: "refreshed",
       degraded: false,
       events: [],
-      warnings: []
+      warnings: [],
     });
 
     const logs = await app.db
       .select({
         calendarSourceId: calendarFetchLogs.calendarSourceId,
-        status: calendarFetchLogs.status
+        status: calendarFetchLogs.status,
       })
       .from(calendarFetchLogs);
     expect(logs).toEqual([{ calendarSourceId: source.id, status: "success" }]);
@@ -1190,7 +1286,7 @@ describe("calendar and google integration routes", () => {
           encryptedAccessToken: encryptToken("expired-access-token"),
           encryptedRefreshToken: encryptToken("refresh-token"),
           accessTokenExpiresAt: new Date(Date.now() - 60_000),
-          scopes: ["https://www.googleapis.com/auth/calendar.readonly"]
+          scopes: ["https://www.googleapis.com/auth/calendar.readonly"],
         })
         .returning();
       await app.db.insert(calendarSources).values([
@@ -1201,7 +1297,7 @@ describe("calendar and google integration routes", () => {
           externalCalendarId: "family",
           displayName: "Family",
           enabled: true,
-          sortOrder: 0
+          sortOrder: 0,
         },
         {
           householdId: setup.household.id,
@@ -1210,8 +1306,8 @@ describe("calendar and google integration routes", () => {
           externalCalendarId: "school",
           displayName: "School",
           enabled: true,
-          sortOrder: 1
-        }
+          sortOrder: 1,
+        },
       ]);
       let refreshCalls = 0;
       let eventCalls = 0;
@@ -1219,24 +1315,33 @@ describe("calendar and google integration routes", () => {
         const url = input.toString();
         if (url === "https://oauth2.googleapis.com/token") {
           refreshCalls += 1;
-          return new Response(JSON.stringify({
-            access_token: "refreshed-access-token",
-            expires_in: 3600
-          }), {
-            status: 200,
-            headers: { "Content-Type": "application/json" }
-          });
+          return new Response(
+            JSON.stringify({
+              access_token: "refreshed-access-token",
+              expires_in: 3600,
+            }),
+            {
+              status: 200,
+              headers: { "Content-Type": "application/json" },
+            },
+          );
         }
         eventCalls += 1;
         return new Response(JSON.stringify({ items: [] }), {
           status: 200,
-          headers: { "Content-Type": "application/json" }
+          headers: { "Content-Type": "application/json" },
         });
       });
 
-      const response = await app.inject({ method: "GET", url: calendarEventsUrl() });
+      const response = await app.inject({
+        method: "GET",
+        url: calendarEventsUrl(),
+      });
       expect(response.statusCode).toBe(200);
-      expect(response.json()).toMatchObject({ cacheStatus: "refreshed", degraded: false });
+      expect(response.json()).toMatchObject({
+        cacheStatus: "refreshed",
+        degraded: false,
+      });
       expect(refreshCalls).toBe(1);
       expect(eventCalls).toBe(2);
 
@@ -1244,8 +1349,12 @@ describe("calendar and google integration routes", () => {
         .select()
         .from(connectedAccounts)
         .where(eq(connectedAccounts.id, account.id));
-      expect(decryptToken(updatedAccount.encryptedAccessToken!)).toBe("refreshed-access-token");
-      expect(updatedAccount.accessTokenExpiresAt!.getTime()).toBeGreaterThan(Date.now());
+      expect(decryptToken(updatedAccount.encryptedAccessToken!)).toBe(
+        "refreshed-access-token",
+      );
+      expect(updatedAccount.accessTokenExpiresAt!.getTime()).toBeGreaterThan(
+        Date.now(),
+      );
       expect(updatedAccount.reauthorizationRequired).toBe(false);
     });
   });
@@ -1263,7 +1372,7 @@ describe("calendar and google integration routes", () => {
           encryptedAccessToken: encryptToken("expired-access-token"),
           encryptedRefreshToken: encryptToken("revoked-refresh-token"),
           accessTokenExpiresAt: new Date(Date.now() - 60_000),
-          scopes: ["https://www.googleapis.com/auth/calendar.readonly"]
+          scopes: ["https://www.googleapis.com/auth/calendar.readonly"],
         })
         .returning();
       await app.db.insert(calendarSources).values({
@@ -1273,14 +1382,26 @@ describe("calendar and google integration routes", () => {
         externalCalendarId: "family",
         displayName: "Family",
         enabled: true,
-        sortOrder: 0
+        sortOrder: 0,
       });
-      vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("invalid_grant", { status: 400 }));
+      vi.spyOn(globalThis, "fetch").mockResolvedValue(
+        new Response("invalid_grant", { status: 400 }),
+      );
 
-      const response = await app.inject({ method: "GET", url: calendarEventsUrl() });
+      const response = await app.inject({
+        method: "GET",
+        url: calendarEventsUrl(),
+      });
       expect(response.statusCode).toBe(200);
-      expect(response.json().warnings.map((warning: { code: string }) => warning.code)).toEqual(
-        expect.arrayContaining(["SOURCE_REAUTHORIZATION_REQUIRED", "NO_CALENDAR_DATA"])
+      expect(
+        response
+          .json()
+          .warnings.map((warning: { code: string }) => warning.code),
+      ).toEqual(
+        expect.arrayContaining([
+          "SOURCE_REAUTHORIZATION_REQUIRED",
+          "NO_CALENDAR_DATA",
+        ]),
       );
       const [updatedAccount] = await app.db
         .select()
@@ -1297,15 +1418,22 @@ function calendarEventsUrl(): string {
   return `/api/calendar/events?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}&timezone=UTC`;
 }
 
-function createTestOauthState(options?: { expiresAt?: number; tamperSignature?: boolean }): string {
+function createTestOauthState(options?: {
+  expiresAt?: number;
+  tamperSignature?: boolean;
+}): string {
   const payload = Buffer.from(
     JSON.stringify({
       nonce: "test-nonce",
-      expiresAt: options?.expiresAt ?? Date.now() + 60_000
-    })
+      expiresAt: options?.expiresAt ?? Date.now() + 60_000,
+    }),
   ).toString("base64url");
-  const signature = createHmac("sha256", env.SESSION_SECRET).update(payload).digest("base64url");
-  const tamperedSignature = signature.startsWith("x") ? `y${signature.slice(1)}` : `x${signature.slice(1)}`;
+  const signature = createHmac("sha256", env.SESSION_SECRET)
+    .update(payload)
+    .digest("base64url");
+  const tamperedSignature = signature.startsWith("x")
+    ? `y${signature.slice(1)}`
+    : `x${signature.slice(1)}`;
   return `${payload}.${options?.tamperSignature ? tamperedSignature : signature}`;
 }
 
@@ -1314,7 +1442,9 @@ function isTestOauthStateValid(state: string): boolean {
   if (!payload || !signature || rest.length > 0) {
     return false;
   }
-  const expectedSignature = createHmac("sha256", env.SESSION_SECRET).update(payload).digest("base64url");
+  const expectedSignature = createHmac("sha256", env.SESSION_SECRET)
+    .update(payload)
+    .digest("base64url");
   return signature === expectedSignature;
 }
 
@@ -1322,11 +1452,12 @@ async function withGoogleOauthConfig<T>(run: () => Promise<T>): Promise<T> {
   const originalGoogleEnv = {
     clientId: env.GOOGLE_CLIENT_ID,
     clientSecret: env.GOOGLE_CLIENT_SECRET,
-    redirectUri: env.GOOGLE_REDIRECT_URI
+    redirectUri: env.GOOGLE_REDIRECT_URI,
   };
   env.GOOGLE_CLIENT_ID = "client-id";
   env.GOOGLE_CLIENT_SECRET = "client-secret";
-  env.GOOGLE_REDIRECT_URI = "http://localhost:3000/api/integrations/google/callback";
+  env.GOOGLE_REDIRECT_URI =
+    "http://localhost:3000/api/integrations/google/callback";
 
   try {
     return await run();
@@ -1337,11 +1468,13 @@ async function withGoogleOauthConfig<T>(run: () => Promise<T>): Promise<T> {
   }
 }
 
-async function withGoogleOauthConfigCleared<T>(run: () => Promise<T>): Promise<T> {
+async function withGoogleOauthConfigCleared<T>(
+  run: () => Promise<T>,
+): Promise<T> {
   const originalGoogleEnv = {
     clientId: env.GOOGLE_CLIENT_ID,
     clientSecret: env.GOOGLE_CLIENT_SECRET,
-    redirectUri: env.GOOGLE_REDIRECT_URI
+    redirectUri: env.GOOGLE_REDIRECT_URI,
   };
   env.GOOGLE_CLIENT_ID = undefined;
   env.GOOGLE_CLIENT_SECRET = undefined;

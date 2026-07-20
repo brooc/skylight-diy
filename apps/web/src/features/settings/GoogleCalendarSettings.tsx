@@ -57,6 +57,15 @@ type SourcePatch = {
   color?: string | null;
 };
 
+type PendingGoogleAuth = {
+  authUrl: string;
+  expiresAt: number;
+  accountId?: string;
+  expired: boolean;
+};
+
+const GOOGLE_AUTH_FALLBACK_TTL_MS = 10 * 60 * 1_000;
+
 function getErrorMessage(error: unknown, fallback: string): string {
   if (!(error instanceof Error)) {
     return fallback;
@@ -81,18 +90,27 @@ export function toSilkIntentUrl(authUrl: string): string {
 export function googleAuthLaunchTarget(
   authUrl: string,
   environment: { userAgent: string; standalone: boolean; fullyKiosk: boolean },
-): { href: string; label: string; opensExternalTab: boolean } {
+): {
+  href: string;
+  label: string;
+  instructions: string;
+  opensExternalTab: boolean;
+} {
   const fireTablet = /Silk\//i.test(environment.userAgent);
   if (environment.fullyKiosk || (fireTablet && !environment.standalone)) {
     return {
       href: toSilkIntentUrl(authUrl),
       label: "Open Google in Silk",
+      instructions:
+        "Complete Google access in Silk, then return to Daymark. Fully users must allow other URL schemes.",
       opensExternalTab: false,
     };
   }
   return {
     href: authUrl,
     label: "Continue with Google",
+    instructions:
+      "Complete Google access in the new browser tab, then return to Daymark.",
     opensExternalTab: true,
   };
 }
@@ -286,9 +304,8 @@ export function GoogleCalendarSettings(): JSX.Element {
   const [calendarSearch, setCalendarSearch] = useState("");
   const [isDiscovering, setIsDiscovering] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
-  const [pendingGoogleAuthUrl, setPendingGoogleAuthUrl] = useState<
-    string | null
-  >(null);
+  const [pendingGoogleAuth, setPendingGoogleAuth] =
+    useState<PendingGoogleAuth | null>(null);
 
   const accountsQuery = useQuery({
     queryKey: ["calendar-accounts"],
@@ -333,6 +350,23 @@ export function GoogleCalendarSettings(): JSX.Element {
       `${url.pathname}${url.search}${url.hash}`,
     );
   }, []);
+
+  useEffect(() => {
+    if (!pendingGoogleAuth || pendingGoogleAuth.expired) return;
+    const remainingMs = pendingGoogleAuth.expiresAt - Date.now();
+    if (remainingMs <= 0) {
+      setPendingGoogleAuth((current) =>
+        current ? { ...current, expired: true } : null,
+      );
+      return;
+    }
+    const timeout = window.setTimeout(() => {
+      setPendingGoogleAuth((current) =>
+        current ? { ...current, expired: true } : null,
+      );
+    }, remainingMs);
+    return () => window.clearTimeout(timeout);
+  }, [pendingGoogleAuth]);
 
   useEffect(() => {
     const refreshAfterExternalAuth = () => {
@@ -388,17 +422,19 @@ export function GoogleCalendarSettings(): JSX.Element {
   const activeAccount = accounts.find(
     (account) => account.id === activeAccountId,
   );
-  const googleAuthTarget = pendingGoogleAuthUrl
-    ? googleAuthLaunchTarget(pendingGoogleAuthUrl, {
-        userAgent: navigator.userAgent,
-        standalone:
-          window.matchMedia?.("(display-mode: fullscreen)").matches === true ||
-          window.matchMedia?.("(display-mode: standalone)").matches === true,
-        fullyKiosk: "FullyKiosk" in window || "fully" in window,
-      })
-    : null;
+  const googleAuthTarget =
+    pendingGoogleAuth && !pendingGoogleAuth.expired
+      ? googleAuthLaunchTarget(pendingGoogleAuth.authUrl, {
+          userAgent: navigator.userAgent,
+          standalone:
+            window.matchMedia?.("(display-mode: fullscreen)").matches ===
+              true ||
+            window.matchMedia?.("(display-mode: standalone)").matches === true,
+          fullyKiosk: "FullyKiosk" in window || "fully" in window,
+        })
+      : null;
   const startGoogleConnection = async (accountId?: string): Promise<void> => {
-    setPendingGoogleAuthUrl(null);
+    setPendingGoogleAuth(null);
     try {
       const suffix = accountId
         ? `?accountId=${encodeURIComponent(accountId)}`
@@ -406,10 +442,18 @@ export function GoogleCalendarSettings(): JSX.Element {
       const result = await apiFetch<{
         available: boolean;
         authUrl?: string;
+        expiresAt?: number;
         message?: string;
       }>(`/integrations/google/connect${suffix}`);
       if (result.authUrl) {
-        setPendingGoogleAuthUrl(result.authUrl);
+        const expiresAt =
+          result.expiresAt ?? Date.now() + GOOGLE_AUTH_FALLBACK_TTL_MS;
+        setPendingGoogleAuth({
+          authUrl: result.authUrl,
+          expiresAt,
+          ...(accountId ? { accountId } : {}),
+          expired: expiresAt <= Date.now(),
+        });
         setStatus("Google is ready. Continue below to finish connecting.");
         return;
       }
@@ -500,24 +544,43 @@ export function GoogleCalendarSettings(): JSX.Element {
           Google OAuth is not configured in environment variables yet.
         </p>
       ) : null}
-      {googleAuthTarget ? (
+      {pendingGoogleAuth ? (
         <div className="grid gap-1 rounded-md border border-amber-200 bg-amber-50 p-3">
-          <a
-            href={googleAuthTarget.href}
-            target={googleAuthTarget.opensExternalTab ? "_blank" : undefined}
-            rel={
-              googleAuthTarget.opensExternalTab
-                ? "noopener noreferrer external"
-                : undefined
+          {googleAuthTarget ? (
+            <>
+              <a
+                href={googleAuthTarget.href}
+                target={
+                  googleAuthTarget.opensExternalTab ? "_blank" : undefined
+                }
+                rel={
+                  googleAuthTarget.opensExternalTab
+                    ? "noopener noreferrer external"
+                    : undefined
+                }
+                className="justify-self-start rounded-md bg-amber-100 px-3 py-2 text-sm font-semibold text-amber-950"
+              >
+                {googleAuthTarget.label}
+              </a>
+              <p className="text-xs text-amber-800">
+                {googleAuthTarget.instructions}
+              </p>
+            </>
+          ) : (
+            <p className="text-sm font-medium text-amber-950">
+              This Google sign-in link expired. Start over to create a secure
+              new link.
+            </p>
+          )}
+          <button
+            type="button"
+            className="mt-1 justify-self-start rounded-md border border-amber-300 bg-white px-3 py-2 text-xs font-semibold text-amber-950"
+            onClick={() =>
+              void startGoogleConnection(pendingGoogleAuth.accountId)
             }
-            className="justify-self-start rounded-md bg-amber-100 px-3 py-2 text-sm font-semibold text-amber-950"
           >
-            {googleAuthTarget.label}
-          </a>
-          <p className="text-xs text-amber-800">
-            Complete Google access in Silk, then return to Daymark. Fully users
-            must allow other URL schemes.
-          </p>
+            Start over
+          </button>
         </div>
       ) : null}
       {accounts.length === 0 ? (

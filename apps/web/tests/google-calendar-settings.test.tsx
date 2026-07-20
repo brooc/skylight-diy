@@ -84,6 +84,13 @@ describe("GoogleCalendarSettings", () => {
         "Google is ready. Continue below to finish connecting.",
       ),
     ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Complete Google access in the new browser tab, then return to Daymark.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Fully users/)).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Start over" })).toBeEnabled();
   });
 
   it("uses a Silk app intent from Fully but a browser tab from an installed PWA", () => {
@@ -98,6 +105,8 @@ describe("GoogleCalendarSettings", () => {
     ).toEqual({
       href: "intent://accounts.google.com/o/oauth2/v2/auth?state=fallback#Intent;scheme=https;package=com.amazon.cloud9;end",
       label: "Open Google in Silk",
+      instructions:
+        "Complete Google access in Silk, then return to Daymark. Fully users must allow other URL schemes.",
       opensExternalTab: false,
     });
     expect(
@@ -109,8 +118,61 @@ describe("GoogleCalendarSettings", () => {
     ).toEqual({
       href: authUrl,
       label: "Continue with Google",
+      instructions:
+        "Complete Google access in the new browser tab, then return to Daymark.",
       opensExternalTab: true,
     });
+  });
+
+  it("removes an expired Google link and starts over with a fresh one", async () => {
+    let connectCount = 0;
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const url = typeof input === "string" ? input : input.url;
+      if (url.startsWith("/api/integrations/google/connect")) {
+        connectCount += 1;
+        return mockJsonResponse({
+          available: true,
+          authUrl: `https://accounts.google.com/o/oauth2/v2/auth?state=${connectCount === 1 ? "expired" : "fresh"}`,
+          expiresAt: connectCount === 1 ? 0 : Date.now() + 10 * 60 * 1_000,
+        });
+      }
+      if (url.startsWith("/api/calendar/accounts"))
+        return mockJsonResponse({ accounts: [] });
+      if (url.startsWith("/api/calendar/sources"))
+        return mockJsonResponse({ sources: [] });
+      if (url.startsWith("/api/household/current"))
+        return mockJsonResponse({ household: {}, people: [] });
+      if (url.startsWith("/api/integrations/google/status")) {
+        return mockJsonResponse({
+          available: true,
+          redirectUri: "http://localhost/callback",
+        });
+      }
+      return mockJsonResponse({}, 404);
+    });
+
+    renderWithProviders(<GoogleCalendarSettings />, { route: "/settings" });
+    const user = userEvent.setup();
+    await user.click(
+      await screen.findByRole("button", { name: "Connect Google Account" }),
+    );
+
+    expect(
+      await screen.findByText(/This Google sign-in link expired/),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: "Continue with Google" }),
+    ).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Start over" }));
+
+    expect(
+      await screen.findByRole("link", { name: "Continue with Google" }),
+    ).toHaveAttribute(
+      "href",
+      "https://accounts.google.com/o/oauth2/v2/auth?state=fresh",
+    );
+    expect(connectCount).toBe(2);
   });
 
   it("surfaces readable discovery error messages from API failures", async () => {
