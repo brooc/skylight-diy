@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { QueryClientProvider } from "@tanstack/react-query";
-import { act, render, screen, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import {
   afterAll,
@@ -145,6 +145,38 @@ describe("TodayDashboard", () => {
     await screen.findByText("No enabled calendar sources yet.");
     expect(fetchSpy.mock.calls.length).toBeGreaterThan(requestCount);
     expect(String(fetchSpy.mock.calls.at(-1)?.[0])).toContain("refresh=true");
+  });
+
+  it("centers the current-time line after the full dashboard becomes ready", async () => {
+    const apiFetch = globalThis.fetch;
+    globalThis.fetch = (async (input, init) => {
+      if (String(input).includes("/api/household/current")) {
+        await new Promise((resolve) => window.setTimeout(resolve, 75));
+      }
+      return apiFetch(input, init);
+    }) as typeof fetch;
+    const originalScrollTo = HTMLElement.prototype.scrollTo;
+    const scrollTo = vi.fn();
+    Object.defineProperty(HTMLElement.prototype, "scrollTo", {
+      configurable: true,
+      value: scrollTo,
+    });
+
+    try {
+      renderTodayDashboard();
+      expect(await screen.findByText("Test Household")).toBeInTheDocument();
+      await waitFor(() => expect(scrollTo).toHaveBeenCalled());
+      expect(scrollTo).toHaveBeenLastCalledWith({ top: 0, behavior: "auto" });
+    } finally {
+      if (originalScrollTo) {
+        Object.defineProperty(HTMLElement.prototype, "scrollTo", {
+          configurable: true,
+          value: originalScrollTo,
+        });
+      } else {
+        Reflect.deleteProperty(HTMLElement.prototype, "scrollTo");
+      }
+    }
   });
 
   it("ticks the clock every second while scheduling conservative background refreshes", async () => {

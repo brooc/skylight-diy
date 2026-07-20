@@ -190,8 +190,27 @@ export function calendarHourRange(
   };
 }
 
-export function TodayDashboard(): JSX.Element {
+export function LiveClock({ timezone }: { timezone: string }): JSX.Element {
   const [now, setNow] = useState(() => new Date());
+
+  useEffect(() => {
+    const interval = window.setInterval(() => setNow(new Date()), 1_000);
+    return () => window.clearInterval(interval);
+  }, []);
+
+  return (
+    <time dateTime={now.toISOString()}>
+      {now.toLocaleTimeString(undefined, {
+        hour: "numeric",
+        minute: "2-digit",
+        timeZone: timezone,
+      })}
+    </time>
+  );
+}
+
+export function TodayDashboard(): JSX.Element {
+  const [calendarNow, setCalendarNow] = useState(() => new Date());
   const calendarScrollRef = useRef<HTMLDivElement>(null);
   const currentTimeLineRef = useRef<HTMLDivElement>(null);
   const deviceTimezone =
@@ -219,7 +238,15 @@ export function TodayDashboard(): JSX.Element {
   >(null);
 
   useEffect(() => {
-    const clockInterval = window.setInterval(() => setNow(new Date()), 1_000);
+    const clockInterval = window.setInterval(() => {
+      const next = new Date();
+      setCalendarNow((current) =>
+        Math.floor(current.getTime() / 60_000) ===
+        Math.floor(next.getTime() / 60_000)
+          ? current
+          : next,
+      );
+    }, 1_000);
     return () => window.clearInterval(clockInterval);
   }, []);
 
@@ -267,7 +294,7 @@ export function TodayDashboard(): JSX.Element {
     queryKey: ["calendar-sources"],
     queryFn: () => apiFetch<CalendarSourcesResponse>("/calendar/sources"),
   });
-  const todayKey = dateKeyInTimeZone(now, timezone);
+  const todayKey = dateKeyInTimeZone(calendarNow, timezone);
   const currentWeekStartKey = startOfWeekDateKey(
     todayKey,
     householdQuery.data?.household.weekStartsOn ?? "monday",
@@ -295,25 +322,32 @@ export function TodayDashboard(): JSX.Element {
     refetchInterval: CALENDAR_AUTO_REFRESH_MS,
     refetchIntervalInBackground: true,
   });
-  const currentHour = hourInTimeZone(now, timezone);
+  const currentHour = hourInTimeZone(calendarNow, timezone);
   const currentMinuteKey = `${todayKey}-${Math.floor(currentHour * 60)}`;
+  const dashboardReady =
+    householdQuery.isSuccess &&
+    rewardsQuery.isSuccess &&
+    mealsQuery.isSuccess &&
+    calendarQuery.isSuccess;
 
   useEffect(() => {
-    if (weekOffset !== 0 || !calendarQuery.isSuccess) return;
+    if (weekOffset !== 0 || !dashboardReady) return;
     const scrollContainer = calendarScrollRef.current;
     const currentTimeLine = currentTimeLineRef.current;
-    const hourCell = currentTimeLine?.parentElement;
-    if (!scrollContainer || !currentTimeLine || !hourCell) return;
+    if (!scrollContainer || !currentTimeLine) return;
+    const containerRect = scrollContainer.getBoundingClientRect();
+    const lineRect = currentTimeLine.getBoundingClientRect();
     const top =
-      hourCell.offsetTop +
-      currentTimeLine.offsetTop -
+      lineRect.top -
+      containerRect.top +
+      scrollContainer.scrollTop -
       scrollContainer.clientHeight / 2;
     if (typeof scrollContainer.scrollTo === "function") {
-      scrollContainer.scrollTo({ top: Math.max(0, top), behavior: "smooth" });
+      scrollContainer.scrollTo({ top: Math.max(0, top), behavior: "auto" });
     } else {
       scrollContainer.scrollTop = Math.max(0, top);
     }
-  }, [calendarQuery.isSuccess, currentMinuteKey, weekOffset]);
+  }, [currentMinuteKey, dashboardReady, weekOffset]);
 
   if (
     householdQuery.isLoading ||
@@ -604,12 +638,7 @@ export function TodayDashboard(): JSX.Element {
                 {householdQuery.data?.household.name ?? "Family"}
               </h1>
               <div className="font-display text-3xl leading-none text-slate-900 md:text-[34px]">
-                <time dateTime={now.toISOString()}>
-                  {now.toLocaleTimeString(undefined, {
-                    hour: "numeric",
-                    minute: "2-digit",
-                  })}
-                </time>
+                <LiveClock timezone={timezone} />
               </div>
               {weatherQuery.data?.configured ? (
                 <div
