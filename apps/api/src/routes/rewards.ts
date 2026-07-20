@@ -10,10 +10,6 @@ const reduceBodySchema = z.object({
   reason: z.string().trim().min(1).max(120)
 });
 
-function requireAdmin(request: { isAdminUnlocked: () => boolean }, reply: { status: (code: number) => { send: (body: unknown) => unknown } }): unknown {
-  if (!request.isAdminUnlocked()) return reply.status(401).send({ error: "admin_unlock_required" });
-}
-
 export const rewardsRoutes: FastifyPluginAsync = async (app) => {
   const currentBalance = async (householdId: string, personId: string): Promise<number> => {
     const [earned] = await app.db.select({
@@ -112,8 +108,6 @@ export const rewardsRoutes: FastifyPluginAsync = async (app) => {
   });
 
   app.post("/rewards/:personId/reduce", async (request, reply) => {
-    const unauthorized = requireAdmin(request, reply);
-    if (unauthorized) return unauthorized;
     const params = personParamsSchema.safeParse(request.params);
     const body = reduceBodySchema.safeParse(request.body);
     if (!params.success || !body.success) return reply.status(400).send({ error: "invalid_point_reduction" });
@@ -134,8 +128,6 @@ export const rewardsRoutes: FastifyPluginAsync = async (app) => {
   });
 
   app.post("/rewards/:personId/reset", async (request, reply) => {
-    const unauthorized = requireAdmin(request, reply);
-    if (unauthorized) return unauthorized;
     const params = personParamsSchema.safeParse(request.params);
     if (!params.success) return reply.status(400).send({ error: "invalid_person" });
     const [household] = await app.db.select().from(households).limit(1);

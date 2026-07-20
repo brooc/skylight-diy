@@ -68,10 +68,6 @@ function normalizedSchedule(task: {
   return { frequency: "daily", dueDate: null, weekdays: null };
 }
 
-function requireAdmin(request: { isAdminUnlocked: () => boolean }, reply: { status: (code: number) => { send: (body: unknown) => unknown } }): unknown {
-  if (!request.isAdminUnlocked()) return reply.status(401).send({ error: "admin_unlock_required" });
-}
-
 export const choresRoutes: FastifyPluginAsync = async (app) => {
   app.get("/chores/today", async (request, reply) => {
     const parsed = dateQuerySchema.safeParse(request.query);
@@ -118,9 +114,7 @@ export const choresRoutes: FastifyPluginAsync = async (app) => {
     };
   });
 
-  app.get("/chores/manage", async (request, reply) => {
-    const unauthorized = requireAdmin(request, reply);
-    if (unauthorized) return unauthorized;
+  app.get("/chores/manage", async () => {
     const [household] = await app.db.select().from(households).limit(1);
     if (!household) return { chores: [] };
     const [taskRows, members] = await Promise.all([
@@ -173,8 +167,6 @@ export const choresRoutes: FastifyPluginAsync = async (app) => {
   });
 
   app.post("/chores", async (request, reply) => {
-    const unauthorized = requireAdmin(request, reply);
-    if (unauthorized) return unauthorized;
     const parsed = createTaskBodySchema.safeParse(request.body);
     if (!parsed.success) return reply.status(400).send({ error: "invalid_body", details: parsed.error.flatten() });
     const [household] = await app.db.select().from(households).limit(1);
@@ -200,8 +192,6 @@ export const choresRoutes: FastifyPluginAsync = async (app) => {
   });
 
   app.patch("/chores/:choreId", async (request, reply) => {
-    const unauthorized = requireAdmin(request, reply);
-    if (unauthorized) return unauthorized;
     const parsed = updateTaskBodySchema.safeParse(request.body);
     if (!parsed.success) return reply.status(400).send({ error: "invalid_body", details: parsed.error.flatten() });
     const [household] = await app.db.select().from(households).limit(1);
@@ -234,8 +224,6 @@ export const choresRoutes: FastifyPluginAsync = async (app) => {
   });
 
   app.delete("/chores/:choreId", async (request, reply) => {
-    const unauthorized = requireAdmin(request, reply);
-    if (unauthorized) return unauthorized;
     const [household] = await app.db.select().from(households).limit(1);
     if (!household) return reply.status(404).send({ error: "setup_not_completed" });
     const choreId = (request.params as { choreId: string }).choreId;
@@ -246,8 +234,6 @@ export const choresRoutes: FastifyPluginAsync = async (app) => {
   });
 
   app.post("/chores/:choreId/restore", async (request, reply) => {
-    const unauthorized = requireAdmin(request, reply);
-    if (unauthorized) return unauthorized;
     const [household] = await app.db.select().from(households).limit(1);
     if (!household) return reply.status(404).send({ error: "setup_not_completed" });
     const choreId = (request.params as { choreId: string }).choreId;

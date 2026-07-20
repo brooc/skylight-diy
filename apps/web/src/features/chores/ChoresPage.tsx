@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { useSearchParams } from "react-router-dom";
 import { apiFetch } from "../../api/client";
 import { queryKeys } from "../../api/queryKeys";
 import { EmptyState } from "../../components/EmptyState";
@@ -78,10 +78,6 @@ export function ChoresPage(): JSX.Element {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const sessionQuery = useQuery({
-    queryKey: ["session-current"],
-    queryFn: () => apiFetch<{ unlocked: boolean }>("/session/current")
-  });
   const choresQuery = useQuery({
     queryKey: queryKeys.todayChores,
     queryFn: () => apiFetch<{ date: string; chores: Task[] }>("/chores/today")
@@ -94,11 +90,10 @@ export function ChoresPage(): JSX.Element {
     queryKey: ["reward-history"],
     queryFn: () => apiFetch<{ history: HistoryItem[] }>("/rewards/history")
   });
-  const unlocked = Boolean(sessionQuery.data?.unlocked);
   const manageQuery = useQuery({
     queryKey: ["manage-tasks"],
     queryFn: () => apiFetch<{ chores: Task[] }>("/chores/manage"),
-    enabled: unlocked
+    enabled: isManaging
   });
 
   useEffect(() => {
@@ -143,7 +138,7 @@ export function ChoresPage(): JSX.Element {
     ]);
   };
 
-  if (choresQuery.isLoading || rewardsQuery.isLoading || sessionQuery.isLoading) return <LoadingState />;
+  if (choresQuery.isLoading || rewardsQuery.isLoading) return <LoadingState />;
   if (choresQuery.isError) return <ErrorState message={choresQuery.error.message} />;
   if (rewardsQuery.isError) return <ErrorState message={rewardsQuery.error.message} />;
 
@@ -157,18 +152,11 @@ export function ChoresPage(): JSX.Element {
     <div className="grid gap-4 pb-20">
       <header className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-[#e0d6c7] bg-white p-4">
         <div><h1 className="font-display text-2xl text-slate-900">Tasks</h1><p className="text-sm text-slate-600">Complete today’s jobs and earn family points.</p></div>
-        {unlocked ? (
-          <button type="button" className="min-h-[44px] rounded-md border border-[#d8cbb8] bg-[#fff7ea] px-4 text-sm font-semibold text-slate-800" onClick={() => setIsManaging((value) => !value)}>{isManaging ? "Done managing" : "Manage tasks"}</button>
-        ) : (
-          <Link to="/settings/unlock?returnTo=%2Fchores%3Fmanage%3D1" className="flex min-h-[44px] items-center rounded-md border border-[#d8cbb8] bg-[#fff7ea] px-4 text-sm font-semibold text-slate-800">Admin controls</Link>
-        )}
+        <button type="button" className="min-h-[44px] rounded-md border border-[#d8cbb8] bg-[#fff7ea] px-4 text-sm font-semibold text-slate-800" onClick={() => setIsManaging((value) => !value)}>{isManaging ? "Done managing" : "Manage tasks"}</button>
       </header>
       {status ? <div role="status" className="rounded-md bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800">{status}</div> : null}
       {submitError ? <div role="alert" className="rounded-md bg-rose-50 px-4 py-3 text-sm text-rose-800">{submitError}</div> : null}
-      {isAdding && !unlocked ? (
-        <section className="grid gap-3 rounded-md border border-amber-200 bg-amber-50 p-4"><h2 className="font-semibold text-slate-900">Admin PIN required</h2><p className="text-sm text-slate-700">Unlock admin controls to add or change tasks.</p><Link className="flex min-h-[44px] items-center justify-center rounded-md bg-[#0f766e] px-4 font-semibold text-white" to="/settings/unlock?returnTo=%2Fchores%3Fadd%3D1">Unlock</Link></section>
-      ) : null}
-      {isAdding && unlocked ? (
+      {isAdding ? (
         <section className="grid gap-4 rounded-xl border border-[#e0d6c7] bg-white p-4">
           <div className="flex items-center justify-between"><h2 className="font-display text-2xl text-slate-900">{editingTask ? "Edit task" : "Add task"}</h2><button type="button" className="min-h-[40px] px-3 font-semibold text-slate-600" onClick={resetForm}>Cancel</button></div>
           <div className="grid gap-3 md:grid-cols-2">
@@ -190,7 +178,7 @@ export function ChoresPage(): JSX.Element {
           }}>{isSubmitting ? "Saving…" : editingTask ? "Save changes" : "Add task"}</button></div>
         </section>
       ) : null}
-      {tasks.length === 0 ? <EmptyState title="No tasks due" description="There are no tasks scheduled for today." /> : <ChoreList chores={tasks} onEdit={unlocked && isManaging ? beginEdit : undefined} onRemove={unlocked && isManaging ? async (task) => { await apiFetch(`/chores/${task.id}`, { method: "DELETE" }); setStatus("Task removed. You can restore it from archived tasks."); await refreshTasks(); } : undefined} onToggle={async (task, nextCompleted) => {
+      {tasks.length === 0 ? <EmptyState title="No tasks due" description="There are no tasks scheduled for today." /> : <ChoreList chores={tasks} onEdit={isManaging ? beginEdit : undefined} onRemove={isManaging ? async (task) => { await apiFetch(`/chores/${task.id}`, { method: "DELETE" }); setStatus("Task removed. You can restore it from archived tasks."); await refreshTasks(); } : undefined} onToggle={async (task, nextCompleted) => {
         setSubmitError(null);
         try {
           if (nextCompleted && !task.assignedPersonId) { setCompletionTask(task); return; }
@@ -200,8 +188,8 @@ export function ChoresPage(): JSX.Element {
           await refreshTasks();
         } catch (error) { setSubmitError(errorMessage(error, "The task could not be updated.")); }
       }} />}
-      {unlocked && isManaging && manageQuery.data?.chores.some((task) => !task.active) ? <section className="grid gap-2 rounded-md border border-[#e0d6c7] bg-white p-4"><h2 className="font-semibold text-slate-900">Archived tasks</h2>{manageQuery.data.chores.filter((task) => !task.active).map((task) => <div key={task.id} className="flex min-h-[44px] items-center justify-between gap-3 border-t border-slate-100 py-2"><span>{task.title}</span><button type="button" className="rounded-md bg-slate-100 px-3 py-2 text-sm font-semibold" onClick={async () => { await apiFetch(`/chores/${task.id}/restore`, { method: "POST" }); setStatus("Task restored."); await refreshTasks(); }}>Restore</button></div>)}</section> : null}
-      <RewardBalance balances={balances} canManage={unlocked && isManaging} onUsePoints={(person) => { setPointPerson(person); setPointAmount(1); setPointReason(""); }} onReset={async (person) => { await apiFetch(`/rewards/${person.personId}/reset`, { method: "POST" }); setStatus(`${person.displayName}'s balance was reset.`); await refreshTasks(); }} />
+      {isManaging && manageQuery.data?.chores.some((task) => !task.active) ? <section className="grid gap-2 rounded-md border border-[#e0d6c7] bg-white p-4"><h2 className="font-semibold text-slate-900">Archived tasks</h2>{manageQuery.data.chores.filter((task) => !task.active).map((task) => <div key={task.id} className="flex min-h-[44px] items-center justify-between gap-3 border-t border-slate-100 py-2"><span>{task.title}</span><button type="button" className="rounded-md bg-slate-100 px-3 py-2 text-sm font-semibold" onClick={async () => { await apiFetch(`/chores/${task.id}/restore`, { method: "POST" }); setStatus("Task restored."); await refreshTasks(); }}>Restore</button></div>)}</section> : null}
+      <RewardBalance balances={balances} canManage={isManaging} onUsePoints={(person) => { setPointPerson(person); setPointAmount(1); setPointReason(""); }} onReset={async (person) => { await apiFetch(`/rewards/${person.personId}/reset`, { method: "POST" }); setStatus(`${person.displayName}'s balance was reset.`); await refreshTasks(); }} />
       {(historyQuery.data?.history.length ?? 0) > 0 ? <section className="grid gap-2 rounded-md border border-[#e0d6c7] bg-white p-4"><h2 className="font-semibold text-slate-900">Recent point activity</h2>{historyQuery.data!.history.slice(0, 10).map((item) => <div key={item.id} className="flex items-center justify-between gap-3 border-t border-slate-100 py-2 text-sm"><div><span className="font-medium text-slate-800">{item.personName}</span><span className="text-slate-500"> · {item.title}</span></div><span className={item.amount >= 0 ? "font-semibold text-emerald-700" : "font-semibold text-rose-700"}>{item.amount > 0 ? "+" : ""}{item.amount}</span></div>)}</section> : null}
       {completionTask ? <div role="dialog" aria-modal="true" aria-label="Who completed this task?" className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4"><div className="grid w-full max-w-sm gap-3 rounded-2xl bg-white p-5 shadow-xl"><h2 className="font-display text-2xl">Who completed it?</h2><p className="text-sm text-slate-600">{completionTask.title}</p>{balances.map((person) => <button key={person.personId} type="button" className="min-h-[44px] rounded-md px-4 text-left font-semibold" style={{ backgroundColor: `${person.color}22` }} onClick={async () => { await apiFetch(`/chores/${completionTask.id}/complete?date=${choresQuery.data?.date}`, { method: "POST", body: JSON.stringify({ personId: person.personId }) }); setCompletionTask(null); await refreshTasks(); }}>{person.displayName}</button>)}<button type="button" className="min-h-[44px] text-slate-600" onClick={() => setCompletionTask(null)}>Cancel</button></div></div> : null}
       {pointPerson ? <div role="dialog" aria-modal="true" aria-label="Use points" className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4"><form className="grid w-full max-w-sm gap-3 rounded-2xl bg-white p-5 shadow-xl" onSubmit={async (event) => { event.preventDefault(); try { await apiFetch(`/rewards/${pointPerson.personId}/reduce`, { method: "POST", body: JSON.stringify({ amount: pointAmount, reason: pointReason.trim() }) }); setStatus(`${pointAmount} points used for ${pointPerson.displayName}.`); setPointPerson(null); await refreshTasks(); } catch (error) { setSubmitError(errorMessage(error, "Points could not be reduced.")); } }}><h2 className="font-display text-2xl">Use {pointPerson.displayName}'s points</h2><p className="text-sm text-slate-600">Available: {pointPerson.balance}</p><label className="grid gap-1"><span>Amount</span><input type="number" min={1} max={pointPerson.balance} value={pointAmount} onChange={(event) => setPointAmount(Number(event.target.value))} className="min-h-[44px] rounded-md border px-3" /></label><label className="grid gap-1"><span>Reason</span><input required value={pointReason} onChange={(event) => setPointReason(event.target.value)} placeholder="Movie night" className="min-h-[44px] rounded-md border px-3" /></label><div className="flex justify-end gap-2"><button type="button" className="min-h-[44px] px-4" onClick={() => setPointPerson(null)}>Cancel</button><button type="submit" disabled={!pointReason.trim() || pointAmount < 1 || pointAmount > pointPerson.balance} className="min-h-[44px] rounded-md bg-[#0f766e] px-4 font-semibold text-white disabled:opacity-50">Use points</button></div></form></div> : null}

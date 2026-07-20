@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { createTestApp, resetTestDb, setupHousehold, unlockAdmin } from "./helpers/test-app";
+import { createTestApp, resetTestDb, setupHousehold } from "./helpers/test-app";
 
 const missingUuid = "00000000-0000-0000-0000-000000000000";
 
@@ -79,16 +79,14 @@ describe("route validation and empty-state behavior", () => {
       url: "/api/chores",
       payload: { title: "Take out trash", points: 1 }
     });
-    expect(createBeforeSetup.statusCode).toBe(401);
-    expect(createBeforeSetup.json().error).toBe("admin_unlock_required");
+    expect(createBeforeSetup.statusCode).toBe(404);
+    expect(createBeforeSetup.json().error).toBe("setup_not_completed");
 
     await setupHousehold(app);
-    const { cookie } = await unlockAdmin(app);
 
     const invalidCreate = await app.inject({
       method: "POST",
       url: "/api/chores",
-      headers: { cookie },
       payload: { title: "", points: 0 }
     });
     expect(invalidCreate.statusCode).toBe(400);
@@ -97,7 +95,6 @@ describe("route validation and empty-state behavior", () => {
     const invalidPerson = await app.inject({
       method: "POST",
       url: "/api/chores",
-      headers: { cookie },
       payload: {
         title: "Feed dog",
         points: 2,

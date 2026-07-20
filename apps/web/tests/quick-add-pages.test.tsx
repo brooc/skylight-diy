@@ -8,8 +8,7 @@ import { MealPlanWeek } from "../src/features/meals/MealPlanWeek";
 import {
   createRealApiApp,
   installRealApiFetch,
-  resetRealApiApp,
-  unlockRealApiAdmin
+  resetRealApiApp
 } from "./helpers/real-api";
 import { renderWithProviders } from "./helpers/test-utils";
 
@@ -36,9 +35,6 @@ describe("quick add page states", () => {
   });
 
   it("opens tasks add form from the route and creates a task through the API", async () => {
-    restoreFetch?.();
-    const cookie = await unlockRealApiAdmin(app);
-    restoreFetch = installRealApiFetch(app, { cookie });
     renderWithProviders(<ChoresPage />, { route: "/chores?add=1" });
     const user = userEvent.setup();
 
@@ -52,15 +48,11 @@ describe("quick add page states", () => {
   });
 
   it("edits, completes, spends, resets, archives, and restores a task", async () => {
-    restoreFetch?.();
-    const cookie = await unlockRealApiAdmin(app);
     await app.inject({
       method: "POST",
       url: "/api/chores",
-      headers: { cookie },
       payload: { title: "Pack lunches", points: 3, assignedPersonId: (await app.inject({ method: "GET", url: "/api/household/current" })).json().people.find((person: { displayName: string }) => person.displayName === "Kiddo").id }
     });
-    restoreFetch = installRealApiFetch(app, { cookie });
     renderWithProviders(<ChoresPage />, { route: "/chores" });
     const user = userEvent.setup();
 
