@@ -245,6 +245,12 @@ const editCalendarEventsBodySchema = z
     start: z.string().min(1),
     end: z.string().min(1),
     originalStart: z.string().min(1),
+    recurrenceEnd: z
+      .object({
+        mode: z.enum(["keep", "on_date", "never"]),
+        until: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional()
+      })
+      .optional(),
     timezone: z.string().min(1)
   })
   .superRefine((event, context) => {
@@ -254,6 +260,38 @@ const editCalendarEventsBodySchema = z
         message: "Following-event edits require a recurring series.",
         path: ["scope"]
       });
+    }
+    if (event.recurrenceEnd?.mode !== undefined && event.scope !== "following") {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Series ending changes require a following-events edit.",
+        path: ["recurrenceEnd"]
+      });
+    }
+    if (event.recurrenceEnd?.mode === "on_date") {
+      if (!event.recurrenceEnd.until) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Choose when the recurring series should end.",
+          path: ["recurrenceEnd", "until"]
+        });
+      } else {
+        let selectedDate = event.originalStart.slice(0, 10);
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(event.originalStart)) {
+          try {
+            selectedDate = eventDateKey(event.originalStart, event.timezone);
+          } catch {
+            // Other schema checks report malformed dates or timezones.
+          }
+        }
+        if (event.recurrenceEnd.until < selectedDate) {
+          context.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: `The series end date must be ${selectedDate} or later.`,
+            path: ["recurrenceEnd", "until"]
+          });
+        }
+      }
     }
     if (event.allDay) {
       if (event.end <= event.start) {
@@ -334,6 +372,23 @@ function editableGoogleEvent(event: GoogleEventItem): Record<string, unknown> {
 function replaceRulePart(rule: string, name: "COUNT" | "UNTIL", value: string): string {
   const withoutEnd = rule.replace(/;(COUNT|UNTIL)=[^;]+/g, "");
   return `${withoutEnd};${name}=${value}`;
+}
+
+function changeRuleEnd(
+  rule: string,
+  recurrenceEnd: { mode: "keep" | "on_date" | "never"; until?: string } | undefined,
+  timezone: string,
+  allDay: boolean
+): string {
+  if (!recurrenceEnd || recurrenceEnd.mode === "keep") return rule;
+  const withoutEnd = rule.replace(/;(COUNT|UNTIL)=[^;]+/g, "");
+  if (recurrenceEnd.mode === "never") return withoutEnd;
+  if (allDay) return `${withoutEnd};UNTIL=${recurrenceEnd.until!.replaceAll("-", "")}`;
+  const until = dateFromDateKeyInTimeZone(recurrenceEnd.until!, timezone, 23, 59, 59)
+    .toISOString()
+    .replace(/[-:]/g, "")
+    .replace(/\.000Z$/, "Z");
+  return `${withoutEnd};UNTIL=${until}`;
 }
 
 function utcUntilBefore(value: string): string {
@@ -1370,10 +1425,21 @@ export const calendarRoutes: FastifyPluginAsync = async (app) => {
       }
 
       if (previousCount === 0 && countMatch) {
+        const updatedRule = changeRuleEnd(
+          originalRule,
+          parsed.data.recurrenceEnd,
+          parsed.data.timezone,
+          parsed.data.allDay
+        );
+        const updatedRecurrence = [...recurrence];
+        updatedRecurrence[ruleIndex] = updatedRule;
         const response = await fetch(`${eventUrl(masterId)}?sendUpdates=all`, {
           method: "PATCH",
           headers,
-          body: JSON.stringify(eventFields)
+          body: JSON.stringify({
+            ...eventFields,
+            ...(updatedRule !== originalRule ? { recurrence: updatedRecurrence } : {})
+          })
         });
         if (!response.ok) return reply.status(502).send({ error: "google_event_update_failed" });
         updated.push({ sourceId: target.sourceId, providerEventId: masterId });
@@ -1383,9 +1449,15 @@ export const calendarRoutes: FastifyPluginAsync = async (app) => {
       const trimmedRule = countMatch
         ? replaceRulePart(originalRule, "COUNT", String(previousCount))
         : replaceRulePart(originalRule, "UNTIL", utcUntilBefore(parsed.data.originalStart));
-      const newRule = countMatch
+      const remainingRule = countMatch
         ? replaceRulePart(originalRule, "COUNT", String(Math.max(1, Number(countMatch[1]) - previousCount)))
         : originalRule;
+      const newRule = changeRuleEnd(
+        remainingRule,
+        parsed.data.recurrenceEnd,
+        parsed.data.timezone,
+        parsed.data.allDay
+      );
       const trimmedRecurrence = [...recurrence];
       trimmedRecurrence[ruleIndex] = trimmedRule;
       const newRecurrence = [...recurrence];

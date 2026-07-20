@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { CalendarDayView } from "../src/features/calendar/CalendarDayView";
 import { CalendarEventCard } from "../src/features/calendar/CalendarEventCard";
+import { CalendarEventEditDialog } from "../src/features/calendar/CalendarEventEditDialog";
 import { CalendarStatusBadge } from "../src/features/calendar/CalendarStatusBadge";
 import { CalendarWeekView } from "../src/features/calendar/CalendarWeekView";
 import {
@@ -130,6 +131,56 @@ describe("calendar components", () => {
       { id: "early", column: 1, columnCount: 3 },
       { id: "peak", column: 2, columnCount: 3 },
     ]);
+  });
+
+  it("lets a recurring series be extended from the selected occurrence", async () => {
+    let requestBody: Record<string, unknown> | undefined;
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (_input, init) => {
+      requestBody = JSON.parse(String(init?.body));
+      return mockJsonResponse({ updated: true });
+    });
+    const onUpdated = vi.fn();
+    render(
+      <CalendarEventEditDialog
+        event={{
+          title: "Gym",
+          start: "2026-08-03T16:00:00.000Z",
+          end: "2026-08-03T17:00:00.000Z",
+          isAllDay: false,
+          isRecurring: true,
+          providerRefs: [
+            {
+              sourceId: "846288ca-1398-49be-9a95-0d5cb56a4779",
+              providerEventId: "instance-id",
+              recurringEventId: "series-id",
+            },
+          ],
+        }}
+        targets={[
+          {
+            sourceId: "846288ca-1398-49be-9a95-0d5cb56a4779",
+            providerEventId: "instance-id",
+            recurringEventId: "series-id",
+          },
+        ]}
+        timezone="America/Los_Angeles"
+        onClose={vi.fn()}
+        onUpdated={onUpdated}
+      />,
+    );
+
+    const user = userEvent.setup();
+    await user.click(screen.getByLabelText("This and following occurrences"));
+    await user.selectOptions(screen.getByLabelText("Series ending"), "on_date");
+    await user.clear(screen.getByLabelText("Last date"));
+    await user.type(screen.getByLabelText("Last date"), "2026-09-30");
+    await user.click(screen.getByRole("button", { name: "Save changes" }));
+
+    await waitFor(() => expect(onUpdated).toHaveBeenCalled());
+    expect(requestBody).toMatchObject({
+      scope: "following",
+      recurrenceEnd: { mode: "on_date", until: "2026-09-30" },
+    });
   });
 
   it("assigns timed and all-day events across DST boundaries without UTC day drift", () => {

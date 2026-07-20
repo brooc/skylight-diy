@@ -81,6 +81,10 @@ export function CalendarEventEditDialog({
   const [allDay, setAllDay] = useState(event.isAllDay);
   const [location, setLocation] = useState(event.location ?? "");
   const [scope, setScope] = useState<"event" | "following">("event");
+  const [seriesEnd, setSeriesEnd] = useState<"keep" | "on_date" | "never">(
+    "keep",
+  );
+  const [seriesUntil, setSeriesUntil] = useState(shiftDateKey(initialDate, 7));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const canEditFollowing =
@@ -111,6 +115,14 @@ export function CalendarEventEditDialog({
           start,
           end,
           originalStart: event.start,
+          ...(canEditFollowing && scope === "following"
+            ? {
+                recurrenceEnd: {
+                  mode: seriesEnd,
+                  ...(seriesEnd === "on_date" ? { until: seriesUntil } : {}),
+                },
+              }
+            : {}),
           timezone,
         }),
       });
@@ -143,6 +155,36 @@ export function CalendarEventEditDialog({
               {!allDay ? <div className="grid grid-cols-2 gap-3"><label className="grid gap-1"><span className="text-sm font-semibold text-slate-700">Start time</span><input type="time" required value={startTime} onChange={(change) => setStartTime(change.target.value)} className="min-h-[44px] min-w-0 rounded-xl border border-slate-300 px-3 text-base" /></label><label className="grid gap-1"><span className="text-sm font-semibold text-slate-700">End time</span><input type="time" required value={endTime} onChange={(change) => setEndTime(change.target.value)} className="min-h-[44px] min-w-0 rounded-xl border border-slate-300 px-3 text-base" /></label></div> : null}
               <label className="grid gap-1"><span className="text-sm font-semibold text-slate-700">Location <span className="font-normal">(optional)</span></span><input value={location} onChange={(change) => setLocation(change.target.value)} className="min-h-[44px] rounded-xl border border-slate-300 px-3 text-base" /></label>
               {canEditFollowing ? <fieldset className="grid gap-2 rounded-2xl border border-slate-200 bg-slate-50 p-3"><legend className="px-1 text-sm font-semibold text-slate-700">Apply changes to</legend><label className="flex min-h-[42px] items-center gap-3"><input type="radio" name="edit-scope" checked={scope === "event"} onChange={() => setScope("event")} />This occurrence</label><label className="flex min-h-[42px] items-center gap-3"><input type="radio" name="edit-scope" checked={scope === "following"} onChange={() => setScope("following")} />This and following occurrences</label></fieldset> : null}
+              {canEditFollowing && scope === "following" ? (
+                <div className="grid gap-2 rounded-2xl border border-slate-200 p-3">
+                  <label className="grid gap-1">
+                    <span className="text-sm font-semibold text-slate-700">Series ending</span>
+                    <select
+                      value={seriesEnd}
+                      onChange={(change) => setSeriesEnd(change.target.value as typeof seriesEnd)}
+                      className="min-h-[44px] rounded-xl border border-slate-300 bg-white px-3 text-base"
+                    >
+                      <option value="keep">Keep existing end</option>
+                      <option value="on_date">End on date</option>
+                      <option value="never">Never end</option>
+                    </select>
+                  </label>
+                  {seriesEnd === "on_date" ? (
+                    <label className="grid gap-1">
+                      <span className="text-sm font-semibold text-slate-700">Last date</span>
+                      <input
+                        type="date"
+                        required
+                        min={initialDate}
+                        value={seriesUntil}
+                        onChange={(change) => setSeriesUntil(change.target.value)}
+                        className="min-h-[44px] rounded-xl border border-slate-300 px-3 text-base"
+                      />
+                    </label>
+                  ) : null}
+                  <p className="text-xs text-slate-500">Choose End on date to extend or shorten the series.</p>
+                </div>
+              ) : null}
               {error ? <p role="alert" className="text-sm font-medium text-rose-700">{error}</p> : null}
             </div>
           </div>

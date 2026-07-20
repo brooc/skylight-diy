@@ -1834,6 +1834,24 @@ describe("calendar and google integration routes", () => {
       summary: "Evening Gym",
       recurrence: ["RRULE:FREQ=WEEKLY;BYDAY=MO;COUNT=3"],
     }));
+
+    const extended = await app.inject({
+      method: "PATCH",
+      url: "/api/calendar/events",
+      payload: {
+        ...basePayload,
+        scope: "following",
+        recurrenceEnd: { mode: "on_date", until: "2026-09-30" },
+      },
+    });
+    expect(extended.statusCode).toBe(200);
+    const extendedBodies = fetchSpy.mock.calls.map((call) =>
+      call[1]?.body ? JSON.parse(String(call[1]?.body)) : null,
+    );
+    expect(extendedBodies).toContainEqual(expect.objectContaining({
+      summary: "Evening Gym",
+      recurrence: ["RRULE:FREQ=WEEKLY;BYDAY=MO;UNTIL=20261001T065959Z"],
+    }));
   });
 });
 
