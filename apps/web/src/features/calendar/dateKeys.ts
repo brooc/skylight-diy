@@ -1,9 +1,12 @@
-export function dateKeyInTimeZone(value: string | Date, timeZone: string): string {
+export function dateKeyInTimeZone(
+  value: string | Date,
+  timeZone: string,
+): string {
   const parts = new Intl.DateTimeFormat("en-US", {
     timeZone,
     year: "numeric",
     month: "2-digit",
-    day: "2-digit"
+    day: "2-digit",
   }).formatToParts(typeof value === "string" ? new Date(value) : value);
   const values = new Map(parts.map((part) => [part.type, part.value]));
   return `${values.get("year")}-${values.get("month")}-${values.get("day")}`;
@@ -15,18 +18,19 @@ export function shiftDateKey(dateKey: string, days: number): string {
   return [
     shifted.getUTCFullYear(),
     String(shifted.getUTCMonth() + 1).padStart(2, "0"),
-    String(shifted.getUTCDate()).padStart(2, "0")
+    String(shifted.getUTCDate()).padStart(2, "0"),
   ].join("-");
 }
 
 export function formatDateKey(
   dateKey: string,
   options: Intl.DateTimeFormatOptions,
-  locale?: string | string[]
+  locale?: string | string[],
 ): string {
-  return new Intl.DateTimeFormat(locale, { ...options, timeZone: "UTC" }).format(
-    new Date(`${dateKey}T00:00:00.000Z`)
-  );
+  return new Intl.DateTimeFormat(locale, {
+    ...options,
+    timeZone: "UTC",
+  }).format(new Date(`${dateKey}T00:00:00.000Z`));
 }
 
 export function dateFromLocalDateKey(dateKey: string): Date {
@@ -34,9 +38,50 @@ export function dateFromLocalDateKey(dateKey: string): Date {
   return new Date(year!, month! - 1, day!);
 }
 
+export function dateFromDateKeyInTimeZone(
+  dateKey: string,
+  timeZone: string,
+  hour = 0,
+  minute = 0,
+): Date {
+  const [year, month, day] = dateKey.split("-").map(Number);
+  const target = Date.UTC(year!, month! - 1, day!, hour, minute);
+  const formatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+  });
+  let result = target;
+
+  // A second pass handles offset changes close to daylight-saving boundaries.
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const parts = new Map(
+      formatter
+        .formatToParts(new Date(result))
+        .map((part) => [part.type, part.value]),
+    );
+    const represented = Date.UTC(
+      Number(parts.get("year")),
+      Number(parts.get("month")) - 1,
+      Number(parts.get("day")),
+      Number(parts.get("hour")),
+      Number(parts.get("minute")),
+      Number(parts.get("second")),
+    );
+    result += target - represented;
+  }
+
+  return new Date(result);
+}
+
 export function startOfWeekDateKey(
   dateKey: string,
-  weekStartsOn: "sunday" | "monday"
+  weekStartsOn: "sunday" | "monday",
 ): string {
   const dayOfWeek = new Date(`${dateKey}T00:00:00.000Z`).getUTCDay();
   const firstDay = weekStartsOn === "monday" ? 1 : 0;

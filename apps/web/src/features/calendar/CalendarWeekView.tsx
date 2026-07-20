@@ -2,21 +2,28 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { apiFetch } from "../../api/client";
 import { queryKeys } from "../../api/queryKeys";
+import {
+  CALENDAR_AUTO_REFRESH_MS,
+  DASHBOARD_AUTO_REFRESH_MS,
+} from "../../api/refreshIntervals";
 import { DegradedStateBanner } from "../../components/DegradedStateBanner";
 import { ErrorState } from "../../components/ErrorState";
 import { LoadingState } from "../../components/LoadingState";
 import { CalendarDayView } from "./CalendarDayView";
 import { CalendarStatusBadge } from "./CalendarStatusBadge";
-import { familyMemberColorForSource, type FamilyMemberColor } from "../family/memberAppearance";
 import {
-  dateFromLocalDateKey,
+  familyMemberColorForSource,
+  type FamilyMemberColor,
+} from "../family/memberAppearance";
+import {
+  dateFromDateKeyInTimeZone,
   dateKeyInTimeZone,
   shiftDateKey,
-  startOfWeekDateKey
+  startOfWeekDateKey,
 } from "./dateKeys";
 
 type HouseholdResponse = {
-  household: { weekStartsOn: "sunday" | "monday" };
+  household: { timezone?: string; weekStartsOn: "sunday" | "monday" };
   people: FamilyMemberColor[];
 };
 
@@ -41,10 +48,12 @@ type CalendarResponse = {
   warnings: Array<{ code: string; message: string }>;
 };
 
-function getWeekRange(startKey: string): { start: string; end: string } {
-  const start = dateFromLocalDateKey(startKey);
-  const end = new Date(start);
-  end.setDate(start.getDate() + 7);
+function getWeekRange(
+  startKey: string,
+  timezone: string,
+): { start: string; end: string } {
+  const start = dateFromDateKeyInTimeZone(startKey, timezone);
+  const end = dateFromDateKeyInTimeZone(shiftDateKey(startKey, 7), timezone);
   return { start: start.toISOString(), end: end.toISOString() };
 }
 
@@ -53,24 +62,30 @@ export function CalendarWeekView(): JSX.Element {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [refreshError, setRefreshError] = useState<string | null>(null);
   const [weekOffset, setWeekOffset] = useState(0);
-  const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
-  const todayKey = dateKeyInTimeZone(new Date(), timezone);
+  const deviceTimezone =
+    Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
   const householdQuery = useQuery({
     queryKey: queryKeys.household,
-    queryFn: () => apiFetch<HouseholdResponse>("/household/current")
+    queryFn: () => apiFetch<HouseholdResponse>("/household/current"),
+    refetchInterval: DASHBOARD_AUTO_REFRESH_MS,
+    refetchIntervalInBackground: true,
   });
+  const timezone = householdQuery.data?.household.timezone ?? deviceTimezone;
+  const todayKey = dateKeyInTimeZone(new Date(), timezone);
   const baseWeekStartKey = startOfWeekDateKey(
     todayKey,
-    householdQuery.data?.household.weekStartsOn ?? "monday"
+    householdQuery.data?.household.weekStartsOn ?? "monday",
   );
   const weekStartKey = shiftDateKey(baseWeekStartKey, weekOffset * 7);
-  const { start, end } = getWeekRange(weekStartKey);
+  const { start, end } = getWeekRange(weekStartKey, timezone);
   const queryKey = ["calendar-week", start, end, timezone] as const;
   const eventsUrl = `/calendar/events?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}&timezone=${encodeURIComponent(timezone)}`;
   const calendarQuery = useQuery({
     queryKey,
     queryFn: () => apiFetch<CalendarResponse>(eventsUrl),
-    enabled: householdQuery.isSuccess
+    enabled: householdQuery.isSuccess,
+    refetchInterval: CALENDAR_AUTO_REFRESH_MS,
+    refetchIntervalInBackground: true,
   });
 
   if (householdQuery.isLoading || calendarQuery.isLoading) {
@@ -95,13 +110,18 @@ export function CalendarWeekView(): JSX.Element {
     const sourceNames = rawEvent.sourceNames?.length
       ? rawEvent.sourceNames
       : [rawEvent.sourceName ?? "Calendar"];
-    const providerColors = rawEvent.colors?.length ? rawEvent.colors : [rawEvent.color];
+    const providerColors = rawEvent.colors?.length
+      ? rawEvent.colors
+      : [rawEvent.color];
     const colors = sourceNames.map(
       (sourceName, index) =>
-        familyMemberColorForSource(sourceName, householdQuery.data?.people ?? []) ??
+        familyMemberColorForSource(
+          sourceName,
+          householdQuery.data?.people ?? [],
+        ) ??
         providerColors[index] ??
         rawEvent.color ??
-        "#64748b"
+        "#64748b",
     );
     const event = { ...rawEvent, color: colors[0], colors };
     const key = event.isAllDay
@@ -111,17 +131,17 @@ export function CalendarWeekView(): JSX.Element {
   }
 
   const days = Array.from({ length: 7 }, (_, index) => {
-    const date = new Date(start);
-    date.setDate(date.getDate() + index);
-    const dayKey = dateKeyInTimeZone(date, timezone);
+    const dayKey = shiftDateKey(weekStartKey, index);
+    const date = dateFromDateKeyInTimeZone(dayKey, timezone);
     return {
       dayKey,
       label: date.toLocaleDateString(undefined, {
         weekday: "short",
         month: "short",
-        day: "numeric"
+        day: "numeric",
+        timeZone: timezone,
       }),
-      events: eventsByDay.get(dayKey) ?? []
+      events: eventsByDay.get(dayKey) ?? [],
     };
   });
 
@@ -161,10 +181,16 @@ export function CalendarWeekView(): JSX.Element {
               setIsRefreshing(true);
               setRefreshError(null);
               try {
-                const refreshed = await apiFetch<CalendarResponse>(`${eventsUrl}&refresh=true`);
+                const refreshed = await apiFetch<CalendarResponse>(
+                  `${eventsUrl}&refresh=true`,
+                );
                 queryClient.setQueryData(queryKey, refreshed);
               } catch (error) {
-                setRefreshError(error instanceof Error ? error.message : "Calendar refresh failed.");
+                setRefreshError(
+                  error instanceof Error
+                    ? error.message
+                    : "Calendar refresh failed.",
+                );
               } finally {
                 setIsRefreshing(false);
               }
@@ -178,7 +204,9 @@ export function CalendarWeekView(): JSX.Element {
 
       {refreshError || data.warnings.length > 0 ? (
         <DegradedStateBanner
-          message={[refreshError, ...data.warnings.map((item) => item.message)].filter(Boolean).join(" ")}
+          message={[refreshError, ...data.warnings.map((item) => item.message)]
+            .filter(Boolean)
+            .join(" ")}
         />
       ) : null}
 

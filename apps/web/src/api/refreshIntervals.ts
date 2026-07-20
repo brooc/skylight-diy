@@ -1,0 +1,3 @@
+export const DASHBOARD_AUTO_REFRESH_MS = 60 * 1_000;
+export const CALENDAR_AUTO_REFRESH_MS = 5 * 60 * 1_000;
+export const WEATHER_AUTO_REFRESH_MS = 10 * 60 * 1_000;

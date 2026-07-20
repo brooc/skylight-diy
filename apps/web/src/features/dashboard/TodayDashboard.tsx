@@ -4,18 +4,29 @@ import { useNavigate } from "react-router-dom";
 import { apiFetch } from "../../api/client";
 import { DegradedStateBanner } from "../../components/DegradedStateBanner";
 import { queryKeys } from "../../api/queryKeys";
+import {
+  CALENDAR_AUTO_REFRESH_MS,
+  DASHBOARD_AUTO_REFRESH_MS,
+  WEATHER_AUTO_REFRESH_MS,
+} from "../../api/refreshIntervals";
 import { ErrorState } from "../../components/ErrorState";
 import { LoadingState } from "../../components/LoadingState";
 import { CalendarStatusBadge } from "../calendar/CalendarStatusBadge";
 import {
-  dateFromLocalDateKey,
+  dateFromDateKeyInTimeZone,
   dateKeyInTimeZone,
   shiftDateKey,
-  startOfWeekDateKey
+  startOfWeekDateKey,
 } from "../calendar/dateKeys";
 import { layoutTimedEvents } from "../calendar/layoutTimedEvents";
-import { eventBandBackground, softenEventColor } from "../calendar/eventAppearance";
-import { familyMemberColorForSource, memberAppearance } from "../family/memberAppearance";
+import {
+  eventBandBackground,
+  softenEventColor,
+} from "../calendar/eventAppearance";
+import {
+  familyMemberColorForSource,
+  memberAppearance,
+} from "../family/memberAppearance";
 import { weatherIconForCode } from "../weather/weatherIcons";
 
 type RewardsResponse = {
@@ -30,6 +41,7 @@ type RewardsResponse = {
 type HouseholdResponse = {
   household: {
     name: string;
+    timezone: string;
     weekStartsOn: "sunday" | "monday";
   };
 };
@@ -103,7 +115,7 @@ function formatHourLabel(hour: number): string {
 function formatEventTime(start: Date, end: Date): string {
   return `${start.toLocaleTimeString([], {
     hour: "numeric",
-    minute: "2-digit"
+    minute: "2-digit",
   })} - ${end.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`;
 }
 
@@ -116,30 +128,39 @@ function formatCompactEventTime(start: Date, end: Date): string {
 }
 
 export function calendarHourRange(
-  events: Array<{ startHour: number; durationHours: number }>
+  events: Array<{ startHour: number; durationHours: number }>,
 ): { startHour: number; endHour: number } {
   if (events.length === 0) return { startHour: 6, endHour: 22 };
-  const earliest = Math.floor(Math.min(...events.map((event) => event.startHour)));
+  const earliest = Math.floor(
+    Math.min(...events.map((event) => event.startHour)),
+  );
   const latest =
-    Math.ceil(Math.max(...events.map((event) => event.startHour + event.durationHours))) - 1;
+    Math.ceil(
+      Math.max(...events.map((event) => event.startHour + event.durationHours)),
+    ) - 1;
   return {
     startHour: Math.max(0, Math.min(6, earliest)),
-    endHour: Math.min(23, Math.max(22, latest))
+    endHour: Math.min(23, Math.max(22, latest)),
   };
 }
 
 export function TodayDashboard(): JSX.Element {
   const [now, setNow] = useState(() => new Date());
-  const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+  const deviceTimezone =
+    Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
   const [weekOffset, setWeekOffset] = useState(0);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
-  const [selectedCalendarFilters, setSelectedCalendarFilters] = useState<string[]>([]);
+  const [selectedCalendarFilters, setSelectedCalendarFilters] = useState<
+    string[]
+  >([]);
   const [selectedEvent, setSelectedEvent] = useState<RenderEvent | null>(null);
   const [isCalendarRefreshing, setIsCalendarRefreshing] = useState(false);
-  const [calendarRefreshError, setCalendarRefreshError] = useState<string | null>(null);
+  const [calendarRefreshError, setCalendarRefreshError] = useState<
+    string | null
+  >(null);
 
   useEffect(() => {
     const clockInterval = window.setInterval(() => setNow(new Date()), 1_000);
@@ -148,65 +169,96 @@ export function TodayDashboard(): JSX.Element {
 
   const householdQuery = useQuery({
     queryKey: queryKeys.household,
-    queryFn: () => apiFetch<HouseholdResponse>("/household/current")
+    queryFn: () => apiFetch<HouseholdResponse>("/household/current"),
+    refetchInterval: DASHBOARD_AUTO_REFRESH_MS,
+    refetchIntervalInBackground: true,
   });
+  const timezone = householdQuery.data?.household.timezone ?? deviceTimezone;
   const weatherQuery = useQuery({
     queryKey: ["current-weather"],
     queryFn: () => apiFetch<WeatherResponse>("/weather/current"),
     staleTime: 10 * 60 * 1_000,
-    retry: false
+    refetchInterval: WEATHER_AUTO_REFRESH_MS,
+    refetchIntervalInBackground: true,
+    retry: false,
   });
   const rewardsQuery = useQuery({
     queryKey: queryKeys.rewardBalances,
-    queryFn: () => apiFetch<RewardsResponse>("/rewards/balances")
+    queryFn: () => apiFetch<RewardsResponse>("/rewards/balances"),
+    refetchInterval: DASHBOARD_AUTO_REFRESH_MS,
+    refetchIntervalInBackground: true,
   });
   const mealsQuery = useQuery({
     queryKey: queryKeys.weekMeals,
-    queryFn: () => apiFetch<MealsResponse>("/meals/week")
+    queryFn: () => apiFetch<MealsResponse>("/meals/week"),
+    refetchInterval: DASHBOARD_AUTO_REFRESH_MS,
+    refetchIntervalInBackground: true,
   });
   const todayKey = dateKeyInTimeZone(now, timezone);
   const currentWeekStartKey = startOfWeekDateKey(
     todayKey,
-    householdQuery.data?.household.weekStartsOn ?? "monday"
+    householdQuery.data?.household.weekStartsOn ?? "monday",
   );
   const calendarStartKey = shiftDateKey(currentWeekStartKey, weekOffset * 7);
-  const startOfCalendar = dateFromLocalDateKey(calendarStartKey);
+  const startOfCalendar = dateFromDateKeyInTimeZone(calendarStartKey, timezone);
   const start = startOfCalendar.toISOString();
-  const endDate = new Date(startOfCalendar);
-  endDate.setDate(endDate.getDate() + 7);
+  const endDate = dateFromDateKeyInTimeZone(
+    shiftDateKey(calendarStartKey, 7),
+    timezone,
+  );
   const end = endDate.toISOString();
-  const calendarQueryKey = ["calendar-week-schedule", start, end, timezone] as const;
+  const calendarQueryKey = [
+    "calendar-week-schedule",
+    start,
+    end,
+    timezone,
+  ] as const;
   const calendarEventsUrl = `/calendar/events?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}&timezone=${encodeURIComponent(timezone)}`;
 
   const calendarQuery = useQuery({
     queryKey: calendarQueryKey,
     queryFn: () => apiFetch<CalendarResponse>(calendarEventsUrl),
-    enabled: householdQuery.isSuccess
+    enabled: householdQuery.isSuccess,
+    refetchInterval: CALENDAR_AUTO_REFRESH_MS,
+    refetchIntervalInBackground: true,
   });
 
-  if (householdQuery.isLoading || rewardsQuery.isLoading || mealsQuery.isLoading || calendarQuery.isLoading) {
+  if (
+    householdQuery.isLoading ||
+    rewardsQuery.isLoading ||
+    mealsQuery.isLoading ||
+    calendarQuery.isLoading
+  ) {
     return <LoadingState label="Loading dashboard..." />;
   }
-  if (householdQuery.isError) return <ErrorState message={householdQuery.error.message} />;
-  if (rewardsQuery.isError) return <ErrorState message={rewardsQuery.error.message} />;
-  if (mealsQuery.isError) return <ErrorState message={mealsQuery.error.message} />;
-  if (calendarQuery.isError) return <ErrorState message={calendarQuery.error.message} />;
+  if (householdQuery.isError)
+    return <ErrorState message={householdQuery.error.message} />;
+  if (rewardsQuery.isError)
+    return <ErrorState message={rewardsQuery.error.message} />;
+  if (mealsQuery.isError)
+    return <ErrorState message={mealsQuery.error.message} />;
+  if (calendarQuery.isError)
+    return <ErrorState message={calendarQuery.error.message} />;
 
-  const todaysMeals = mealsQuery.data?.days.find((day) => day.date === todayKey)?.entries ?? [];
+  const todaysMeals =
+    mealsQuery.data?.days.find((day) => day.date === todayKey)?.entries ?? [];
   const tonightMeal =
     todaysMeals.find((entry) => entry.slot === "dinner")?.customTitle ??
     todaysMeals.find((entry) => entry.slot === "dinner")?.mealName ??
     "No dinner planned";
 
   const days = Array.from({ length: 7 }, (_, index) => {
-    const date = new Date(startOfCalendar);
-    date.setDate(startOfCalendar.getDate() + index);
+    const dayKey = shiftDateKey(calendarStartKey, index);
+    const date = dateFromDateKeyInTimeZone(dayKey, timezone);
     return {
       index,
-      dayKey: dateKeyInTimeZone(date, timezone),
-      weekday: date.toLocaleDateString(undefined, { weekday: "short" }),
-      dayNumber: date.getDate(),
-      isToday: dateKeyInTimeZone(date, timezone) === todayKey
+      dayKey,
+      weekday: date.toLocaleDateString(undefined, {
+        weekday: "short",
+        timeZone: timezone,
+      }),
+      dayNumber: Number(dayKey.slice(-2)),
+      isToday: dayKey === todayKey,
     };
   });
 
@@ -215,7 +267,7 @@ export function TodayDashboard(): JSX.Element {
     { soft: "#f7dfe6", accent: "#ee8ea4" },
     { soft: "#e8dff4", accent: "#b69bd3" },
     { soft: "#ddf0db", accent: "#8bc58b" },
-    { soft: "#f9e4df", accent: "#e7aa98" }
+    { soft: "#f9e4df", accent: "#e7aa98" },
   ] as const;
   const paletteAt = (index: number) =>
     personPalette[index % personPalette.length] ?? personPalette[0]!;
@@ -223,18 +275,29 @@ export function TodayDashboard(): JSX.Element {
   const personColorByName = new Map(
     balances.map((person, index) => [
       person.displayName.toLowerCase(),
-      memberAppearance(person.color, paletteAt(index).accent)
-    ])
+      memberAppearance(person.color, paletteAt(index).accent),
+    ]),
   );
-  const fallbackEventPalette = ["#bee8ea", "#f3cfd0", "#e4daf0", "#d5edd7", "#f7d8d4"] as const;
+  const fallbackEventPalette = [
+    "#bee8ea",
+    "#f3cfd0",
+    "#e4daf0",
+    "#d5edd7",
+    "#f7d8d4",
+  ] as const;
   const fallbackColorAt = (index: number) =>
-    fallbackEventPalette[index % fallbackEventPalette.length] ?? fallbackEventPalette[0]!;
+    fallbackEventPalette[index % fallbackEventPalette.length] ??
+    fallbackEventPalette[0]!;
 
-  const eventSourceNames = (event: CalendarResponse["events"][number]): string[] =>
-    event.sourceNames?.length ? event.sourceNames : [event.sourceName ?? "Calendar"];
+  const eventSourceNames = (
+    event: CalendarResponse["events"][number],
+  ): string[] =>
+    event.sourceNames?.length
+      ? event.sourceNames
+      : [event.sourceName ?? "Calendar"];
   const eventColors = (
     event: CalendarResponse["events"][number],
-    index: number
+    index: number,
   ): string[] => {
     const sourceNames = eventSourceNames(event);
     const providerColors = event.colors?.length ? event.colors : [event.color];
@@ -246,7 +309,7 @@ export function TodayDashboard(): JSX.Element {
           : undefined) ??
         softenEventColor(
           providerColors[sourceIndex] ?? event.color,
-          fallbackColorAt(index + sourceIndex)
+          fallbackColorAt(index + sourceIndex),
         )
       );
     });
@@ -263,14 +326,14 @@ export function TodayDashboard(): JSX.Element {
       const startHour = startDate.getHours() + startDate.getMinutes() / 60;
       const durationHours = Math.max(
         0.5,
-        (endDate.getTime() - startDate.getTime()) / (60 * 60 * 1000)
+        (endDate.getTime() - startDate.getTime()) / (60 * 60 * 1000),
       );
       const sourceNames = eventSourceNames(event);
       const lowerSourceNames = sourceNames.map((name) => name.toLowerCase());
       const matchedPeople = balances.filter((person) =>
         lowerSourceNames.some((sourceName) =>
-          sourceName.includes(person.displayName.toLowerCase())
-        )
+          sourceName.includes(person.displayName.toLowerCase()),
+        ),
       );
       const owner = matchedPeople[0];
       const colors = eventColors(event, index);
@@ -289,20 +352,22 @@ export function TodayDashboard(): JSX.Element {
         ownerCount: Math.max(matchedPeople.length, sourceNames.length),
         striped: Boolean(event.shared && colors.length > 1),
         color: colors[0] ?? fallbackColorAt(index),
-        colors
+        colors,
       };
     })
     .filter((event) => event.dayIndex >= 0);
 
   const availableCalendarFilters = Array.from(
-    new Set(
-      (calendarQuery.data?.events ?? []).flatMap(eventSourceNames)
-    )
+    new Set((calendarQuery.data?.events ?? []).flatMap(eventSourceNames)),
   ).sort((a, b) => a.localeCompare(b));
   const eventMatchesFilter = (sourceNames: string[]) =>
     selectedCalendarFilters.length === 0 ||
-    sourceNames.some((sourceName) => selectedCalendarFilters.includes(sourceName));
-  const scheduleEvents = mappedEvents.filter((event) => eventMatchesFilter(event.sourceNames));
+    sourceNames.some((sourceName) =>
+      selectedCalendarFilters.includes(sourceName),
+    );
+  const scheduleEvents = mappedEvents.filter((event) =>
+    eventMatchesFilter(event.sourceNames),
+  );
   const timedEventLayout = new Map(
     days.flatMap((day) =>
       layoutTimedEvents(
@@ -311,18 +376,20 @@ export function TodayDashboard(): JSX.Element {
           .map((event) => ({
             id: event.id,
             start: event.startHour,
-            end: event.startHour + event.durationHours
-          }))
-      ).map((layout) => [layout.id, layout] as const)
-    )
+            end: event.startHour + event.durationHours,
+          })),
+      ).map((layout) => [layout.id, layout] as const),
+    ),
   );
   const allDayEvents = (calendarQuery.data?.events ?? [])
     .filter((event) => event.isAllDay)
     .map((event, index) => {
       const startKey = event.start.slice(0, 10);
       const endKey = shiftDateKey(event.end.slice(0, 10), -1);
-      const startIndex = days.find((day) => day.dayKey === startKey)?.index ?? 0;
-      const endIndex = days.find((day) => day.dayKey === endKey)?.index ?? startIndex;
+      const startIndex =
+        days.find((day) => day.dayKey === startKey)?.index ?? 0;
+      const endIndex =
+        days.find((day) => day.dayKey === endKey)?.index ?? startIndex;
       const sourceNames = eventSourceNames(event);
       const colors = eventColors(event, index);
 
@@ -335,12 +402,15 @@ export function TodayDashboard(): JSX.Element {
         color: colors[0] ?? fallbackColorAt(index),
         colors,
         sourceName: sourceNames.join(", "),
-        sourceNames
+        sourceNames,
       };
     })
     .filter((event) => eventMatchesFilter(event.sourceNames));
   const { startHour, endHour } = calendarHourRange(scheduleEvents);
-  const hourSlots = Array.from({ length: endHour - startHour + 1 }, (_, i) => startHour + i);
+  const hourSlots = Array.from(
+    { length: endHour - startHour + 1 },
+    (_, i) => startHour + i,
+  );
   const slotHeight = 96;
   const currentWeather = weatherQuery.data?.configured
     ? weatherIconForCode(weatherQuery.data.weatherCode, weatherQuery.data.isDay)
@@ -359,7 +429,7 @@ export function TodayDashboard(): JSX.Element {
                 <time dateTime={now.toISOString()}>
                   {now.toLocaleTimeString(undefined, {
                     hour: "numeric",
-                    minute: "2-digit"
+                    minute: "2-digit",
                   })}
                 </time>
               </div>
@@ -385,11 +455,15 @@ export function TodayDashboard(): JSX.Element {
                     </div>
                     <div className="flex items-baseline gap-2 font-display text-xl leading-none">
                       <span className="flex items-baseline gap-0.5 text-slate-400">
-                        <span className="font-sans text-[9px] font-bold">L</span>
+                        <span className="font-sans text-[9px] font-bold">
+                          L
+                        </span>
                         <span>{weatherQuery.data.lowTemperature}°</span>
                       </span>
                       <span className="flex items-baseline gap-0.5">
-                        <span className="font-sans text-[9px] font-bold text-slate-400">H</span>
+                        <span className="font-sans text-[9px] font-bold text-slate-400">
+                          H
+                        </span>
                         <span>{weatherQuery.data.highTemperature}°</span>
                       </span>
                     </div>
@@ -429,10 +503,16 @@ export function TodayDashboard(): JSX.Element {
                   setIsCalendarRefreshing(true);
                   setCalendarRefreshError(null);
                   try {
-                    const refreshed = await apiFetch<CalendarResponse>(`${calendarEventsUrl}&refresh=true`);
+                    const refreshed = await apiFetch<CalendarResponse>(
+                      `${calendarEventsUrl}&refresh=true`,
+                    );
                     queryClient.setQueryData(calendarQueryKey, refreshed);
                   } catch (error) {
-                    setCalendarRefreshError(error instanceof Error ? error.message : "Calendar refresh failed.");
+                    setCalendarRefreshError(
+                      error instanceof Error
+                        ? error.message
+                        : "Calendar refresh failed.",
+                    );
                   } finally {
                     setIsCalendarRefreshing(false);
                   }
@@ -451,12 +531,17 @@ export function TodayDashboard(): JSX.Element {
                   }`}
                   onClick={() => setIsFilterOpen((value) => !value)}
                 >
-                  Filter{selectedCalendarFilters.length ? ` (${selectedCalendarFilters.length})` : ""}
+                  Filter
+                  {selectedCalendarFilters.length
+                    ? ` (${selectedCalendarFilters.length})`
+                    : ""}
                 </button>
                 {isFilterOpen ? (
                   <div className="absolute right-0 top-12 z-40 grid min-w-[240px] gap-2 rounded-xl border border-[#d9d8d4] bg-white p-3 shadow-xl">
                     <div className="flex items-center justify-between gap-3">
-                      <div className="text-sm font-semibold text-slate-900">People & calendars</div>
+                      <div className="text-sm font-semibold text-slate-900">
+                        People & calendars
+                      </div>
                       <button
                         type="button"
                         className="text-xs font-semibold text-teal-700"
@@ -467,7 +552,10 @@ export function TodayDashboard(): JSX.Element {
                     </div>
                     {availableCalendarFilters.length ? (
                       availableCalendarFilters.map((name) => (
-                        <label key={name} className="flex min-h-[40px] items-center gap-2 rounded-lg px-2 hover:bg-slate-50">
+                        <label
+                          key={name}
+                          className="flex min-h-[40px] items-center gap-2 rounded-lg px-2 hover:bg-slate-50"
+                        >
                           <input
                             type="checkbox"
                             checked={selectedCalendarFilters.includes(name)}
@@ -475,7 +563,7 @@ export function TodayDashboard(): JSX.Element {
                               setSelectedCalendarFilters((current) =>
                                 current.includes(name)
                                   ? current.filter((value) => value !== name)
-                                  : [...current, name]
+                                  : [...current, name],
                               )
                             }
                           />
@@ -483,13 +571,17 @@ export function TodayDashboard(): JSX.Element {
                         </label>
                       ))
                     ) : (
-                      <div className="text-sm text-slate-500">No calendars to filter.</div>
+                      <div className="text-sm text-slate-500">
+                        No calendars to filter.
+                      </div>
                     )}
                   </div>
                 ) : null}
               </div>
               {calendarQuery.data ? (
-                <CalendarStatusBadge cacheStatus={calendarQuery.data.cacheStatus} />
+                <CalendarStatusBadge
+                  cacheStatus={calendarQuery.data.cacheStatus}
+                />
               ) : null}
             </div>
           </div>
@@ -503,19 +595,23 @@ export function TodayDashboard(): JSX.Element {
                 className="flex min-h-[44px] shrink-0 items-center gap-2 rounded-full px-3 py-1.5"
                 style={{
                   backgroundColor:
-                    personColorByName.get(person.displayName.toLowerCase())?.soft ?? "#ebf3f1"
+                    personColorByName.get(person.displayName.toLowerCase())
+                      ?.soft ?? "#ebf3f1",
                 }}
               >
                 <div
                   className="flex h-8 w-8 items-center justify-center rounded-full text-sm font-semibold text-white"
                   style={{
                     backgroundColor:
-                      personColorByName.get(person.displayName.toLowerCase())?.accent ?? "#8ac7be"
+                      personColorByName.get(person.displayName.toLowerCase())
+                        ?.accent ?? "#8ac7be",
                   }}
                 >
                   {person.displayName.slice(0, 1).toUpperCase()}
                 </div>
-                <div className="text-base font-semibold text-slate-800">{person.displayName}</div>
+                <div className="text-base font-semibold text-slate-800">
+                  {person.displayName}
+                </div>
               </div>
             ))}
           </div>
@@ -525,21 +621,26 @@ export function TodayDashboard(): JSX.Element {
             <DegradedStateBanner
               message={[
                 calendarRefreshError,
-                ...(calendarQuery.data?.warnings.map((warning) => warning.message) ?? [])
+                ...(calendarQuery.data?.warnings.map(
+                  (warning) => warning.message,
+                ) ?? []),
               ]
                 .filter(Boolean)
                 .join(" ")}
             />
           </div>
         ) : null}
-        <div data-testid="dashboard-calendar-scroll" className="min-h-0 flex-1 overflow-auto">
+        <div
+          data-testid="dashboard-calendar-scroll"
+          className="min-h-0 flex-1 overflow-auto"
+        >
           <div
             data-testid="dashboard-calendar-grid"
             data-calendar-start-hour={startHour}
             data-calendar-end-hour={endHour}
             className="grid min-w-[720px]"
             style={{
-              gridTemplateColumns: `clamp(52px, 6vw, 76px) repeat(${days.length}, minmax(0, 1fr))`
+              gridTemplateColumns: `clamp(52px, 6vw, 76px) repeat(${days.length}, minmax(0, 1fr))`,
             }}
           >
             <div className="sticky top-0 z-20 border-b border-r border-[#ecebe8] bg-white" />
@@ -563,16 +664,23 @@ export function TodayDashboard(): JSX.Element {
             <div className="border-b border-r border-[#ecebe8] bg-white" />
             {days.map((day) => {
               const dayAllDayEvents = allDayEvents.filter(
-                (event) => day.index >= event.startIndex && day.index <= event.endIndex
+                (event) =>
+                  day.index >= event.startIndex && day.index <= event.endIndex,
               );
               const event = dayAllDayEvents[0];
               return (
-                <div key={`${day.dayKey}-all-day`} className="border-b border-r border-[#ecebe8] p-2">
+                <div
+                  key={`${day.dayKey}-all-day`}
+                  className="border-b border-r border-[#ecebe8] p-2"
+                >
                   {event ? (
                     <div
                       className="truncate rounded-full px-1.5 py-1 text-[11px] font-semibold text-slate-700 md:px-2 md:text-[12px] xl:px-3 xl:text-[14px]"
                       style={{
-                        background: eventBandBackground(event.colors, event.color)
+                        background: eventBandBackground(
+                          event.colors,
+                          event.color,
+                        ),
                       }}
                     >
                       {event.title}
@@ -597,7 +705,9 @@ export function TodayDashboard(): JSX.Element {
                 </div>
                 {days.map((day) => {
                   const hourEvents = scheduleEvents.filter(
-                    (event) => event.dayIndex === day.index && Math.floor(event.startHour) === hour
+                    (event) =>
+                      event.dayIndex === day.index &&
+                      Math.floor(event.startHour) === hour,
                   );
 
                   return (
@@ -615,19 +725,22 @@ export function TodayDashboard(): JSX.Element {
                         const offset = (event.startHour - hour) * slotHeight;
                         const availableHeight = Math.max(
                           0,
-                          (endHour + 1 - event.startHour) * slotHeight - 4
+                          (endHour + 1 - event.startHour) * slotHeight - 4,
                         );
                         const height = Math.min(
                           Math.max(24, event.durationHours * slotHeight - 6),
-                          availableHeight
+                          availableHeight,
                         );
                         const layout = timedEventLayout.get(event.id) ?? {
                           column: 0,
-                          columnCount: 1
+                          columnCount: 1,
                         };
                         const columnWidth = 100 / layout.columnCount;
-                        const isCompact = event.durationHours <= 1 || layout.columnCount > 1;
-                        const showOwner = event.durationHours >= 1.5 && layout.columnCount === 1;
+                        const isCompact =
+                          event.durationHours <= 1 || layout.columnCount > 1;
+                        const showOwner =
+                          event.durationHours >= 1.5 &&
+                          layout.columnCount === 1;
                         return (
                           <button
                             type="button"
@@ -635,7 +748,9 @@ export function TodayDashboard(): JSX.Element {
                             data-event-id={event.id}
                             data-layout-column={layout.column}
                             data-layout-columns={layout.columnCount}
-                            data-event-density={isCompact ? "compact" : "comfortable"}
+                            data-event-density={
+                              isCompact ? "compact" : "comfortable"
+                            }
                             data-event-shared={event.striped ? "true" : "false"}
                             aria-label={`${event.title}, ${event.timeLabel}, ${event.sourceName}`}
                             title={`${event.title} · ${event.timeLabel} · ${event.sourceName}`}
@@ -646,13 +761,20 @@ export function TodayDashboard(): JSX.Element {
                               height,
                               left: `calc(${layout.column * columnWidth}% + 4px)`,
                               width: `calc(${columnWidth}% - 8px)`,
-                              background: eventBandBackground(event.colors, event.color)
+                              background: eventBandBackground(
+                                event.colors,
+                                event.color,
+                              ),
                             }}
                           >
-                            <div className={`${isCompact ? "text-[13px]" : "text-[16px]"} break-normal font-semibold leading-tight`}>
+                            <div
+                              className={`${isCompact ? "text-[13px]" : "text-[16px]"} break-normal font-semibold leading-tight`}
+                            >
                               {event.title}
                             </div>
-                            <div className={`${isCompact ? "text-[10px]" : "text-[13px]"} mt-0.5 whitespace-nowrap leading-none text-slate-700`}>
+                            <div
+                              className={`${isCompact ? "text-[10px]" : "text-[13px]"} mt-0.5 whitespace-nowrap leading-none text-slate-700`}
+                            >
                               {event.compactTimeLabel}
                             </div>
                             {showOwner && event.ownerInitial ? (
@@ -683,7 +805,9 @@ export function TodayDashboard(): JSX.Element {
           className="absolute bottom-5 right-5 z-30 flex h-14 w-14 items-center justify-center rounded-full bg-[#2b98db] text-white shadow-[0_6px_16px_rgba(30,64,175,0.22)] transition-colors hover:bg-[#2588c3]"
           onClick={() => setIsAddMenuOpen((value) => !value)}
         >
-          <span className="relative -top-px text-4xl font-normal leading-none">+</span>
+          <span className="relative -top-px text-4xl font-normal leading-none">
+            +
+          </span>
         </button>
         {isAddMenuOpen ? (
           <div className="absolute bottom-20 right-5 z-30 grid min-w-[220px] gap-2 rounded-md border border-[#d9d8d4] bg-white p-2 shadow-lg">
@@ -727,7 +851,12 @@ export function TodayDashboard(): JSX.Element {
             >
               <div
                 className="h-2"
-                style={{ background: eventBandBackground(selectedEvent.colors, selectedEvent.color) }}
+                style={{
+                  background: eventBandBackground(
+                    selectedEvent.colors,
+                    selectedEvent.color,
+                  ),
+                }}
               />
               <div className="p-6 sm:p-7">
                 <div className="flex items-start justify-between gap-4">
@@ -740,7 +869,10 @@ export function TodayDashboard(): JSX.Element {
                       />
                       Calendar event
                     </div>
-                    <h2 id="calendar-event-detail-title" className="font-display text-3xl leading-tight text-slate-950">
+                    <h2
+                      id="calendar-event-detail-title"
+                      className="font-display text-3xl leading-tight text-slate-950"
+                    >
                       {selectedEvent.title}
                     </h2>
                   </div>
@@ -755,17 +887,33 @@ export function TodayDashboard(): JSX.Element {
                 </div>
                 <div className="mt-6 grid gap-3 rounded-2xl bg-slate-50 p-4">
                   <div className="flex items-center gap-3">
-                    <span aria-hidden="true" className="flex h-9 w-9 items-center justify-center rounded-full bg-white text-base shadow-sm">◷</span>
+                    <span
+                      aria-hidden="true"
+                      className="flex h-9 w-9 items-center justify-center rounded-full bg-white text-base shadow-sm"
+                    >
+                      ◷
+                    </span>
                     <div>
-                      <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Time</div>
-                      <div className="font-medium text-slate-800">{selectedEvent.timeLabel}</div>
+                      <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                        Time
+                      </div>
+                      <div className="font-medium text-slate-800">
+                        {selectedEvent.timeLabel}
+                      </div>
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
-                    <span aria-hidden="true" className="flex h-9 w-9 items-center justify-center rounded-full bg-white text-base shadow-sm">▦</span>
+                    <span
+                      aria-hidden="true"
+                      className="flex h-9 w-9 items-center justify-center rounded-full bg-white text-base shadow-sm"
+                    >
+                      ▦
+                    </span>
                     <div>
                       <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                        {selectedEvent.sourceNames.length > 1 ? "Calendars" : "Calendar"}
+                        {selectedEvent.sourceNames.length > 1
+                          ? "Calendars"
+                          : "Calendar"}
                       </div>
                       <div className="font-medium text-slate-800">
                         {selectedEvent.sourceNames.join(" · ")}
