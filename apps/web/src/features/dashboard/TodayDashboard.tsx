@@ -574,6 +574,7 @@ export function TodayDashboard(): JSX.Element {
     (_, i) => startHour + i,
   );
   const slotHeight = 96;
+  const calendarGridTemplateColumns = `clamp(58px, 7vw, 88px) repeat(${days.length}, minmax(0, 1fr))`;
   const currentWeather = weatherQuery.data?.configured
     ? weatherIconForCode(weatherQuery.data.weatherCode, weatherQuery.data.isDay)
     : null;
@@ -854,62 +855,70 @@ export function TodayDashboard(): JSX.Element {
             data-calendar-end-hour={endHour}
             className="grid min-w-[720px]"
             style={{
-              gridTemplateColumns: `clamp(58px, 7vw, 88px) repeat(${days.length}, minmax(0, 1fr))`,
+              gridTemplateColumns: calendarGridTemplateColumns,
             }}
           >
-            <div className="sticky top-0 z-20 border-b border-r border-[#ecebe8] bg-white" />
-            {days.map((day) => (
-              <div
-                key={day.dayKey}
-                data-calendar-day-header="true"
-                className="sticky top-0 z-20 flex items-center gap-1 border-b border-r border-[#ecebe8] bg-white px-1.5 py-2 font-display text-[clamp(18px,2.5vw,34px)] leading-none text-slate-900 md:px-2 xl:gap-1.5 xl:px-3 xl:py-2.5"
-              >
-                <span>{day.weekday}</span>
-                {day.isToday ? (
-                  <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-[#ff6b55] text-[14px] text-white xl:h-8 xl:w-8 xl:text-[19px]">
-                    {day.dayNumber}
-                  </span>
-                ) : (
-                  <span>{day.dayNumber}</span>
-                )}
-              </div>
-            ))}
-
-            <div className="border-b border-r border-[#ecebe8] bg-white" />
-            {days.map((day) => {
-              const dayAllDayEvents = allDayEvents.filter(
-                (event) =>
-                  day.index >= event.startIndex && day.index <= event.endIndex,
-              );
-              const event = dayAllDayEvents[0];
-              return (
+            <div
+              data-testid="sticky-all-day-band"
+              className="sticky top-0 z-30 col-span-full grid bg-white shadow-[0_2px_6px_rgba(15,23,42,0.08)]"
+              style={{ gridTemplateColumns: calendarGridTemplateColumns }}
+            >
+              <div className="border-b border-r border-[#ecebe8] bg-white" />
+              {days.map((day) => (
                 <div
-                  key={`${day.dayKey}-all-day`}
-                  className="border-b border-r border-[#ecebe8] p-2"
+                  key={day.dayKey}
+                  data-calendar-day-header="true"
+                  className="flex items-center gap-1 border-b border-r border-[#ecebe8] bg-white px-1.5 py-2 font-display text-[clamp(18px,2.5vw,34px)] leading-none text-slate-900 md:px-2 xl:gap-1.5 xl:px-3 xl:py-2.5"
                 >
-                  {event ? (
-                    <button
-                      type="button"
-                      aria-label={`${event.title}, All day, ${event.sourceName}`}
-                      className="block w-full min-w-0 max-w-full truncate rounded-full px-1.5 py-1 text-[11px] font-semibold text-slate-700 md:px-2 md:text-[12px] xl:px-3 xl:text-[14px]"
-                      onClick={() => {
-                        setDeleteChoiceOpen(false);
-                        setEventDeleteError(null);
-                        setSelectedEvent(event);
-                      }}
-                      style={{
-                        background: eventBandBackground(
-                          event.colors,
-                          event.color,
-                        ),
-                      }}
-                    >
-                      {event.title}
-                    </button>
-                  ) : null}
+                  <span>{day.weekday}</span>
+                  {day.isToday ? (
+                    <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-[#ff6b55] text-[14px] text-white xl:h-8 xl:w-8 xl:text-[19px]">
+                      {day.dayNumber}
+                    </span>
+                  ) : (
+                    <span>{day.dayNumber}</span>
+                  )}
                 </div>
-              );
-            })}
+              ))}
+
+              <div className="min-h-[40px] border-b border-r border-[#ecebe8] bg-white" />
+              {days.map((day) => {
+                const dayAllDayEvents = allDayEvents.filter(
+                  (event) =>
+                    day.index >= event.startIndex &&
+                    day.index <= event.endIndex,
+                );
+                const event = dayAllDayEvents[0];
+                return (
+                  <div
+                    key={`${day.dayKey}-all-day`}
+                    data-calendar-all-day-cell="true"
+                    className="min-h-[40px] border-b border-r border-[#ecebe8] bg-white p-1.5 xl:p-2"
+                  >
+                    {event ? (
+                      <button
+                        type="button"
+                        aria-label={`${event.title}, All day, ${event.sourceName}`}
+                        className="block w-full min-w-0 max-w-full truncate rounded-full px-1.5 py-1 text-[11px] font-semibold text-slate-700 md:px-2 md:text-[12px] xl:px-3 xl:text-[14px]"
+                        onClick={() => {
+                          setDeleteChoiceOpen(false);
+                          setEventDeleteError(null);
+                          setSelectedEvent(event);
+                        }}
+                        style={{
+                          background: eventBandBackground(
+                            event.colors,
+                            event.color,
+                          ),
+                        }}
+                      >
+                        {event.title}
+                      </button>
+                    ) : null}
+                  </div>
+                );
+              })}
+            </div>
 
             {hourSlots.map((hour) => (
               <Fragment key={`row-${hour}`}>

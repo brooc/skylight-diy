@@ -119,6 +119,15 @@ describe("TodayDashboard", () => {
     expect(screen.getByTestId("dashboard-calendar-scroll")).not.toHaveClass(
       "max-h-[72vh]",
     );
+    expect(screen.getByTestId("sticky-all-day-band")).toHaveClass(
+      "sticky",
+      "top-0",
+      "z-30",
+      "col-span-full",
+    );
+    expect(
+      document.querySelectorAll('[data-calendar-all-day-cell="true"]'),
+    ).toHaveLength(7);
     expect(
       screen.getByTestId("dashboard-calendar-grid").querySelector(
         '[data-current-time-line="true"]',
