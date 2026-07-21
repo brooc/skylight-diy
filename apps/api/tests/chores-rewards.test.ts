@@ -47,9 +47,10 @@ describe("chores and rewards", () => {
 
     const markComplete = await app.inject({
       method: "POST",
-      url: `/api/chores/${createdChore.id}/complete`
+      url: `/api/chores/${createdChore.id}/complete?date=2026-07-20`
     });
     expect(markComplete.statusCode).toBe(200);
+    expect(markComplete.json().date).toBe("2026-07-20");
 
     const choresAfter = await app.inject({
       method: "GET",
@@ -67,10 +68,9 @@ describe("chores and rewards", () => {
     expect(kiddoBalance.balance).toBe(3);
     expect(kiddoBalance.color).toBe(kiddo.color);
 
-    const today = new Date().toISOString().slice(0, 10);
     const uncomplete = await app.inject({
       method: "DELETE",
-      url: `/api/chores/${createdChore.id}/complete?date=${today}`
+      url: `/api/chores/${createdChore.id}/complete?date=2026-07-20`
     });
     expect(uncomplete.statusCode).toBe(200);
 
