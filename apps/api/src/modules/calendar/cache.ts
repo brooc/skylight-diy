@@ -13,6 +13,8 @@ type CachePayload = {
     title: string;
     description?: string;
     location?: string;
+    attendeeEmails?: string[];
+    organizerEmail?: string;
     start: string;
     end: string;
     isAllDay: boolean;
@@ -40,7 +42,7 @@ export function buildCalendarCacheKey(input: {
   timezone: string;
   sourceFingerprint: string;
 }): string {
-  return `${input.rangeStart}|${input.rangeEnd}|${input.timezone}|${input.sourceFingerprint}`;
+  return `v2|${input.rangeStart}|${input.rangeEnd}|${input.timezone}|${input.sourceFingerprint}`;
 }
 
 export function buildSourceFingerprint(

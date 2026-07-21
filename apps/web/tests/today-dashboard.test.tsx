@@ -544,7 +544,7 @@ describe("TodayDashboard", () => {
         ],
       })
       .returning();
-    const [parent] = await app.db.select().from(people);
+    const [parent, kiddo] = await app.db.select().from(people);
     await app.db.insert(calendarSources).values({
       householdId: household.id,
       connectedAccountId: account.id,
@@ -556,6 +556,18 @@ describe("TodayDashboard", () => {
       googleAccessRole: "owner",
       personId: parent.id,
       sortOrder: 0,
+    });
+    await app.db.insert(calendarSources).values({
+      householdId: household.id,
+      connectedAccountId: account.id,
+      provider: "google",
+      externalCalendarId: "kid@example.com",
+      displayName: "Kiddo",
+      enabled: true,
+      allowEventWrites: false,
+      googleAccessRole: "reader",
+      personId: kiddo.id,
+      sortOrder: 1,
     });
     let createdBody: Record<string, unknown> | null = null;
     let createCalls = 0;
@@ -628,7 +640,10 @@ describe("TodayDashboard", () => {
     await user.click(within(dialog).getByText("More options"));
     expect(within(dialog).getByLabelText(/Location/)).toBeVisible();
     await user.type(within(dialog).getByLabelText(/Location/), "Campbell");
-    await user.type(within(dialog).getByLabelText(/Guests/), "kid@example.com");
+    expect(within(dialog).queryByLabelText(/Guests/)).not.toBeInTheDocument();
+    expect(within(dialog).getByLabelText("Parent")).toBeDisabled();
+    expect(within(dialog).getByText("Organizer")).toBeInTheDocument();
+    await user.click(within(dialog).getByLabelText("Kiddo"));
     await user.selectOptions(within(dialog).getByLabelText("Repeat"), "weekly");
     for (const day of ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]) {
       const checkbox = within(dialog).getByRole("checkbox", { name: day }) as HTMLInputElement;

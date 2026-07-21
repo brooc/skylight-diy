@@ -1,6 +1,16 @@
 import { useState } from "react";
 import { apiFetch } from "../../api/client";
 import { dateFromDateKeyInTimeZone, dateKeyInTimeZone, shiftDateKey } from "./dateKeys";
+import type {
+  CalendarEventAccount,
+  CalendarEventSource,
+} from "./CalendarEventCreateDialog";
+import {
+  FamilyParticipantPicker,
+  participantEmails,
+  resolveFamilyParticipants,
+  type CalendarFamilyMember,
+} from "./FamilyParticipantPicker";
 
 type ProviderRef = {
   sourceId: string;
@@ -14,6 +24,8 @@ export type EditableCalendarEvent = {
   end: string;
   isAllDay: boolean;
   location?: string;
+  attendeeEmails?: string[];
+  organizerEmail?: string;
   isRecurring: boolean;
   providerRefs: ProviderRef[];
 };
@@ -21,6 +33,9 @@ export type EditableCalendarEvent = {
 type Props = {
   event: EditableCalendarEvent;
   targets: ProviderRef[];
+  accounts: CalendarEventAccount[];
+  sources: CalendarEventSource[];
+  members: CalendarFamilyMember[];
   timezone: string;
   onClose: () => void;
   onUpdated: () => Promise<void> | void;
@@ -50,10 +65,41 @@ function messageFor(error: unknown): string {
 export function CalendarEventEditDialog({
   event,
   targets,
+  accounts,
+  sources,
+  members,
   timezone,
   onClose,
   onUpdated,
 }: Props): JSX.Element {
+  const participants = resolveFamilyParticipants(members, sources, accounts);
+  const targetSource = sources.find(
+    (source) => source.id === targets[0]?.sourceId,
+  );
+  const targetAccount = accounts.find(
+    (account) => account.id === targetSource?.connectedAccountId,
+  );
+  const organizerEmail = event.organizerEmail ?? (targetSource
+    ? /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(targetSource.externalCalendarId)
+      ? targetSource.externalCalendarId
+      : targetSource.externalCalendarId === "primary"
+        ? targetAccount?.email ?? undefined
+        : undefined
+    : undefined);
+  const originalAttendeeEmails = event.attendeeEmails ?? [];
+  const originalEmailSet = new Set(
+    originalAttendeeEmails.map((email) => email.toLocaleLowerCase()),
+  );
+  const familyEmailSet = new Set(
+    participants
+      .map((participant) => participant.email?.toLocaleLowerCase())
+      .filter((email): email is string => Boolean(email)),
+  );
+  const preservedExternalAttendees = originalAttendeeEmails.filter(
+    (email) =>
+      !familyEmailSet.has(email.toLocaleLowerCase()) &&
+      email.toLocaleLowerCase() !== organizerEmail?.toLocaleLowerCase(),
+  );
   const initialDate = event.isAllDay
     ? event.start.slice(0, 10)
     : dateKeyInTimeZone(event.start, timezone);
@@ -80,6 +126,17 @@ export function CalendarEventEditDialog({
   );
   const [allDay, setAllDay] = useState(event.isAllDay);
   const [location, setLocation] = useState(event.location ?? "");
+  const [selectedParticipantIds, setSelectedParticipantIds] = useState(
+    participants
+      .filter(
+        (participant) =>
+          participant.email &&
+          originalEmailSet.has(participant.email.toLocaleLowerCase()) &&
+          participant.email.toLocaleLowerCase() !==
+            organizerEmail?.toLocaleLowerCase(),
+      )
+      .map((participant) => participant.id),
+  );
   const [scope, setScope] = useState<"event" | "following">("event");
   const [seriesEnd, setSeriesEnd] = useState<"keep" | "on_date" | "never">(
     "keep",
@@ -111,6 +168,16 @@ export function CalendarEventEditDialog({
           scope: canEditFollowing ? scope : "event",
           title: title.trim(),
           location: location.trim() || null,
+          attendees: Array.from(
+            new Set([
+              ...preservedExternalAttendees,
+              ...participantEmails(
+                participants,
+                selectedParticipantIds,
+                organizerEmail,
+              ),
+            ]),
+          ),
           allDay,
           start,
           end,
@@ -154,6 +221,12 @@ export function CalendarEventEditDialog({
               </div>
               {!allDay ? <div className="grid grid-cols-2 gap-3"><label className="grid gap-1"><span className="text-sm font-semibold text-slate-700">Start time</span><input type="time" required value={startTime} onChange={(change) => setStartTime(change.target.value)} className="min-h-[44px] min-w-0 rounded-xl border border-slate-300 px-3 text-base" /></label><label className="grid gap-1"><span className="text-sm font-semibold text-slate-700">End time</span><input type="time" required value={endTime} onChange={(change) => setEndTime(change.target.value)} className="min-h-[44px] min-w-0 rounded-xl border border-slate-300 px-3 text-base" /></label></div> : null}
               <label className="grid gap-1"><span className="text-sm font-semibold text-slate-700">Location <span className="font-normal">(optional)</span></span><input value={location} onChange={(change) => setLocation(change.target.value)} className="min-h-[44px] rounded-xl border border-slate-300 px-3 text-base" /></label>
+              <FamilyParticipantPicker
+                participants={participants}
+                organizerEmail={organizerEmail}
+                selectedIds={selectedParticipantIds}
+                onChange={setSelectedParticipantIds}
+              />
               {canEditFollowing ? <fieldset className="grid gap-2 rounded-2xl border border-slate-200 bg-slate-50 p-3"><legend className="px-1 text-sm font-semibold text-slate-700">Apply changes to</legend><label className="flex min-h-[42px] items-center gap-3"><input type="radio" name="edit-scope" checked={scope === "event"} onChange={() => setScope("event")} />This occurrence</label><label className="flex min-h-[42px] items-center gap-3"><input type="radio" name="edit-scope" checked={scope === "following"} onChange={() => setScope("following")} />This and following occurrences</label></fieldset> : null}
               {canEditFollowing && scope === "following" ? (
                 <div className="grid gap-2 rounded-2xl border border-slate-200 p-3">

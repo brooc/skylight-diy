@@ -2,6 +2,12 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { apiFetch } from "../../api/client";
 import { dateFromDateKeyInTimeZone, shiftDateKey } from "./dateKeys";
+import {
+  FamilyParticipantPicker,
+  participantEmails,
+  resolveFamilyParticipants,
+  type CalendarFamilyMember,
+} from "./FamilyParticipantPicker";
 
 export type CalendarEventAccount = {
   id: string;
@@ -15,6 +21,7 @@ export type CalendarEventSource = {
   id: string;
   connectedAccountId: string;
   displayName: string;
+  externalCalendarId: string;
   enabled: boolean;
   allowEventWrites: boolean;
   googleAccessRole?: string | null;
@@ -25,6 +32,7 @@ export type CalendarEventSource = {
 type Props = {
   accounts: CalendarEventAccount[];
   sources: CalendarEventSource[];
+  members: CalendarFamilyMember[];
   timezone: string;
   defaultDate: string;
   loading?: boolean;
@@ -111,6 +119,7 @@ function errorMessage(error: unknown): string {
 export function CalendarEventCreateDialog({
   accounts,
   sources,
+  members,
   timezone,
   defaultDate,
   loading = false,
@@ -140,7 +149,9 @@ export function CalendarEventCreateDialog({
   const [durationMinutes, setDurationMinutes] = useState(60);
   const [allDay, setAllDay] = useState(false);
   const [location, setLocation] = useState("");
-  const [guests, setGuests] = useState("");
+  const [selectedParticipantIds, setSelectedParticipantIds] = useState<
+    string[]
+  >([]);
   const [repeat, setRepeat] = useState<"none" | "daily" | "weekly" | "monthly">(
     "none",
   );
@@ -171,17 +182,11 @@ export function CalendarEventCreateDialog({
     if (!sourceId || !title.trim()) return;
     setError(null);
 
-    const attendees = guests
-      .split(/[,;\n]/)
-      .map((email) => email.trim())
-      .filter(Boolean);
-    const invalidGuest = attendees.find(
-      (email) => !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email),
+    const attendees = participantEmails(
+      participants,
+      selectedParticipantIds,
+      organizerEmail,
     );
-    if (invalidGuest) {
-      setError(`Enter a valid email address for ${invalidGuest}.`);
-      return;
-    }
 
     let start = date;
     let end = shiftDateKey(date, 1);
@@ -242,6 +247,20 @@ export function CalendarEventCreateDialog({
       setIsSubmitting(false);
     }
   };
+
+  const participants = resolveFamilyParticipants(members, sources, accounts);
+  const selectedAccount = selectedDestination
+    ? accountById.get(selectedDestination.connectedAccountId)
+    : undefined;
+  const organizerEmail = selectedDestination
+    ? /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(
+        selectedDestination.externalCalendarId,
+      )
+      ? selectedDestination.externalCalendarId
+      : selectedDestination.externalCalendarId === "primary"
+        ? selectedAccount?.email ?? undefined
+        : undefined
+    : undefined;
 
   return (
     <div
@@ -364,6 +383,13 @@ export function CalendarEventCreateDialog({
                     : "This calendar is unassigned in Daymark settings."}
                 </span>
               </div>
+
+              <FamilyParticipantPicker
+                participants={participants}
+                organizerEmail={organizerEmail}
+                selectedIds={selectedParticipantIds}
+                onChange={setSelectedParticipantIds}
+              />
 
               <div className="grid min-w-0 gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,0.72fr)]">
                 <label className="grid min-w-0 gap-1">
@@ -583,20 +609,6 @@ export function CalendarEventCreateDialog({
                     />
                   </label>
 
-                  <label className="grid min-w-0 gap-1">
-                    <span className="text-sm font-semibold text-slate-700">
-                      Guests <span className="font-normal">(optional)</span>
-                    </span>
-                    <input
-                      value={guests}
-                      placeholder="name@example.com, another@example.com"
-                      onChange={(event) => setGuests(event.target.value)}
-                      className="min-h-[42px] w-full min-w-0 rounded-xl border border-slate-300 bg-white px-3 text-base text-slate-950"
-                    />
-                    <span className="text-xs text-slate-500">
-                      Google will email invitations to these guests.
-                    </span>
-                  </label>
                 </div>
               </details>
 

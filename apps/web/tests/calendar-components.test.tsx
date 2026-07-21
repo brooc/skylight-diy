@@ -148,6 +148,7 @@ describe("calendar components", () => {
           end: "2026-08-03T17:00:00.000Z",
           isAllDay: false,
           isRecurring: true,
+          attendeeEmails: ["kid@example.com", "outside@example.com"],
           providerRefs: [
             {
               sourceId: "846288ca-1398-49be-9a95-0d5cb56a4779",
@@ -163,6 +164,39 @@ describe("calendar components", () => {
             recurringEventId: "series-id",
           },
         ]}
+        accounts={[
+          {
+            id: "account-1",
+            email: "parent@example.com",
+            calendarWriteAccessGranted: true,
+            reauthorizationRequired: false,
+          },
+        ]}
+        sources={[
+          {
+            id: "846288ca-1398-49be-9a95-0d5cb56a4779",
+            connectedAccountId: "account-1",
+            externalCalendarId: "parent@example.com",
+            displayName: "Parent",
+            enabled: true,
+            allowEventWrites: true,
+            personId: "parent-id",
+          },
+          {
+            id: "source-kid",
+            connectedAccountId: "account-1",
+            externalCalendarId: "kid@example.com",
+            displayName: "Kiddo",
+            enabled: true,
+            allowEventWrites: false,
+            personId: "kid-id",
+          },
+        ]}
+        members={[
+          { id: "parent-id", displayName: "Parent", color: "#f3cfd0" },
+          { id: "kid-id", displayName: "Kiddo", color: "#bee8ea" },
+          { id: "other-id", displayName: "Other", color: "#d9d1ef" },
+        ]}
         timezone="America/Los_Angeles"
         onClose={vi.fn()}
         onUpdated={onUpdated}
@@ -170,6 +204,11 @@ describe("calendar components", () => {
     );
 
     const user = userEvent.setup();
+    expect(screen.queryByLabelText(/Guests/)).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Parent")).toBeDisabled();
+    expect(screen.getByLabelText("Kiddo")).toBeChecked();
+    expect(screen.getByLabelText("Other")).toBeDisabled();
+    await user.click(screen.getByLabelText("Kiddo"));
     await user.click(screen.getByLabelText("This and following occurrences"));
     await user.selectOptions(screen.getByLabelText("Series ending"), "on_date");
     await user.clear(screen.getByLabelText("Last date"));
@@ -180,6 +219,7 @@ describe("calendar components", () => {
     expect(requestBody).toMatchObject({
       scope: "following",
       recurrenceEnd: { mode: "on_date", until: "2026-09-30" },
+      attendees: ["outside@example.com"],
     });
   });
 

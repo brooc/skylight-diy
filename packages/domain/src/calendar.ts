@@ -9,6 +9,8 @@ export type DisplayCalendarEvent = {
   title: string;
   description?: string;
   location?: string;
+  attendeeEmails?: string[];
+  organizerEmail?: string;
   start: string;
   end: string;
   isAllDay: boolean;

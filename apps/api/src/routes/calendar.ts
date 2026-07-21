@@ -241,6 +241,7 @@ const editCalendarEventsBodySchema = z
     scope: z.enum(["event", "following"]).default("event"),
     title: z.string().trim().min(1).max(200),
     location: z.string().trim().max(500).nullable().optional(),
+    attendees: z.array(z.string().email()).max(50).optional(),
     allDay: z.boolean(),
     start: z.string().min(1),
     end: z.string().min(1),
@@ -339,6 +340,7 @@ type GoogleEventItem = {
   end?: { date?: string; dateTime?: string };
   recurrence?: string[];
   attendees?: Array<Record<string, unknown>>;
+  organizer?: { email?: string; self?: boolean };
   reminders?: Record<string, unknown>;
   transparency?: string;
   visibility?: string;
@@ -1375,6 +1377,9 @@ export const calendarRoutes: FastifyPluginAsync = async (app) => {
       const eventFields = {
         summary: parsed.data.title,
         location: parsed.data.location ?? "",
+        ...(parsed.data.attendees
+          ? { attendees: parsed.data.attendees.map((email) => ({ email })) }
+          : {}),
         start: parsed.data.allDay
           ? { date: parsed.data.start }
           : { dateTime: parsed.data.start, timeZone: parsed.data.timezone },
@@ -1837,6 +1842,12 @@ export const calendarRoutes: FastifyPluginAsync = async (app) => {
             title: item.summary || "Untitled event",
             description: item.description,
             location: item.location,
+            attendeeEmails: (item.attendees ?? [])
+              .map((attendee) =>
+                typeof attendee.email === "string" ? attendee.email : undefined
+              )
+              .filter((email): email is string => Boolean(email)),
+            organizerEmail: item.organizer?.email,
             start,
             end,
             isAllDay,

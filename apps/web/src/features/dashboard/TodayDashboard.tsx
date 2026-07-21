@@ -80,6 +80,8 @@ type CalendarResponse = {
     end: string;
     isAllDay: boolean;
     location?: string;
+    attendeeEmails?: string[];
+    organizerEmail?: string;
     sourceName?: string;
     sourceNames?: string[];
     color?: string;
@@ -128,6 +130,8 @@ type EventDetail = {
   end: string;
   isAllDay: boolean;
   location?: string;
+  attendeeEmails?: string[];
+  organizerEmail?: string;
 };
 
 type RenderEvent = EventDetail & {
@@ -489,6 +493,8 @@ export function TodayDashboard(): JSX.Element {
         end: event.end,
         isAllDay: false,
         location: event.location,
+        attendeeEmails: event.attendeeEmails,
+        organizerEmail: event.organizerEmail,
       };
     })
     .filter((event) => event.dayIndex >= 0);
@@ -549,6 +555,8 @@ export function TodayDashboard(): JSX.Element {
         end: event.end,
         isAllDay: true,
         location: event.location,
+        attendeeEmails: event.attendeeEmails,
+        organizerEmail: event.organizerEmail,
       };
     })
     .filter((event) => eventMatchesFilter(event.sourceNames));
@@ -590,6 +598,29 @@ export function TodayDashboard(): JSX.Element {
     selectedEvent?.providerRefs.filter((reference) =>
       writableSourceIds.has(reference.sourceId),
     ) ?? [];
+  const organizerSourceId = selectedEvent?.organizerEmail
+    ? (calendarSourcesQuery.data?.sources ?? []).find(
+        (source) => {
+          const organizerEmail =
+            selectedEvent.organizerEmail?.toLocaleLowerCase();
+          if (source.externalCalendarId.toLocaleLowerCase() === organizerEmail) {
+            return true;
+          }
+          const account = calendarAccountsQuery.data?.accounts.find(
+            (candidate) => candidate.id === source.connectedAccountId,
+          );
+          return (
+            source.externalCalendarId === "primary" &&
+            account?.email?.toLocaleLowerCase() === organizerEmail
+          );
+        },
+      )?.id
+    : undefined;
+  const editableSelectedEventRefs = organizerSourceId
+    ? writableSelectedEventRefs.filter(
+        (reference) => reference.sourceId === organizerSourceId,
+      )
+    : writableSelectedEventRefs.slice(0, 1);
 
   const deleteSelectedEvent = async (
     scope: "event" | "series",
@@ -1065,6 +1096,11 @@ export function TodayDashboard(): JSX.Element {
           <CalendarEventCreateDialog
             accounts={calendarAccountsQuery.data?.accounts ?? []}
             sources={calendarSourcesQuery.data?.sources ?? []}
+            members={balances.map((person) => ({
+              id: person.personId,
+              displayName: person.displayName,
+              color: person.color,
+            }))}
             timezone={timezone}
             defaultDate={todayKey}
             loading={
@@ -1217,7 +1253,7 @@ export function TodayDashboard(): JSX.Element {
                   </div>
                 ) : null}
                 <div className="mt-6 flex gap-2">
-                  {writableSelectedEventRefs.length > 0 && !deleteChoiceOpen ? (
+                  {editableSelectedEventRefs.length > 0 && !deleteChoiceOpen ? (
                     <button
                       type="button"
                       className="min-h-[44px] rounded-xl bg-[#0f766e] px-4 text-sm font-semibold text-white transition-colors hover:bg-[#0d5f59]"
@@ -1250,7 +1286,14 @@ export function TodayDashboard(): JSX.Element {
         {selectedEvent && isEditEventOpen ? (
           <CalendarEventEditDialog
             event={selectedEvent}
-            targets={writableSelectedEventRefs}
+            targets={editableSelectedEventRefs}
+            accounts={calendarAccountsQuery.data?.accounts ?? []}
+            sources={calendarSourcesQuery.data?.sources ?? []}
+            members={balances.map((person) => ({
+              id: person.personId,
+              displayName: person.displayName,
+              color: person.color,
+            }))}
             timezone={timezone}
             onClose={() => setIsEditEventOpen(false)}
             onUpdated={async () => {

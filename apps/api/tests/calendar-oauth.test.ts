@@ -1219,6 +1219,11 @@ describe("calendar and google integration routes", () => {
                   summary: "Dentist",
                   description: "Bring insurance card",
                   location: "Main clinic",
+                  attendees: [
+                    { email: "kid@example.com" },
+                    { email: "outside@example.com" },
+                  ],
+                  organizer: { email: "parent@example.com", self: true },
                   start: { dateTime: "2026-06-02T16:00:00.000Z" },
                   end: { dateTime: "2026-06-02T17:00:00.000Z" },
                 },
@@ -1254,6 +1259,8 @@ describe("calendar and google integration routes", () => {
       title: "Dentist",
       description: "Bring insurance card",
       location: "Main clinic",
+      attendeeEmails: ["kid@example.com", "outside@example.com"],
+      organizerEmail: "parent@example.com",
       isAllDay: false,
       recurringEventId: "series-1",
       providerRefs: [
@@ -1814,6 +1821,7 @@ describe("calendar and google integration routes", () => {
       targets: [{ sourceId: source.id, providerEventId: "instance-id", recurringEventId: "series-id" }],
       title: "Evening Gym",
       location: "Community center",
+      attendees: ["kid@example.com"],
       allDay: false,
       start: "2026-08-03T01:00:00.000Z",
       end: "2026-08-03T02:00:00.000Z",
@@ -1826,6 +1834,7 @@ describe("calendar and google integration routes", () => {
     expect(JSON.parse(String(fetchSpy.mock.calls[0]?.[1]?.body))).toMatchObject({
       summary: "Evening Gym",
       location: "Community center",
+      attendees: [{ email: "kid@example.com" }],
     });
 
     const following = await app.inject({ method: "PATCH", url: "/api/calendar/events", payload: { ...basePayload, scope: "following" } });
