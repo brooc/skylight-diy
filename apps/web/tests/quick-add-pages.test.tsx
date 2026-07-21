@@ -96,6 +96,14 @@ describe("quick add page states", () => {
     const user = userEvent.setup();
 
     expect(await screen.findByText("Add")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Filter" })).toHaveClass(
+      "bg-[#fff7ea]",
+      "border-[#d8cbb8]",
+    );
+    expect(screen.getByRole("button", { name: "Today" })).toHaveClass(
+      "bg-[#fff7ea]",
+      "border-[#d8cbb8]",
+    );
     await user.type(screen.getByLabelText("Item title"), "Milk");
     await user.click(screen.getByRole("button", { name: "Add item" }));
     expect(await screen.findByText("Milk")).toBeInTheDocument();

@@ -361,13 +361,16 @@ describe("TodayDashboard", () => {
     ).toBeGreaterThan(0);
 
     const user = userEvent.setup();
-    await user.click(screen.getByRole("button", { name: "Filter" }));
+    const filterButton = screen.getByRole("button", { name: "Filter" });
+    expect(filterButton).toHaveClass("bg-[#fff7ea]", "border-[#d8cbb8]");
+    await user.click(filterButton);
     const familyFilter = screen.getByRole("checkbox", { name: "Family" });
     expect(familyFilter).not.toBeChecked();
     await user.click(familyFilter);
-    expect(
-      screen.getByRole("button", { name: "Filter (1)" }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Filter (1)" })).toHaveClass(
+      "bg-teal-100",
+      "border-teal-200",
+    );
 
     await user.click(halfHourCard!);
     expect(await screen.findByRole("dialog")).toBeInTheDocument();

@@ -11,6 +11,7 @@ import {
 } from "../../api/refreshIntervals";
 import { ErrorState } from "../../components/ErrorState";
 import { LoadingState } from "../../components/LoadingState";
+import { toolbarFilterButtonClass } from "../../components/toolbarButtonStyles";
 import { CalendarStatusBadge } from "../calendar/CalendarStatusBadge";
 import { WeekNavigationControls } from "../calendar/WeekNavigationControls";
 import {
@@ -707,11 +708,9 @@ export function TodayDashboard(): JSX.Element {
                 <button
                   type="button"
                   aria-expanded={isFilterOpen}
-                  className={`rounded-full px-4 py-2 text-sm font-semibold ${
-                    selectedCalendarFilters.length > 0
-                      ? "bg-teal-100 text-teal-900"
-                      : "bg-[#f6f7f9] text-slate-700 hover:bg-[#ebedf0]"
-                  }`}
+                  className={toolbarFilterButtonClass(
+                    selectedCalendarFilters.length > 0,
+                  )}
                   onClick={() => setIsFilterOpen((value) => !value)}
                 >
                   Filter

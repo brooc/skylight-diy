@@ -1,3 +1,9 @@
+import {
+  toolbarActionButtonClass,
+  toolbarIconButtonClass,
+  toolbarPillButtonClass,
+} from "../../components/toolbarButtonStyles";
+
 export function WeekNavigationControls({
   isRefreshing,
   onNext,
@@ -11,22 +17,19 @@ export function WeekNavigationControls({
   onRefresh: () => void;
   onToday: () => void;
 }): JSX.Element {
-  const roundButtonClass =
-    "flex h-10 w-10 items-center justify-center rounded-full border border-[#d8cbb8] bg-[#fff7ea] text-xl text-slate-700 hover:bg-[#fcedd8]";
-
   return (
     <>
       <button
         type="button"
         aria-label="Previous week"
-        className={roundButtonClass}
+        className={toolbarIconButtonClass}
         onClick={onPrevious}
       >
         ‹
       </button>
       <button
         type="button"
-        className="min-h-[40px] rounded-full border border-[#d8cbb8] bg-[#fff7ea] px-3 text-sm font-semibold text-slate-700 hover:bg-[#fcedd8]"
+        className={toolbarPillButtonClass}
         onClick={onToday}
       >
         Today
@@ -34,7 +37,7 @@ export function WeekNavigationControls({
       <button
         type="button"
         aria-label="Next week"
-        className={roundButtonClass}
+        className={toolbarIconButtonClass}
         onClick={onNext}
       >
         ›
@@ -42,7 +45,7 @@ export function WeekNavigationControls({
       <button
         type="button"
         disabled={isRefreshing}
-        className="min-h-[40px] rounded-md border border-[#d8cbb8] bg-[#fff7ea] px-3 py-2 text-sm font-semibold text-slate-800 hover:bg-[#fcedd8] disabled:opacity-60"
+        className={toolbarActionButtonClass}
         onClick={onRefresh}
       >
         {isRefreshing ? "Refreshing…" : "Refresh"}

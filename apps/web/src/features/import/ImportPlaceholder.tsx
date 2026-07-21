@@ -5,6 +5,11 @@ import { apiFetch } from "../../api/client";
 import { queryKeys } from "../../api/queryKeys";
 import { ErrorState } from "../../components/ErrorState";
 import { LoadingState } from "../../components/LoadingState";
+import {
+  toolbarFilterButtonClass,
+  toolbarIconButtonClass,
+  toolbarPillButtonClass,
+} from "../../components/toolbarButtonStyles";
 
 type ListsResponse = {
   lists: Array<{
@@ -189,25 +194,25 @@ export function ImportPlaceholder(): JSX.Element {
           <div className="flex items-center gap-2">
             <button
               type="button"
-              className="min-h-[40px] rounded-full bg-[#f0f2f5] px-4 text-sm font-semibold text-slate-700"
+              className={toolbarFilterButtonClass(false)}
             >
               Filter
             </button>
             <button
               type="button"
-              className="flex h-10 w-10 items-center justify-center rounded-full bg-[#f0f2f5] text-xl text-slate-700"
+              className={toolbarIconButtonClass}
             >
               ‹
             </button>
             <button
               type="button"
-              className="min-h-[40px] rounded-full bg-[#f0f2f5] px-4 text-sm font-semibold text-slate-700"
+              className={toolbarPillButtonClass}
             >
               Today
             </button>
             <button
               type="button"
-              className="flex h-10 w-10 items-center justify-center rounded-full bg-[#f0f2f5] text-xl text-slate-700"
+              className={toolbarIconButtonClass}
             >
               ›
             </button>
