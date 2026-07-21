@@ -48,6 +48,55 @@ describe("meals and lists", () => {
     expect(deleted.statusCode).toBe(200);
   });
 
+  it("saves a reusable meal and assigns it to several days", async () => {
+    await setupHousehold(app);
+    const initialWeek = await app.inject({ method: "GET", url: "/api/meals/week" });
+    const dates = initialWeek.json().days
+      .slice(0, 3)
+      .map((day: { date: string }) => day.date);
+
+    const created = await app.inject({
+      method: "POST",
+      url: "/api/meals/week/entries",
+      payload: {
+        dates,
+        slot: "dinner",
+        mealName: "Vegetable curry"
+      }
+    });
+    expect(created.statusCode).toBe(201);
+    expect(created.json().entries).toHaveLength(3);
+    expect(created.json().meal.name).toBe("Vegetable curry");
+
+    const library = await app.inject({ method: "GET", url: "/api/meals" });
+    expect(library.statusCode).toBe(200);
+    expect(library.json().meals).toEqual([
+      expect.objectContaining({ name: "Vegetable curry" })
+    ]);
+
+    const reused = await app.inject({
+      method: "POST",
+      url: "/api/meals/week/entries",
+      payload: {
+        dates: [initialWeek.json().days[3].date],
+        slot: "lunch",
+        mealName: "vegetable CURRY"
+      }
+    });
+    expect(reused.statusCode).toBe(201);
+    expect(reused.json().meal.id).toBe(created.json().meal.id);
+
+    const updatedLibrary = await app.inject({ method: "GET", url: "/api/meals" });
+    expect(updatedLibrary.json().meals).toHaveLength(1);
+
+    const updatedWeek = await app.inject({ method: "GET", url: "/api/meals/week" });
+    const plannedEntries = updatedWeek.json().days.flatMap(
+      (day: { entries: Array<{ mealName: string | null }> }) => day.entries
+    );
+    expect(plannedEntries).toHaveLength(4);
+    expect(plannedEntries.every((entry: { mealName: string }) => entry.mealName === "Vegetable curry")).toBe(true);
+  });
+
   it("creates lists/items and toggles item completion", async () => {
     await setupHousehold(app);
 

@@ -20,13 +20,17 @@ type MealsResponse = {
   }>;
 };
 
+type MealLibraryResponse = {
+  meals: Array<{ id: string; name: string }>;
+};
+
 export function MealPlanWeek(): JSX.Element {
   const queryClient = useQueryClient();
   const [searchParams] = useSearchParams();
   const [isAdding, setIsAdding] = useState(false);
   const [title, setTitle] = useState("");
   const [slot, setSlot] = useState<"breakfast" | "lunch" | "dinner">("dinner");
-  const [date, setDate] = useState("");
+  const [selectedDates, setSelectedDates] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -35,6 +39,10 @@ export function MealPlanWeek(): JSX.Element {
     queryKey: queryKeys.weekMeals,
     queryFn: () => apiFetch<MealsResponse>("/meals/week")
   });
+  const mealLibraryQuery = useQuery({
+    queryKey: queryKeys.mealLibrary,
+    queryFn: () => apiFetch<MealLibraryResponse>("/meals")
+  });
 
   const todayKey = useMemo(
     () => dateKeyInTimeZone(new Date(), mealsQuery.data?.timezone ?? "UTC"),
@@ -42,15 +50,16 @@ export function MealPlanWeek(): JSX.Element {
   );
   const days = mealsQuery.data?.days ?? [];
   const defaultDate = days[0]?.date ?? todayKey;
-  const activeDate = date || defaultDate;
-  const canSubmit = title.trim().length > 0 && activeDate.length === 10 && !isSubmitting;
+  const activeDates = selectedDates;
+  const canSubmit = title.trim().length > 0 && activeDates.length > 0 && !isSubmitting;
   const addRequested = searchParams.get("add") === "1";
 
   useEffect(() => {
     if (addRequested) {
       setIsAdding(true);
+      setSelectedDates((current) => current.length > 0 ? current : [defaultDate]);
     }
-  }, [addRequested]);
+  }, [addRequested, defaultDate]);
 
   if (mealsQuery.isLoading) {
     return <LoadingState label="Loading meal plan..." />;
@@ -71,31 +80,14 @@ export function MealPlanWeek(): JSX.Element {
               className="rounded-md border border-[#d8cbb8] bg-[#fff7ea] px-3 py-2 text-sm font-semibold text-slate-800 hover:bg-[#fcedd8]"
               onClick={() => {
                 setIsAdding(false);
+                setSelectedDates([]);
                 setSubmitError(null);
               }}
             >
               Cancel
             </button>
           </div>
-          <div className="grid gap-3 md:grid-cols-3">
-            <label className="grid gap-1">
-              <span className="text-sm font-medium text-slate-700">Date</span>
-              <select
-                value={activeDate}
-                onChange={(event) => setDate(event.target.value)}
-                className="min-h-[44px] rounded-md border border-[#d9d8d4] bg-white px-3 text-base text-slate-900"
-              >
-                {days.map((day) => (
-                  <option key={day.date} value={day.date}>
-                    {formatDateKey(day.date, {
-                      weekday: "short",
-                      month: "short",
-                      day: "numeric"
-                    })}
-                  </option>
-                ))}
-              </select>
-            </label>
+          <div className="grid gap-3 md:grid-cols-[minmax(12rem,0.45fr)_minmax(0,1fr)]">
             <label className="grid gap-1">
               <span className="text-sm font-medium text-slate-700">Slot</span>
               <select
@@ -108,16 +100,59 @@ export function MealPlanWeek(): JSX.Element {
                 <option value="dinner">Dinner</option>
               </select>
             </label>
-            <label className="grid gap-1 md:col-span-1">
+            <label className="grid gap-1" htmlFor="meal-name">
               <span className="text-sm font-medium text-slate-700">Meal</span>
               <input
+                id="meal-name"
+                aria-label="Meal"
                 value={title}
                 onChange={(event) => setTitle(event.target.value)}
+                list="saved-meals"
                 className="min-h-[44px] rounded-md border border-[#d9d8d4] bg-white px-3 text-base text-slate-900"
-                placeholder="Meal name"
+                placeholder="Choose or name a meal"
               />
+              <datalist id="saved-meals">
+                {(mealLibraryQuery.data?.meals ?? []).map((meal) => (
+                  <option key={meal.id} value={meal.name} />
+                ))}
+              </datalist>
+              <span className="text-xs text-slate-500">
+                New meals are saved so you can choose them again later.
+              </span>
             </label>
           </div>
+          <fieldset className="grid gap-2">
+            <legend className="text-sm font-medium text-slate-700">Days</legend>
+            <div className="grid grid-cols-4 gap-2 sm:grid-cols-7">
+              {days.map((day) => {
+                const isSelected = activeDates.includes(day.date);
+                const label = formatDateKey(day.date, { weekday: "short", month: "short", day: "numeric" });
+                return (
+                  <button
+                    key={day.date}
+                    type="button"
+                    aria-label={label}
+                    aria-pressed={isSelected}
+                    className={`min-h-[52px] rounded-md border px-2 py-1 text-sm font-semibold ${
+                      isSelected
+                        ? "border-[#0f766e] bg-[#dcefeb] text-[#0f5f59]"
+                        : "border-[#d9d8d4] bg-white text-slate-700 hover:bg-[#fff7ea]"
+                    }`}
+                    onClick={() => {
+                      setSelectedDates((current) => {
+                        return current.includes(day.date)
+                          ? current.filter((date) => date !== day.date)
+                          : [...current, day.date];
+                      });
+                    }}
+                  >
+                    <span className="block">{formatDateKey(day.date, { weekday: "short" })}</span>
+                    <span className="block text-xs font-normal">{formatDateKey(day.date, { month: "short", day: "numeric" })}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </fieldset>
           {submitError ? <p className="text-sm text-rose-700">{submitError}</p> : null}
           <div className="flex justify-end">
             <button
@@ -131,16 +166,19 @@ export function MealPlanWeek(): JSX.Element {
                   await apiFetch("/meals/week/entries", {
                     method: "POST",
                     body: JSON.stringify({
-                      date: activeDate,
+                      dates: activeDates,
                       slot,
-                      title: title.trim()
+                      mealName: title.trim()
                     })
                   });
                   setTitle("");
                   setSlot("dinner");
-                  setDate("");
+                  setSelectedDates([]);
                   setIsAdding(false);
-                  await queryClient.invalidateQueries({ queryKey: queryKeys.weekMeals });
+                  await Promise.all([
+                    queryClient.invalidateQueries({ queryKey: queryKeys.weekMeals }),
+                    queryClient.invalidateQueries({ queryKey: queryKeys.mealLibrary })
+                  ]);
                 } catch (error) {
                   setSubmitError(error instanceof Error ? error.message : "Failed to add meal.");
                 } finally {
@@ -218,6 +256,7 @@ export function MealPlanWeek(): JSX.Element {
         className="fixed bottom-6 right-6 z-30 flex h-14 w-14 items-center justify-center rounded-full bg-[#2b98db] text-white shadow-[0_6px_16px_rgba(30,64,175,0.22)] transition-colors hover:bg-[#2588c3]"
         onClick={() => {
           setSubmitError(null);
+          setSelectedDates([defaultDate]);
           setIsAdding(true);
         }}
       >

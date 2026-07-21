@@ -4,6 +4,7 @@ export const queryKeys = {
   householdSettings: ["household-settings"] as const,
   todayChores: ["today-chores"] as const,
   rewardBalances: ["reward-balances"] as const,
+  mealLibrary: ["meal-library"] as const,
   weekMeals: ["week-meals"] as const,
   lists: ["lists"] as const
 };

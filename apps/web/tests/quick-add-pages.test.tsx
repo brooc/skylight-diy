@@ -127,13 +127,15 @@ describe("quick add page states", () => {
     expect(await screen.findByText("Add meal entry")).toBeInTheDocument();
     await user.selectOptions(screen.getByLabelText("Slot"), "lunch");
     await user.type(screen.getByLabelText("Meal"), "Taco night");
+    const dayButtons = screen.getAllByRole("button", { pressed: false });
+    await user.click(dayButtons[0]!);
     await user.click(screen.getByRole("button", { name: "Add meal" }));
 
     await waitFor(() => expect(screen.queryByText("Add meal entry")).not.toBeInTheDocument());
-    expect(await screen.findByText("Taco night")).toBeInTheDocument();
-    expect(screen.getByText("lunch")).toBeInTheDocument();
+    expect(await screen.findAllByText("Taco night")).toHaveLength(2);
+    expect(screen.getAllByText("lunch")).toHaveLength(2);
 
-    await user.click(screen.getByRole("button", { name: "Remove Taco night" }));
-    await waitFor(() => expect(screen.queryByText("Taco night")).not.toBeInTheDocument());
+    await user.click(screen.getAllByRole("button", { name: "Remove Taco night" })[0]!);
+    await waitFor(() => expect(screen.getAllByText("Taco night")).toHaveLength(1));
   });
 });
