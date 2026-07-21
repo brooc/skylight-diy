@@ -56,7 +56,9 @@ describe("quick add page states", () => {
     renderWithProviders(<ChoresPage />, { route: "/chores" });
     const user = userEvent.setup();
 
-    await user.click(await screen.findByRole("button", { name: "Manage tasks" }));
+    const manageButton = await screen.findByRole("button", { name: "Manage tasks" });
+    expect(manageButton).toHaveClass("rounded-full", "bg-[#fff7ea]");
+    await user.click(manageButton);
     await user.click(screen.getByRole("button", { name: "Edit" }));
     const title = screen.getByLabelText("Title");
     await user.clear(title);

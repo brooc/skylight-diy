@@ -6,6 +6,7 @@ import { queryKeys } from "../../api/queryKeys";
 import { EmptyState } from "../../components/EmptyState";
 import { ErrorState } from "../../components/ErrorState";
 import { LoadingState } from "../../components/LoadingState";
+import { toolbarPillButtonClass } from "../../components/toolbarButtonStyles";
 import { ChoreList } from "./ChoreList";
 import { RewardBalance } from "./RewardBalance";
 
@@ -152,7 +153,7 @@ export function ChoresPage(): JSX.Element {
     <div className="grid gap-4 pb-20">
       <header className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-[#e0d6c7] bg-white p-4">
         <div><h1 className="font-display text-2xl text-slate-900">Tasks</h1><p className="text-sm text-slate-600">Complete today’s jobs and earn family points.</p></div>
-        <button type="button" className="min-h-[44px] rounded-md border border-[#d8cbb8] bg-[#fff7ea] px-4 text-sm font-semibold text-slate-800" onClick={() => setIsManaging((value) => !value)}>{isManaging ? "Done managing" : "Manage tasks"}</button>
+        <button type="button" className={toolbarPillButtonClass} onClick={() => setIsManaging((value) => !value)}>{isManaging ? "Done managing" : "Manage tasks"}</button>
       </header>
       {status ? <div role="status" className="rounded-md bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800">{status}</div> : null}
       {submitError ? <div role="alert" className="rounded-md bg-rose-50 px-4 py-3 text-sm text-rose-800">{submitError}</div> : null}
