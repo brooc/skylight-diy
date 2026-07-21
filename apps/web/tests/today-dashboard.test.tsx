@@ -22,6 +22,7 @@ import { encryptToken } from "../../api/src/modules/integrations/token-crypto";
 import {
   dateFromDateKeyInTimeZone,
   dateKeyInTimeZone,
+  shiftDateKey,
 } from "../src/features/calendar/dateKeys";
 import {
   CALENDAR_AUTO_REFRESH_MS,
@@ -328,6 +329,12 @@ describe("TodayDashboard", () => {
                 start: { dateTime: halfHourStart.toISOString() },
                 end: { dateTime: halfHourEnd.toISOString() },
               },
+              {
+                id: "long-all-day",
+                summary: "A long all-day title that must stay inside one day",
+                start: { date: todayKey },
+                end: { date: shiftDateKey(todayKey, 1) },
+              },
             ],
           }),
           { status: 200, headers: { "Content-Type": "application/json" } },
@@ -356,6 +363,11 @@ describe("TodayDashboard", () => {
     expect(halfHourCard).toHaveAttribute("data-event-density", "compact");
     expect(halfHourCard).toHaveStyle({ top: "48px", height: "42px" });
     expect(within(halfHourCard!).getByText(/12:30–1:00/)).toBeInTheDocument();
+    expect(
+      (await screen.findByText(
+        "A long all-day title that must stay inside one day",
+      )).closest("button"),
+    ).toHaveClass("w-full", "min-w-0", "max-w-full", "truncate");
     expect(
       document.querySelectorAll('[data-half-hour-line="true"]').length,
     ).toBeGreaterThan(0);

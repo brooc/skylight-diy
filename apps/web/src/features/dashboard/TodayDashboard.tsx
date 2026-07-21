@@ -860,7 +860,7 @@ export function TodayDashboard(): JSX.Element {
                     <button
                       type="button"
                       aria-label={`${event.title}, All day, ${event.sourceName}`}
-                      className="truncate rounded-full px-1.5 py-1 text-[11px] font-semibold text-slate-700 md:px-2 md:text-[12px] xl:px-3 xl:text-[14px]"
+                      className="block w-full min-w-0 max-w-full truncate rounded-full px-1.5 py-1 text-[11px] font-semibold text-slate-700 md:px-2 md:text-[12px] xl:px-3 xl:text-[14px]"
                       onClick={() => {
                         setDeleteChoiceOpen(false);
                         setEventDeleteError(null);
