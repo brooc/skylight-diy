@@ -260,6 +260,10 @@ describe("calendar components", () => {
     expect(await screen.findByText("History Test")).toBeInTheDocument();
     expect(screen.getByText("Google is taking a nap.")).toBeInTheDocument();
     expect(screen.getByText("Showing saved data")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Refresh" })).toHaveClass(
+      "rounded-full",
+      "bg-[#fff7ea]",
+    );
     expect(intervalSpy).toHaveBeenCalledWith(
       expect.any(Function),
       DASHBOARD_AUTO_REFRESH_MS,

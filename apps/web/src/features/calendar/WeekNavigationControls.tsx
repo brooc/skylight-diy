@@ -1,5 +1,4 @@
 import {
-  toolbarActionButtonClass,
   toolbarIconButtonClass,
   toolbarPillButtonClass,
 } from "../../components/toolbarButtonStyles";
@@ -45,7 +44,7 @@ export function WeekNavigationControls({
       <button
         type="button"
         disabled={isRefreshing}
-        className={toolbarActionButtonClass}
+        className={toolbarPillButtonClass}
         onClick={onRefresh}
       >
         {isRefreshing ? "Refreshing…" : "Refresh"}
