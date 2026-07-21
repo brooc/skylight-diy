@@ -227,7 +227,12 @@ export function CalendarEventCreateDialog({
                 : {
                     frequency: repeat,
                     ends: repeatEnds,
-                    days: repeat === "weekly" ? weeklyDays : undefined,
+                    days:
+                      repeat === "weekly"
+                        ? weekdays
+                            .filter((weekday) => weeklyDays.includes(weekday.code))
+                            .map((weekday) => weekday.code)
+                        : undefined,
                     until: repeatEnds === "on_date" ? repeatUntil : undefined,
                     count: repeatEnds === "after" ? repeatCount : undefined,
                   },

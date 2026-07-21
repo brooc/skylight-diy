@@ -54,7 +54,7 @@ describe("chores and rewards", () => {
 
     const choresAfter = await app.inject({
       method: "GET",
-      url: "/api/chores/today"
+      url: "/api/chores/today?date=2026-07-20"
     });
     expect(choresAfter.json().chores[0].completed).toBe(true);
 
