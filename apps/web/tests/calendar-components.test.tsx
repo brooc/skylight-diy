@@ -1,5 +1,5 @@
 import { QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { CalendarDayView } from "../src/features/calendar/CalendarDayView";
@@ -136,6 +136,18 @@ describe("calendar components", () => {
   it("lets a recurring series be extended from the selected occurrence", async () => {
     let requestBody: Record<string, unknown> | undefined;
     vi.spyOn(globalThis, "fetch").mockImplementation(async (_input, init) => {
+      if (!init?.method) {
+        return mockJsonResponse({
+          editable: true,
+          frequency: "weekly",
+          days: ["MO", "TU", "WE"],
+          ends: "after",
+          count: 5,
+          start: "2026-08-03T16:00:00.000Z",
+          end: "2026-08-03T17:00:00.000Z",
+          allDay: false,
+        });
+      }
       requestBody = JSON.parse(String(init?.body));
       return mockJsonResponse({ updated: true });
     });
@@ -209,7 +221,19 @@ describe("calendar components", () => {
     expect(screen.getByLabelText("Kiddo")).toBeChecked();
     expect(screen.getByLabelText("Other")).toBeDisabled();
     await user.click(screen.getByLabelText("Kiddo"));
+    await waitFor(() =>
+      expect(
+        screen.getByLabelText("This and following occurrences"),
+      ).toBeEnabled(),
+    );
     await user.click(screen.getByLabelText("This and following occurrences"));
+    fireEvent.change(screen.getByLabelText("Effective date"), {
+      target: { value: "2026-08-04" },
+    });
+    expect(screen.getByLabelText("Monday")).not.toBeChecked();
+    expect(screen.getByLabelText("Tuesday")).toBeChecked();
+    expect(screen.getByLabelText("Wednesday")).toBeChecked();
+    expect(screen.getByLabelText("Thursday")).toBeChecked();
     await user.selectOptions(screen.getByLabelText("Series ending"), "on_date");
     await user.clear(screen.getByLabelText("Last date"));
     await user.type(screen.getByLabelText("Last date"), "2026-09-30");
@@ -218,8 +242,89 @@ describe("calendar components", () => {
     await waitFor(() => expect(onUpdated).toHaveBeenCalled());
     expect(requestBody).toMatchObject({
       scope: "following",
+      recurrencePattern: {
+        frequency: "weekly",
+        days: ["TU", "WE", "TH"],
+      },
       recurrenceEnd: { mode: "on_date", until: "2026-09-30" },
       attendees: ["outside@example.com"],
+    });
+  });
+
+  it("preserves a multi-day duration when a weekly series moves", async () => {
+    let requestBody: Record<string, unknown> | undefined;
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (_input, init) => {
+      if (!init?.method) {
+        return mockJsonResponse({
+          editable: true,
+          frequency: "weekly",
+          days: ["MO"],
+          ends: "never",
+          start: "2026-08-03",
+          end: "2026-08-06",
+          allDay: true,
+        });
+      }
+      requestBody = JSON.parse(String(init.body));
+      return mockJsonResponse({ updated: true });
+    });
+    const onUpdated = vi.fn();
+    render(
+      <CalendarEventEditDialog
+        event={{
+          title: "Three-day camp",
+          start: "2026-08-03",
+          end: "2026-08-06",
+          isAllDay: true,
+          isRecurring: true,
+          providerRefs: [],
+        }}
+        targets={[
+          {
+            sourceId: "846288ca-1398-49be-9a95-0d5cb56a4779",
+            providerEventId: "instance-id",
+            recurringEventId: "series-id",
+          },
+        ]}
+        accounts={[]}
+        sources={[
+          {
+            id: "846288ca-1398-49be-9a95-0d5cb56a4779",
+            connectedAccountId: "account-1",
+            externalCalendarId: "family@example.com",
+            displayName: "Family",
+            enabled: true,
+            allowEventWrites: true,
+          },
+        ]}
+        members={[]}
+        timezone="America/Los_Angeles"
+        onClose={vi.fn()}
+        onUpdated={onUpdated}
+      />,
+    );
+
+    const user = userEvent.setup();
+    await waitFor(() =>
+      expect(
+        screen.getByLabelText("This and following occurrences"),
+      ).toBeEnabled(),
+    );
+    await user.click(screen.getByLabelText("This and following occurrences"));
+    expect(screen.getByLabelText("End date")).toHaveValue("2026-08-05");
+    fireEvent.change(screen.getByLabelText("Effective date"), {
+      target: { value: "2026-08-04" },
+    });
+    expect(screen.getByLabelText("End date")).toHaveValue("2026-08-06");
+    await user.click(screen.getByRole("button", { name: "Save changes" }));
+
+    await waitFor(() => expect(onUpdated).toHaveBeenCalled());
+    expect(requestBody).toMatchObject({
+      scope: "following",
+      allDay: true,
+      start: "2026-08-04",
+      end: "2026-08-07",
+      recurrencePattern: { frequency: "weekly", days: ["TU"] },
     });
   });
 

@@ -1829,6 +1829,22 @@ describe("calendar and google integration routes", () => {
       timezone: "America/Los_Angeles",
     };
 
+    const schedule = await app.inject({
+      method: "GET",
+      url: `/api/calendar/events/recurrence?sourceId=${source.id}&recurringEventId=series-id&timezone=America%2FLos_Angeles`,
+    });
+    expect(schedule.statusCode).toBe(200);
+    expect(schedule.json()).toMatchObject({
+      editable: true,
+      frequency: "weekly",
+      days: ["MO"],
+      ends: "after",
+      count: 5,
+      start: "2026-07-20T09:00:00-07:00",
+      end: "2026-07-20T10:00:00-07:00",
+    });
+    fetchSpy.mockClear();
+
     const occurrence = await app.inject({ method: "PATCH", url: "/api/calendar/events", payload: { ...basePayload, scope: "event" } });
     expect(occurrence.statusCode).toBe(200);
     expect(JSON.parse(String(fetchSpy.mock.calls[0]?.[1]?.body))).toMatchObject({
@@ -1837,15 +1853,51 @@ describe("calendar and google integration routes", () => {
       attendees: [{ email: "kid@example.com" }],
     });
 
-    const following = await app.inject({ method: "PATCH", url: "/api/calendar/events", payload: { ...basePayload, scope: "following" } });
+    const following = await app.inject({
+      method: "PATCH",
+      url: "/api/calendar/events",
+      payload: {
+        ...basePayload,
+        scope: "following",
+        recurrencePattern: {
+          frequency: "weekly",
+          days: ["TU", "WE", "TH"],
+        },
+      },
+    });
     expect(following.statusCode).toBe(200);
     const requestBodies = fetchSpy.mock.calls.map((call) => call[1]?.body ? JSON.parse(String(call[1]?.body)) : null);
     expect(requestBodies).toContainEqual({ recurrence: ["RRULE:FREQ=WEEKLY;BYDAY=MO;COUNT=2"] });
     expect(requestBodies).toContainEqual(expect.objectContaining({
       summary: "Evening Gym",
-      recurrence: ["RRULE:FREQ=WEEKLY;BYDAY=MO;COUNT=3"],
+      recurrence: ["RRULE:FREQ=WEEKLY;BYDAY=TU,WE,TH;COUNT=3"],
     }));
 
+    fetchSpy.mockClear();
+    const wholeSeries = await app.inject({
+      method: "PATCH",
+      url: "/api/calendar/events",
+      payload: {
+        ...basePayload,
+        scope: "series",
+        allDay: true,
+        start: "2026-08-04",
+        end: "2026-08-07",
+        recurrencePattern: { frequency: "weekly", days: ["TU"] },
+        recurrenceEnd: { mode: "after", count: 8 },
+      },
+    });
+    expect(wholeSeries.statusCode).toBe(200);
+    const seriesPatch = fetchSpy.mock.calls.find(
+      (call) => call[1]?.method === "PATCH",
+    );
+    expect(JSON.parse(String(seriesPatch?.[1]?.body))).toMatchObject({
+      start: { date: "2026-08-04" },
+      end: { date: "2026-08-07" },
+      recurrence: ["RRULE:FREQ=WEEKLY;BYDAY=TU;COUNT=8"],
+    });
+
+    fetchSpy.mockClear();
     const extended = await app.inject({
       method: "PATCH",
       url: "/api/calendar/events",

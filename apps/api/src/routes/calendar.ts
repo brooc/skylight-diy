@@ -238,7 +238,7 @@ const deleteCalendarEventsBodySchema = z.object({
 const editCalendarEventsBodySchema = z
   .object({
     targets: deleteCalendarEventsBodySchema.shape.targets,
-    scope: z.enum(["event", "following"]).default("event"),
+    scope: z.enum(["event", "following", "series"]).default("event"),
     title: z.string().trim().min(1).max(200),
     location: z.string().trim().max(500).nullable().optional(),
     attendees: z.array(z.string().email()).max(50).optional(),
@@ -246,27 +246,41 @@ const editCalendarEventsBodySchema = z
     start: z.string().min(1),
     end: z.string().min(1),
     originalStart: z.string().min(1),
+    recurrencePattern: z
+      .object({
+        frequency: z.enum(["daily", "weekly", "monthly"]),
+        days: z.array(z.enum(["MO", "TU", "WE", "TH", "FR", "SA", "SU"])).min(1).max(7).optional()
+      })
+      .optional(),
     recurrenceEnd: z
       .object({
-        mode: z.enum(["keep", "on_date", "never"]),
-        until: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional()
+        mode: z.enum(["keep", "on_date", "after", "never"]),
+        until: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+        count: z.number().int().min(1).max(365).optional()
       })
       .optional(),
     timezone: z.string().min(1)
   })
   .superRefine((event, context) => {
-    if (event.scope === "following" && !event.targets.every((target) => target.recurringEventId)) {
+    if ((event.scope === "following" || event.scope === "series") && !event.targets.every((target) => target.recurringEventId)) {
       context.addIssue({
         code: z.ZodIssueCode.custom,
         message: "Following-event edits require a recurring series.",
         path: ["scope"]
       });
     }
-    if (event.recurrenceEnd?.mode !== undefined && event.scope !== "following") {
+    if (event.recurrenceEnd?.mode !== undefined && event.scope === "event") {
       context.addIssue({
         code: z.ZodIssueCode.custom,
         message: "Series ending changes require a following-events edit.",
         path: ["recurrenceEnd"]
+      });
+    }
+    if (event.recurrencePattern?.frequency === "weekly" && !event.recurrencePattern.days?.length) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Weekly recurring events require at least one weekday.",
+        path: ["recurrencePattern", "days"]
       });
     }
     if (event.recurrenceEnd?.mode === "on_date") {
@@ -277,10 +291,10 @@ const editCalendarEventsBodySchema = z
           path: ["recurrenceEnd", "until"]
         });
       } else {
-        let selectedDate = event.originalStart.slice(0, 10);
-        if (!/^\d{4}-\d{2}-\d{2}$/.test(event.originalStart)) {
+        let selectedDate = event.start.slice(0, 10);
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(event.start)) {
           try {
-            selectedDate = eventDateKey(event.originalStart, event.timezone);
+            selectedDate = eventDateKey(event.start, event.timezone);
           } catch {
             // Other schema checks report malformed dates or timezones.
           }
@@ -293,6 +307,13 @@ const editCalendarEventsBodySchema = z
           });
         }
       }
+    }
+    if (event.recurrenceEnd?.mode === "after" && !event.recurrenceEnd.count) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Choose how many occurrences should remain.",
+        path: ["recurrenceEnd", "count"]
+      });
     }
     if (event.allDay) {
       if (event.end <= event.start) {
@@ -378,19 +399,80 @@ function replaceRulePart(rule: string, name: "COUNT" | "UNTIL", value: string): 
 
 function changeRuleEnd(
   rule: string,
-  recurrenceEnd: { mode: "keep" | "on_date" | "never"; until?: string } | undefined,
+  recurrenceEnd: { mode: "keep" | "on_date" | "after" | "never"; until?: string; count?: number } | undefined,
   timezone: string,
   allDay: boolean
 ): string {
   if (!recurrenceEnd || recurrenceEnd.mode === "keep") return rule;
   const withoutEnd = rule.replace(/;(COUNT|UNTIL)=[^;]+/g, "");
   if (recurrenceEnd.mode === "never") return withoutEnd;
+  if (recurrenceEnd.mode === "after") return `${withoutEnd};COUNT=${recurrenceEnd.count}`;
   if (allDay) return `${withoutEnd};UNTIL=${recurrenceEnd.until!.replaceAll("-", "")}`;
   const until = dateFromDateKeyInTimeZone(recurrenceEnd.until!, timezone, 23, 59, 59)
     .toISOString()
     .replace(/[-:]/g, "")
     .replace(/\.000Z$/, "Z");
   return `${withoutEnd};UNTIL=${until}`;
+}
+
+function changeRecurrencePattern(
+  rule: string,
+  pattern: { frequency: "daily" | "weekly" | "monthly"; days?: RecurrenceWeekday[] } | undefined
+): string {
+  if (!pattern) return rule;
+  const end = rule.match(/;(COUNT|UNTIL)=[^;]+/)?.[0] ?? "";
+  const days = pattern.frequency === "weekly" && pattern.days?.length
+    ? `;BYDAY=${pattern.days.join(",")}`
+    : "";
+  return `RRULE:FREQ=${pattern.frequency.toUpperCase()}${days}${end}`;
+}
+
+function parseGoogleRecurrence(rule: string, timezone: string): {
+  frequency: "daily" | "weekly" | "monthly";
+  days: RecurrenceWeekday[];
+  ends: "never" | "on_date" | "after";
+  until?: string;
+  count?: number;
+} | null {
+  const frequency = rule.match(/(?:^|[:;])FREQ=(DAILY|WEEKLY|MONTHLY)(?:;|$)/)?.[1]?.toLowerCase();
+  if (frequency !== "daily" && frequency !== "weekly" && frequency !== "monthly") return null;
+  const days = (rule.match(/(?:^|;)BYDAY=([^;]+)/)?.[1]?.split(",") ?? [])
+    .filter((day): day is RecurrenceWeekday => day in recurrenceWeekdayIndex);
+  const count = Number(rule.match(/(?:^|;)COUNT=(\d+)(?:;|$)/)?.[1]);
+  const untilValue = rule.match(/(?:^|;)UNTIL=([^;]+)(?:;|$)/)?.[1];
+  let until: string | undefined;
+  if (untilValue) {
+    if (/^\d{8}$/.test(untilValue)) {
+      until = `${untilValue.slice(0, 4)}-${untilValue.slice(4, 6)}-${untilValue.slice(6, 8)}`;
+    } else {
+      const parsed = new Date(
+        untilValue.replace(
+          /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z$/,
+          "$1-$2-$3T$4:$5:$6Z"
+        )
+      );
+      if (!Number.isNaN(parsed.getTime())) until = eventDateKey(parsed.toISOString(), timezone);
+    }
+  }
+  return {
+    frequency,
+    days,
+    ends: Number.isFinite(count) && count > 0 ? "after" : until ? "on_date" : "never",
+    ...(until ? { until } : {}),
+    ...(Number.isFinite(count) && count > 0 ? { count } : {})
+  };
+}
+
+function isEditableRecurrenceRule(rule: string): boolean {
+  const hasUnsupportedPart = rule
+    .split(";")
+    .slice(1)
+    .some((part) => !/^(FREQ|BYDAY|COUNT|UNTIL)=/.test(part));
+  const byDay = rule.match(/(?:^|;)BYDAY=([^;]+)/)?.[1];
+  const hasUnsupportedDay = byDay
+    ? byDay.split(",").some((day) => !(day in recurrenceWeekdayIndex))
+    : false;
+  return !hasUnsupportedPart && !hasUnsupportedDay;
 }
 
 function utcUntilBefore(value: string): string {
@@ -1312,6 +1394,76 @@ export const calendarRoutes: FastifyPluginAsync = async (app) => {
     });
   });
 
+  app.get("/calendar/events/recurrence", async (request, reply) => {
+    const query = z.object({
+      sourceId: z.string().uuid(),
+      recurringEventId: z.string().min(1).max(1024),
+      timezone: z.string().min(1)
+    }).safeParse(request.query);
+    if (!query.success) return reply.status(400).send({ error: "invalid_recurrence_query" });
+    const [household] = await app.db.select().from(households).limit(1);
+    if (!household) return reply.status(404).send({ error: "setup_not_completed" });
+    const [destination] = await app.db
+      .select({
+        externalCalendarId: calendarSources.externalCalendarId,
+        accountId: connectedAccounts.id,
+        encryptedAccessToken: connectedAccounts.encryptedAccessToken,
+        encryptedRefreshToken: connectedAccounts.encryptedRefreshToken,
+        accessTokenExpiresAt: connectedAccounts.accessTokenExpiresAt,
+        scopes: connectedAccounts.scopes
+      })
+      .from(calendarSources)
+      .innerJoin(connectedAccounts, eq(calendarSources.connectedAccountId, connectedAccounts.id))
+      .where(and(
+        eq(calendarSources.id, query.data.sourceId),
+        eq(calendarSources.householdId, household.id),
+        eq(connectedAccounts.provider, "google")
+      ))
+      .limit(1);
+    if (!destination) return reply.status(404).send({ error: "calendar_source_not_found" });
+    const token = await requireGoogleAccessToken(app, {
+      id: destination.accountId,
+      encryptedAccessToken: destination.encryptedAccessToken,
+      encryptedRefreshToken: destination.encryptedRefreshToken,
+      accessTokenExpiresAt: destination.accessTokenExpiresAt,
+      scopes: destination.scopes
+    });
+    if (!token.ok) {
+      return reply.status(token.reauthorizationRequired ? 409 : 502).send({
+        error: token.error,
+        message: token.message
+      });
+    }
+    const url = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(destination.externalCalendarId)}/events/${encodeURIComponent(query.data.recurringEventId)}`;
+    const response = await fetch(url, { headers: { Authorization: `Bearer ${token.accessToken}` } });
+    if (!response.ok) {
+      return reply.status(502).send({
+        error: "google_recurring_event_load_failed",
+        message: "The recurring schedule could not be loaded."
+      });
+    }
+    const master = (await response.json()) as GoogleEventItem;
+    const rule = master.recurrence?.find((entry) => entry.startsWith("RRULE:"));
+    const parsedRule = rule ? parseGoogleRecurrence(rule, query.data.timezone) : null;
+    if (!rule || !parsedRule) {
+      return reply.status(409).send({
+        error: "unsupported_recurrence_rule",
+        message: "This recurring schedule cannot be edited in Daymark yet."
+      });
+    }
+    const unsupportedParts = !isEditableRecurrenceRule(rule);
+    return {
+      editable: !unsupportedParts,
+      ...parsedRule,
+      start: master.start?.dateTime ?? master.start?.date,
+      end: master.end?.dateTime ?? master.end?.date,
+      allDay: Boolean(master.start?.date && !master.start?.dateTime),
+      ...(unsupportedParts
+        ? { message: "This series uses advanced Google recurrence options that Daymark will preserve but not edit." }
+        : {})
+    };
+  });
+
   app.patch("/calendar/events", async (request, reply) => {
     const parsed = editCalendarEventsBodySchema.safeParse(request.body);
     if (!parsed.success) {
@@ -1322,7 +1474,7 @@ export const calendarRoutes: FastifyPluginAsync = async (app) => {
 
     const seenProviderEvents = new Set<string>();
     const mutationTargets = parsed.data.targets.filter((target) => {
-      const providerIdentity = parsed.data.scope === "following"
+      const providerIdentity = parsed.data.scope !== "event"
         ? target.recurringEventId ?? target.providerEventId
         : target.providerEventId;
       if (seenProviderEvents.has(providerIdentity)) return false;
@@ -1419,7 +1571,31 @@ export const calendarRoutes: FastifyPluginAsync = async (app) => {
         return reply.status(409).send({ error: "google_recurrence_rule_missing", message: "This recurring series cannot be split safely." });
       }
       const originalRule = recurrence[ruleIndex]!;
+      if (parsed.data.recurrencePattern && !isEditableRecurrenceRule(originalRule)) {
+        return reply.status(409).send({
+          error: "unsupported_recurrence_rule",
+          message: "This series uses advanced Google recurrence options that Daymark cannot safely change."
+        });
+      }
       const countMatch = originalRule.match(/;COUNT=(\d+)/);
+      if (parsed.data.scope === "series") {
+        const updatedRule = changeRuleEnd(
+          changeRecurrencePattern(originalRule, parsed.data.recurrencePattern),
+          parsed.data.recurrenceEnd,
+          parsed.data.timezone,
+          parsed.data.allDay
+        );
+        const updatedRecurrence = [...recurrence];
+        updatedRecurrence[ruleIndex] = updatedRule;
+        const response = await fetch(`${eventUrl(masterId)}?sendUpdates=all`, {
+          method: "PATCH",
+          headers,
+          body: JSON.stringify({ ...eventFields, recurrence: updatedRecurrence })
+        });
+        if (!response.ok) return reply.status(502).send({ error: "google_event_update_failed" });
+        updated.push({ sourceId: target.sourceId, providerEventId: masterId });
+        continue;
+      }
       const instancesUrl = new URL(`${eventUrl(masterId)}/instances`);
       instancesUrl.searchParams.set(
         "timeMax",
@@ -1437,7 +1613,7 @@ export const calendarRoutes: FastifyPluginAsync = async (app) => {
 
       if (previousCount === 0) {
         const updatedRule = changeRuleEnd(
-          originalRule,
+          changeRecurrencePattern(originalRule, parsed.data.recurrencePattern),
           parsed.data.recurrenceEnd,
           parsed.data.timezone,
           parsed.data.allDay
@@ -1464,7 +1640,7 @@ export const calendarRoutes: FastifyPluginAsync = async (app) => {
         ? replaceRulePart(originalRule, "COUNT", String(Math.max(1, Number(countMatch[1]) - previousCount)))
         : originalRule;
       const newRule = changeRuleEnd(
-        remainingRule,
+        changeRecurrencePattern(remainingRule, parsed.data.recurrencePattern),
         parsed.data.recurrenceEnd,
         parsed.data.timezone,
         parsed.data.allDay
