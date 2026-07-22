@@ -120,6 +120,34 @@ describe("quick add page states", () => {
     expect(await screen.findByText("Packing List")).toBeInTheDocument();
   });
 
+  it("filters visible lists and can reset the filter", async () => {
+    await app.inject({
+      method: "POST",
+      url: "/api/lists",
+      payload: { title: "Grocery List" }
+    });
+    await app.inject({
+      method: "POST",
+      url: "/api/lists",
+      payload: { title: "Packing List" }
+    });
+
+    renderWithProviders(<ImportPlaceholder />, { route: "/import" });
+    const user = userEvent.setup();
+
+    expect(await screen.findByRole("heading", { name: "Grocery List" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Packing List" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Filter" }));
+    await user.click(screen.getByRole("checkbox", { name: "Grocery List" }));
+
+    expect(screen.queryByRole("heading", { name: "Grocery List" })).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Packing List" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Filter •" })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Reset" }));
+    expect(screen.getByRole("heading", { name: "Grocery List" })).toBeInTheDocument();
+  });
+
   it("opens meals add form from the route and creates a meal through the API", async () => {
     renderWithProviders(<MealPlanWeek />, { route: "/meals?add=1" });
     const user = userEvent.setup();

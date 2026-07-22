@@ -40,6 +40,9 @@ export function ImportPlaceholder(): JSX.Element {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const [hiddenListIds, setHiddenListIds] = useState<string[]>([]);
+  const [hideCompleted, setHideCompleted] = useState(false);
   const listsQuery = useQuery({
     queryKey: queryKeys.lists,
     queryFn: () => apiFetch<ListsResponse>("/lists")
@@ -51,6 +54,8 @@ export function ImportPlaceholder(): JSX.Element {
   const canSubmit =
     title.trim().length > 0 && (mode === "list" || activeListId.length > 0) && !isSubmitting;
   const addRequested = searchParams.get("add") === "1";
+  const visibleLists = lists.filter((list) => !hiddenListIds.includes(list.id));
+  const filterIsActive = hiddenListIds.length > 0 || hideCompleted;
 
   useEffect(() => {
     if (addRequested) {
@@ -192,12 +197,62 @@ export function ImportPlaceholder(): JSX.Element {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              className={toolbarFilterButtonClass(false)}
-            >
-              Filter
-            </button>
+            <div className="relative">
+              <button
+                type="button"
+                aria-expanded={isFilterOpen}
+                className={toolbarFilterButtonClass(filterIsActive)}
+                onClick={() => setIsFilterOpen((current) => !current)}
+              >
+                Filter{filterIsActive ? " •" : ""}
+              </button>
+              {isFilterOpen ? (
+                <div className="absolute right-0 top-12 z-40 grid min-w-[240px] gap-2 rounded-xl border border-[#d9d8d4] bg-white p-3 shadow-xl">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="text-sm font-semibold text-slate-900">Show lists</div>
+                    <button
+                      type="button"
+                      className="text-xs font-semibold text-teal-700"
+                      onClick={() => {
+                        setHiddenListIds([]);
+                        setHideCompleted(false);
+                      }}
+                    >
+                      Reset
+                    </button>
+                  </div>
+                  {lists.map((list) => (
+                    <label
+                      key={list.id}
+                      className="flex min-h-[40px] items-center gap-2 rounded-lg px-2 hover:bg-slate-50"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={!hiddenListIds.includes(list.id)}
+                        onChange={() =>
+                          setHiddenListIds((current) =>
+                            current.includes(list.id)
+                              ? current.filter((id) => id !== list.id)
+                              : [...current, list.id]
+                          )
+                        }
+                      />
+                      <span className="text-sm text-slate-700">{list.title}</span>
+                    </label>
+                  ))}
+                  <div className="border-t border-slate-200 pt-2">
+                    <label className="flex min-h-[40px] items-center gap-2 rounded-lg px-2 hover:bg-slate-50">
+                      <input
+                        type="checkbox"
+                        checked={hideCompleted}
+                        onChange={(event) => setHideCompleted(event.target.checked)}
+                      />
+                      <span className="text-sm text-slate-700">Hide completed items</span>
+                    </label>
+                  </div>
+                </div>
+              ) : null}
+            </div>
             <button
               type="button"
               className={toolbarIconButtonClass}
@@ -224,9 +279,20 @@ export function ImportPlaceholder(): JSX.Element {
             <div className="rounded-md border border-[#e7e7e5] bg-[#fbfbfa] px-4 py-8 text-center text-slate-600">
               No lists yet. Use + to create your first list.
             </div>
+          ) : visibleLists.length === 0 ? (
+            <div className="rounded-md border border-[#e7e7e5] bg-[#fbfbfa] px-4 py-8 text-center text-slate-600">
+              <p>No lists match the current filter.</p>
+              <button
+                type="button"
+                className="mt-3 rounded-full border border-[#d8cbb8] bg-[#fff7ea] px-4 py-2 text-sm font-semibold text-slate-800"
+                onClick={() => setHiddenListIds([])}
+              >
+                Show all lists
+              </button>
+            </div>
           ) : (
             <div className="grid min-w-[1200px] grid-cols-4 gap-3">
-              {lists.map((list, index) => (
+              {visibleLists.map((list, index) => (
                 <article
                   key={list.id}
                   className="rounded-[22px] border border-[#ecebe8] p-3"
@@ -241,7 +307,9 @@ export function ImportPlaceholder(): JSX.Element {
                     </div>
                   </div>
                   <div className="grid gap-2">
-                    {list.items.map((item) => (
+                    {list.items
+                      .filter((item) => !hideCompleted || !item.completed)
+                      .map((item) => (
                       <div key={item.id} className="flex min-h-[50px] items-center gap-1 rounded-xl bg-white/65 px-2 text-lg text-slate-800">
                         <button
                           type="button"
