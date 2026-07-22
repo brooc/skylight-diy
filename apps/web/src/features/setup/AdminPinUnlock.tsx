@@ -1,10 +1,12 @@
 import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { apiFetch } from "../../api/client";
 import { ErrorState } from "../../components/ErrorState";
 
 export function AdminPinUnlock(): JSX.Element {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [searchParams] = useSearchParams();
   const [pin, setPin] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -26,6 +28,13 @@ export function AdminPinUnlock(): JSX.Element {
               method: "POST",
               body: JSON.stringify({ pin })
             });
+            const session = await apiFetch<{ unlocked: boolean }>("/session/current");
+            if (!session.unlocked) {
+              throw new Error(
+                "The PIN was accepted, but this browser did not save the local unlock session."
+              );
+            }
+            queryClient.setQueryData(["session-current"], { unlocked: true });
             const returnTo = searchParams.get("returnTo");
             navigate(returnTo?.startsWith("/") && !returnTo.startsWith("//") ? returnTo : "/settings");
           } catch (err) {

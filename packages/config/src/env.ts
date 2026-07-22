@@ -7,6 +7,10 @@ const baseEnvSchema = z.object({
   DATABASE_URL: z.string().min(1),
   SESSION_COOKIE_NAME: z.string().min(1),
   SESSION_SECRET: z.string().min(1),
+  SESSION_COOKIE_SECURE: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((value) => value === "true"),
   TOKEN_ENCRYPTION_KEY: z.string().min(1),
   GOOGLE_CLIENT_ID: z.string().optional(),
   GOOGLE_CLIENT_SECRET: z.string().optional(),

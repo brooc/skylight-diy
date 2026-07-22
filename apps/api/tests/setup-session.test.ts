@@ -60,6 +60,10 @@ describe("setup and session routes", () => {
     });
     expect(unlocked.statusCode).toBe(200);
     expect(unlocked.json()).toEqual({ unlocked: true });
+    const setCookieHeaders = Array.isArray(unlocked.headers["set-cookie"])
+      ? unlocked.headers["set-cookie"]
+      : [unlocked.headers["set-cookie"]];
+    expect(setCookieHeaders.join("; ")).not.toContain("Secure");
     const cookieHeader = buildCookieHeader(unlocked);
     expect(cookieHeader).toContain("daymark_admin_unlock=");
 

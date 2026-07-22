@@ -45,7 +45,7 @@ function clearCookieAllPaths(reply: FastifyReply, name: string): void {
   const baseOptions = {
     sameSite: "lax" as const,
     httpOnly: true,
-    secure: env.NODE_ENV === "production"
+    secure: env.SESSION_COOKIE_SECURE
   };
 
   reply.clearCookie(name, { ...baseOptions, path: "/" });
@@ -79,7 +79,7 @@ export const sessionPlugin = fp(async (app) => {
       path: "/",
       sameSite: "lax",
       httpOnly: true,
-      secure: env.NODE_ENV === "production"
+      secure: env.SESSION_COOKIE_SECURE
     }
   });
 
@@ -117,7 +117,7 @@ export function setAdminUnlockedCookie(reply: FastifyReply): void {
     path: "/",
     sameSite: "lax",
     httpOnly: true,
-    secure: env.NODE_ENV === "production",
+    secure: env.SESSION_COOKIE_SECURE,
     maxAge: ADMIN_SESSION_TTL_SECONDS
   });
 }

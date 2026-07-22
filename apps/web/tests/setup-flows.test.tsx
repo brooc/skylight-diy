@@ -63,7 +63,7 @@ describe("setup and unlock flows", () => {
   it("unlocks settings with the local admin PIN", async () => {
     const fetchSpy = vi
       .spyOn(globalThis, "fetch")
-      .mockResolvedValue(mockJsonResponse({ unlocked: true }));
+      .mockImplementation(async () => mockJsonResponse({ unlocked: true }));
     renderSetupRoutes("/settings/unlock", <AdminPinUnlock />);
     const user = userEvent.setup();
 
@@ -78,6 +78,24 @@ describe("setup and unlock flows", () => {
         body: JSON.stringify({ pin: "2468" })
       })
     );
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "/api/session/current",
+      expect.objectContaining({ credentials: "include" })
+    );
+  });
+
+  it("stays on unlock with a clear error when the browser rejects the session", async () => {
+    vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(mockJsonResponse({ unlocked: true }))
+      .mockResolvedValueOnce(mockJsonResponse({ unlocked: false }));
+    renderSetupRoutes("/settings/unlock", <AdminPinUnlock />);
+    const user = userEvent.setup();
+
+    await user.type(screen.getByLabelText("Admin PIN"), "2468");
+    await user.click(screen.getByRole("button", { name: "Unlock" }));
+
+    expect(await screen.findByText(/browser did not save the local unlock session/i)).toBeInTheDocument();
+    expect(screen.queryByText("settings route")).not.toBeInTheDocument();
   });
 
   it("shows unlock errors returned by the API", async () => {
