@@ -73,6 +73,13 @@ describe("shell and settings", () => {
     expect(screen.getAllByRole("link", { name: /Tasks/ })).toHaveLength(2);
     expect(screen.getAllByRole("link", { name: /Agenda/ })).toHaveLength(2);
     expect(screen.getAllByRole("link", { name: /Settings/ })).toHaveLength(2);
+
+    const desktopSettingsLink = screen.getAllByRole("link", { name: /Settings/ })[0]!;
+    expect(desktopSettingsLink).toHaveClass("min-h-[48px]", "flex-1");
+    expect(desktopSettingsLink.closest("aside")).toHaveClass(
+      "h-[calc(100dvh-1.5rem)]",
+      "overflow-hidden"
+    );
   });
 
   it("wraps route outlet content in the app component", () => {
