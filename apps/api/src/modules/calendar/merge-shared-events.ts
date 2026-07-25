@@ -10,6 +10,7 @@ export type SourceCalendarEvent = {
   location?: string;
   attendeeEmails?: string[];
   organizerEmail?: string;
+  meetingUrl?: string;
   start: string;
   end: string;
   isAllDay: boolean;
@@ -75,6 +76,7 @@ export function mergeSharedEvents(events: SourceCalendarEvent[]): MergedCalendar
       ])
     );
     existing.organizerEmail ||= event.organizerEmail;
+    existing.meetingUrl ||= event.meetingUrl;
   }
 
   return Array.from(merged.values()).sort(

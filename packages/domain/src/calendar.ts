@@ -11,6 +11,7 @@ export type DisplayCalendarEvent = {
   location?: string;
   attendeeEmails?: string[];
   organizerEmail?: string;
+  meetingUrl?: string;
   start: string;
   end: string;
   isAllDay: boolean;

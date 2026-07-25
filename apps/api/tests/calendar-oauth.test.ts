@@ -1224,6 +1224,7 @@ describe("calendar and google integration routes", () => {
                     { email: "outside@example.com" },
                   ],
                   organizer: { email: "parent@example.com", self: true },
+                  hangoutLink: "https://meet.google.com/abc-defg-hij",
                   start: { dateTime: "2026-06-02T16:00:00.000Z" },
                   end: { dateTime: "2026-06-02T17:00:00.000Z" },
                 },
@@ -1261,6 +1262,7 @@ describe("calendar and google integration routes", () => {
       location: "Main clinic",
       attendeeEmails: ["kid@example.com", "outside@example.com"],
       organizerEmail: "parent@example.com",
+      meetingUrl: "https://meet.google.com/abc-defg-hij",
       isAllDay: false,
       recurringEventId: "series-1",
       providerRefs: [

@@ -41,6 +41,7 @@ describe("shared calendar events", () => {
     end: "2026-07-20T17:00:00.000Z",
     isAllDay: false,
     attendeeEmails: ["kid@example.com"],
+    meetingUrl: "https://meet.google.com/abc-defg-hij",
     color: "#f3cfd0"
   };
 
@@ -64,6 +65,7 @@ describe("shared calendar events", () => {
       sourceNames: ["Parent", "Kiddo"],
       colors: ["#f3cfd0", "#bee8ea"],
       attendeeEmails: ["kid@example.com", "parent@example.com"],
+      meetingUrl: "https://meet.google.com/abc-defg-hij",
       providerRefs: [
         { sourceId: "source-1", providerEventId: "event-1" },
         { sourceId: "source-2", providerEventId: "event-2" }

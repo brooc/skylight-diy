@@ -362,6 +362,13 @@ type GoogleEventItem = {
   recurrence?: string[];
   attendees?: Array<Record<string, unknown>>;
   organizer?: { email?: string; self?: boolean };
+  hangoutLink?: string;
+  conferenceData?: {
+    entryPoints?: Array<{
+      entryPointType?: string;
+      uri?: string;
+    }>;
+  };
   reminders?: Record<string, unknown>;
   transparency?: string;
   visibility?: string;
@@ -2024,6 +2031,13 @@ export const calendarRoutes: FastifyPluginAsync = async (app) => {
               )
               .filter((email): email is string => Boolean(email)),
             organizerEmail: item.organizer?.email,
+            meetingUrl:
+              item.hangoutLink ??
+              item.conferenceData?.entryPoints?.find(
+                (entryPoint) =>
+                  entryPoint.entryPointType === "video" &&
+                  typeof entryPoint.uri === "string"
+              )?.uri,
             start,
             end,
             isAllDay,

@@ -335,6 +335,19 @@ describe("TodayDashboard", () => {
               {
                 id: "half-hour",
                 summary: "Half-hour alignment",
+                attendees: [
+                  { email: "parent@example.com" },
+                  { email: "guest@example.com" },
+                ],
+                organizer: { email: "parent@example.com", self: true },
+                conferenceData: {
+                  entryPoints: [
+                    {
+                      entryPointType: "video",
+                      uri: "https://meet.google.com/abc-defg-hij",
+                    },
+                  ],
+                },
                 start: { dateTime: halfHourStart.toISOString() },
                 end: { dateTime: halfHourEnd.toISOString() },
               },
@@ -400,6 +413,11 @@ describe("TodayDashboard", () => {
     ).toBeInTheDocument();
     expect(screen.getByText(/12:30 PM - 1:00 PM/)).toBeInTheDocument();
     expect(screen.getByText("Calendar event")).toBeInTheDocument();
+    expect(screen.getByText("guest@example.com")).toBeInTheDocument();
+    expect(screen.queryByText("parent@example.com")).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Join Google Meet" }),
+    ).toHaveAttribute("href", "https://meet.google.com/abc-defg-hij");
     expect(
       screen.getByRole("button", { name: "Close event details" }),
     ).toBeInTheDocument();

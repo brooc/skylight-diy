@@ -82,6 +82,7 @@ type CalendarResponse = {
     location?: string;
     attendeeEmails?: string[];
     organizerEmail?: string;
+    meetingUrl?: string;
     sourceName?: string;
     sourceNames?: string[];
     color?: string;
@@ -132,6 +133,7 @@ type EventDetail = {
   location?: string;
   attendeeEmails?: string[];
   organizerEmail?: string;
+  meetingUrl?: string;
 };
 
 type RenderEvent = EventDetail & {
@@ -495,6 +497,7 @@ export function TodayDashboard(): JSX.Element {
         location: event.location,
         attendeeEmails: event.attendeeEmails,
         organizerEmail: event.organizerEmail,
+        meetingUrl: event.meetingUrl,
       };
     })
     .filter((event) => event.dayIndex >= 0);
@@ -557,6 +560,7 @@ export function TodayDashboard(): JSX.Element {
         location: event.location,
         attendeeEmails: event.attendeeEmails,
         organizerEmail: event.organizerEmail,
+        meetingUrl: event.meetingUrl,
       };
     })
     .filter((event) => eventMatchesFilter(event.sourceNames));
@@ -1137,7 +1141,7 @@ export function TodayDashboard(): JSX.Element {
             onClick={() => setSelectedEvent(null)}
           >
             <div
-              className="relative w-full max-w-md overflow-hidden rounded-3xl border border-white/70 bg-white shadow-[0_24px_80px_rgba(15,23,42,0.28)]"
+              className="relative max-h-[calc(100dvh-2rem)] w-full max-w-md overflow-y-auto rounded-3xl border border-white/70 bg-white shadow-[0_24px_80px_rgba(15,23,42,0.28)]"
               onClick={(event) => event.stopPropagation()}
             >
               <div
@@ -1211,7 +1215,53 @@ export function TodayDashboard(): JSX.Element {
                       </div>
                     </div>
                   </div>
+                  {selectedEvent.attendeeEmails?.filter(
+                    (email) =>
+                      email.toLocaleLowerCase() !==
+                      selectedEvent.organizerEmail?.toLocaleLowerCase(),
+                  ).length ? (
+                    <div className="flex items-start gap-3">
+                      <span
+                        aria-hidden="true"
+                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white text-base shadow-sm"
+                      >
+                        ♙
+                      </span>
+                      <div className="min-w-0">
+                        <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                          Guests
+                        </div>
+                        <div className="grid gap-0.5">
+                          {selectedEvent.attendeeEmails
+                            .filter(
+                              (email) =>
+                                email.toLocaleLowerCase() !==
+                                selectedEvent.organizerEmail?.toLocaleLowerCase(),
+                            )
+                            .map((email) => (
+                              <div
+                                key={email}
+                                className="break-all font-medium text-slate-800"
+                              >
+                                {email}
+                              </div>
+                            ))}
+                        </div>
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
+                {selectedEvent.meetingUrl ? (
+                  <a
+                    href={selectedEvent.meetingUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="mt-4 flex min-h-[48px] w-full items-center justify-center gap-2 rounded-xl bg-[#0f766e] px-4 text-sm font-semibold text-white transition-colors hover:bg-[#0d5f59]"
+                  >
+                    <span aria-hidden="true">▣</span>
+                    Join Google Meet
+                  </a>
+                ) : null}
                 {eventDeleteError ? (
                   <p
                     role="alert"
