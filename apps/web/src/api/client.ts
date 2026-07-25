@@ -1,9 +1,12 @@
 const API_BASE = "/api";
 
-export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
+export async function apiFetch<T>(
+  path: string,
+  init?: RequestInit,
+): Promise<T> {
   const hasBody = typeof init?.body !== "undefined" && init.body !== null;
   const headers: Record<string, string> = {
-    ...(init?.headers as Record<string, string> | undefined)
+    ...(init?.headers as Record<string, string> | undefined),
   };
 
   if (hasBody && !headers["Content-Type"] && !headers["content-type"]) {
@@ -13,8 +16,8 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
   const response = await fetch(`${API_BASE}${path}`, {
     cache: "no-store",
     credentials: "include",
+    ...init,
     headers,
-    ...init
   });
 
   if (!response.ok) {

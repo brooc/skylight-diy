@@ -13,10 +13,12 @@ be baked into a custom Daymark image.
   built locally
 - Ethernet recommended for the first provisioning run
 
-The Pi 3 B+ has a 64-bit CPU but only 1 GB of memory. Use the 64-bit Lite OS.
-The provisioner creates swap on low-memory devices because the current
-production Compose configuration builds Daymark from source. This is a
-temporary compromise until versioned `arm64` container images are published.
+The Pi 3 B+ has a 64-bit CPU but only 1 GB of memory. Use the regular 64-bit
+desktop OS for the appliance test so Daymark can launch directly on the
+connected display. The provisioner creates swap on low-memory devices because
+the current production Compose configuration builds Daymark from source. This
+is a temporary compromise until versioned `arm64` container images are
+published.
 
 ## 1. Image Raspberry Pi OS
 
@@ -24,7 +26,7 @@ Install and open
 [Raspberry Pi Imager](https://www.raspberrypi.com/software/), then choose:
 
 1. **Device:** Raspberry Pi 3
-2. **OS:** Raspberry Pi OS Lite (64-bit)
+2. **OS:** Raspberry Pi OS (64-bit), with the desktop
 3. **Storage:** the microSD card
 
 In OS customisation set:
@@ -64,15 +66,33 @@ sudo ./deploy/rpi/provision.sh
 The provisioner:
 
 - Verifies Raspberry Pi OS/Debian `arm64`
-- Installs Docker Engine and Compose
+- Installs Docker Engine, Compose, and Chromium
 - Creates build swap on devices with less than 1.5 GB RAM
 - Installs Daymark under `/opt/daymark`
-- Generates database, session, and token-encryption secrets
+- Generates database, session, setup-pairing, and token-encryption secrets
 - Builds and starts the production Compose stack
 - Installs a `daymark.service` systemd unit
+- Enables desktop auto-login and launches Daymark in Chromium kiosk mode
 - Waits for the Daymark health endpoint
 
-When it finishes, open:
+When it finishes, reboot:
+
+```bash
+sudo reboot
+```
+
+The connected display opens Daymark automatically. It presents two equivalent
+setup paths:
+
+- Scan the displayed QR code using a phone on the same network.
+- Select **Set up on this display** and use touch, a mouse, or a keyboard.
+
+The QR contains a generated setup-pairing token. The API requires that token
+until the first household is created, then permanently rejects further setup
+attempts. The appliance display polls setup status and switches to the dashboard
+when phone-based setup completes.
+
+For manual access from another device, open:
 
 ```text
 http://daymark.local:8080
@@ -90,6 +110,7 @@ sudo \
   DAYMARK_INSTALL_DIR=/opt/daymark \
   DAYMARK_HOSTNAME=daymark \
   DAYMARK_HTTP_PORT=8080 \
+  DAYMARK_KIOSK_USER=<desktop-user> \
   DAYMARK_SWAP_SIZE_MB=2048 \
   ./deploy/rpi/provision.sh
 ```
@@ -125,8 +146,12 @@ Google OAuth tokens. Back it up with the PostgreSQL data.
 
 ## Test checklist
 
-- [ ] Pi boots headlessly and responds at `daymark.local`
-- [ ] Provisioner completes from a clean Lite image
+- [ ] Pi boots with the connected display and responds at `daymark.local`
+- [ ] Chromium opens the appliance setup screen automatically
+- [ ] QR setup works from a phone on the same Wi-Fi
+- [ ] On-display setup works with touch and with keyboard/mouse
+- [ ] The display switches to Today after setup completes on another device
+- [ ] Provisioner completes from a clean desktop image
 - [ ] Re-running the provisioner is safe and preserves secrets/data
 - [ ] Daymark starts automatically after a power cycle
 - [ ] First-run setup can be completed from another device
@@ -138,6 +163,7 @@ Google OAuth tokens. Back it up with the PostgreSQL data.
 ## Known test-stage limitations
 
 - The first installation builds Node images on a 1 GB Pi and may be slow.
+- The full desktop, Chromium, PostgreSQL, and Daymark share only 1 GB of RAM.
 - The swap file increases microSD writes during builds.
 - Updates currently fetch source rather than pull a signed, versioned image.
 - Backup and restore remain manual.

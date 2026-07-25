@@ -10,12 +10,13 @@ import { ImportPlaceholder } from "./features/import/ImportPlaceholder";
 import { MealPlanWeek } from "./features/meals/MealPlanWeek";
 import { SettingsPage } from "./features/settings/SettingsPage";
 import { AdminPinUnlock } from "./features/setup/AdminPinUnlock";
+import { ApplianceSetup } from "./features/setup/ApplianceSetup";
 import { SetupWizard } from "./features/setup/SetupWizard";
 
 export function RootRedirect(): JSX.Element {
   const setupQuery = useQuery({
     queryKey: ["setup-status"],
-    queryFn: () => apiFetch<{ setupRequired: boolean }>("/setup/status")
+    queryFn: () => apiFetch<{ setupRequired: boolean }>("/setup/status"),
   });
 
   if (setupQuery.isLoading) {
@@ -30,19 +31,20 @@ export function RootRedirect(): JSX.Element {
 }
 
 export const router = createBrowserRouter([
+  { path: "/appliance", element: <ApplianceSetup /> },
+  { path: "/setup", element: <SetupWizard /> },
   {
     path: "/",
     element: <App />,
     children: [
       { index: true, element: <RootRedirect /> },
-      { path: "setup", element: <SetupWizard /> },
       { path: "settings/unlock", element: <AdminPinUnlock /> },
       { path: "today", element: <TodayDashboard /> },
       { path: "week", element: <CalendarWeekView /> },
       { path: "chores", element: <ChoresPage /> },
       { path: "meals", element: <MealPlanWeek /> },
       { path: "import", element: <ImportPlaceholder /> },
-      { path: "settings", element: <SettingsPage /> }
-    ]
-  }
+      { path: "settings", element: <SettingsPage /> },
+    ],
+  },
 ]);

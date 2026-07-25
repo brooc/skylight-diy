@@ -8,7 +8,7 @@ import {
   clearRealApiApp,
   createRealApiApp,
   installRealApiFetch,
-  resetRealApiApp
+  resetRealApiApp,
 } from "./helpers/real-api";
 import { RootRedirect, router } from "../src/routes";
 
@@ -33,18 +33,24 @@ describe("router", () => {
 
   it("registers the v0.1 app routes", () => {
     const root = router.routes.find((route) => route.path === "/");
-    const childPaths = root?.children?.map((route) => route.index ? "index" : route.path);
+    const childPaths = root?.children?.map((route) =>
+      route.index ? "index" : route.path,
+    );
 
+    expect(router.routes.map((route) => route.path)).toEqual([
+      "/appliance",
+      "/setup",
+      "/",
+    ]);
     expect(childPaths).toEqual([
       "index",
-      "setup",
       "settings/unlock",
       "today",
       "week",
       "chores",
       "meals",
       "import",
-      "settings"
+      "settings",
     ]);
   });
 
@@ -76,6 +82,6 @@ function renderRootRedirect() {
           <Route path="/today" element={<div>Today route</div>} />
         </Routes>
       </QueryClientProvider>
-    </MemoryRouter>
+    </MemoryRouter>,
   );
 }

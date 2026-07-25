@@ -5,9 +5,10 @@ import {
   createTestApp,
   resetTestDb,
   setupHousehold,
-  unlockAdmin
+  unlockAdmin,
 } from "./helpers/test-app";
 import { households, people } from "@daymark/db";
+import { env } from "../src/env";
 
 describe("setup and session routes", () => {
   let app: FastifyInstance;
@@ -27,20 +28,97 @@ describe("setup and session routes", () => {
   it("reports setup required until setup completes", async () => {
     const initial = await app.inject({
       method: "GET",
-      url: "/api/setup/status"
+      url: "/api/setup/status",
     });
     expect(initial.statusCode).toBe(200);
-    expect(initial.json()).toEqual({ setupRequired: true });
+    expect(initial.json()).toEqual({
+      setupRequired: true,
+      pairingRequired: false,
+    });
 
     const setup = await setupHousehold(app);
     expect(setup.created).toBe(true);
 
     const afterSetup = await app.inject({
       method: "GET",
-      url: "/api/setup/status"
+      url: "/api/setup/status",
     });
     expect(afterSetup.statusCode).toBe(200);
-    expect(afterSetup.json()).toEqual({ setupRequired: false });
+    expect(afterSetup.json()).toEqual({
+      setupRequired: false,
+      pairingRequired: false,
+    });
+  });
+
+  it("protects appliance setup with its generated pairing token", async () => {
+    const previousToken = env.DAYMARK_SETUP_TOKEN;
+    env.DAYMARK_SETUP_TOKEN = "a".repeat(48);
+
+    try {
+      const status = await app.inject({
+        method: "GET",
+        url: "/api/setup/status",
+      });
+      expect(status.json()).toEqual({
+        setupRequired: true,
+        pairingRequired: true,
+      });
+
+      const blocked = await app.inject({
+        method: "POST",
+        url: "/api/setup/complete",
+        payload: {
+          householdName: "Test Household",
+          timezone: "America/Los_Angeles",
+          adminName: "Parent",
+          adminPin: "1234",
+          members: [],
+        },
+      });
+      expect(blocked.statusCode).toBe(403);
+      expect(blocked.json()).toEqual({ error: "invalid_setup_token" });
+
+      const pairing = await app.inject({
+        method: "GET",
+        url: "/api/setup/pairing",
+        headers: {
+          "x-daymark-setup-token": env.DAYMARK_SETUP_TOKEN,
+        },
+      });
+      expect(pairing.statusCode).toBe(200);
+      expect(pairing.json().setupUrl).toBe(
+        `${env.APP_BASE_URL}/setup?pair=${env.DAYMARK_SETUP_TOKEN}`,
+      );
+
+      const allowed = await app.inject({
+        method: "POST",
+        url: "/api/setup/complete",
+        headers: {
+          "x-daymark-setup-token": env.DAYMARK_SETUP_TOKEN,
+        },
+        payload: {
+          householdName: "Test Household",
+          timezone: "America/Los_Angeles",
+          adminName: "Parent",
+          adminPin: "1234",
+          members: [],
+        },
+      });
+      expect(allowed.statusCode).toBe(200);
+      expect(allowed.json().created).toBe(true);
+
+      const reused = await app.inject({
+        method: "GET",
+        url: "/api/setup/pairing",
+        headers: {
+          "x-daymark-setup-token": env.DAYMARK_SETUP_TOKEN,
+        },
+      });
+      expect(reused.statusCode).toBe(409);
+      expect(reused.json()).toEqual({ error: "setup_already_completed" });
+    } finally {
+      env.DAYMARK_SETUP_TOKEN = previousToken;
+    }
   });
 
   it("unlocks with a valid PIN and locks again", async () => {
@@ -49,14 +127,14 @@ describe("setup and session routes", () => {
     const invalidPin = await app.inject({
       method: "POST",
       url: "/api/session/unlock",
-      payload: { pin: "1111" }
+      payload: { pin: "1111" },
     });
     expect(invalidPin.statusCode).toBe(401);
 
     const unlocked = await app.inject({
       method: "POST",
       url: "/api/session/unlock",
-      payload: { pin: "2468" }
+      payload: { pin: "2468" },
     });
     expect(unlocked.statusCode).toBe(200);
     expect(unlocked.json()).toEqual({ unlocked: true });
@@ -71,8 +149,8 @@ describe("setup and session routes", () => {
       method: "GET",
       url: "/api/session/current",
       headers: {
-        cookie: cookieHeader
-      }
+        cookie: cookieHeader,
+      },
     });
     expect(current.statusCode).toBe(200);
     expect(current.json()).toEqual({ unlocked: true });
@@ -81,8 +159,8 @@ describe("setup and session routes", () => {
       method: "POST",
       url: "/api/session/lock",
       headers: {
-        cookie: cookieHeader
-      }
+        cookie: cookieHeader,
+      },
     });
     expect(locked.statusCode).toBe(200);
     expect(locked.json()).toEqual({ unlocked: false });
@@ -92,8 +170,8 @@ describe("setup and session routes", () => {
       method: "GET",
       url: "/api/session/current",
       headers: {
-        cookie: relockedCookie || cookieHeader
-      }
+        cookie: relockedCookie || cookieHeader,
+      },
     });
     expect(currentAfterLock.statusCode).toBe(200);
     expect(currentAfterLock.json()).toEqual({ unlocked: false });
@@ -105,7 +183,7 @@ describe("setup and session routes", () => {
     const blocked = await app.inject({
       method: "POST",
       url: "/api/session/change-pin",
-      payload: { nextPin: "2468" }
+      payload: { nextPin: "2468" },
     });
     expect(blocked.statusCode).toBe(401);
 
@@ -114,7 +192,7 @@ describe("setup and session routes", () => {
       method: "POST",
       url: "/api/session/change-pin",
       headers: { cookie },
-      payload: { nextPin: "12" }
+      payload: { nextPin: "12" },
     });
     expect(invalidPayload.statusCode).toBe(400);
 
@@ -122,7 +200,7 @@ describe("setup and session routes", () => {
       method: "POST",
       url: "/api/session/change-pin",
       headers: { cookie },
-      payload: { nextPin: "2468" }
+      payload: { nextPin: "2468" },
     });
     expect(changed.statusCode).toBe(200);
     expect(changed.json()).toEqual({ updated: true });
@@ -130,14 +208,14 @@ describe("setup and session routes", () => {
     const oldPin = await app.inject({
       method: "POST",
       url: "/api/session/unlock",
-      payload: { pin: "1234" }
+      payload: { pin: "1234" },
     });
     expect(oldPin.statusCode).toBe(401);
 
     const newPin = await app.inject({
       method: "POST",
       url: "/api/session/unlock",
-      payload: { pin: "2468" }
+      payload: { pin: "2468" },
     });
     expect(newPin.statusCode).toBe(200);
   });
@@ -148,7 +226,7 @@ describe("setup and session routes", () => {
     const blocked = await app.inject({
       method: "PATCH",
       url: "/api/household/current",
-      payload: { name: "Blocked update" }
+      payload: { name: "Blocked update" },
     });
     expect(blocked.statusCode).toBe(401);
 
@@ -160,44 +238,46 @@ describe("setup and session routes", () => {
       payload: {
         name: "The Daymarks",
         timezone: "America/New_York",
-        weekStartsOn: "sunday"
-      }
+        weekStartsOn: "sunday",
+      },
     });
     expect(updatedHousehold.statusCode).toBe(200);
     expect(updatedHousehold.json().household).toMatchObject({
       name: "The Daymarks",
       timezone: "America/New_York",
-      weekStartsOn: "sunday"
+      weekStartsOn: "sunday",
     });
 
     const created = await app.inject({
       method: "POST",
       url: "/api/household/people",
       headers: { cookie },
-      payload: { displayName: "Grandma", role: "adult", color: "#ca8a04" }
+      payload: { displayName: "Grandma", role: "adult", color: "#ca8a04" },
     });
     expect(created.statusCode).toBe(201);
     expect(created.json().person).toMatchObject({
       displayName: "Grandma",
       role: "adult",
       color: "#ca8a04",
-      sortOrder: 2
+      sortOrder: 2,
     });
 
     const edited = await app.inject({
       method: "PATCH",
       url: `/api/household/people/${created.json().person.id}`,
       headers: { cookie },
-      payload: { displayName: "Nana", color: "#a16207" }
+      payload: { displayName: "Nana", color: "#a16207" },
     });
     expect(edited.statusCode).toBe(200);
     expect(edited.json().person).toMatchObject({
       displayName: "Nana",
       role: "adult",
-      color: "#a16207"
+      color: "#a16207",
     });
 
-    expect((await app.db.select().from(households))[0]).toMatchObject({ name: "The Daymarks" });
+    expect((await app.db.select().from(households))[0]).toMatchObject({
+      name: "The Daymarks",
+    });
     expect(await app.db.select().from(people)).toHaveLength(3);
   });
 
@@ -209,7 +289,7 @@ describe("setup and session routes", () => {
       method: "PATCH",
       url: "/api/household/current",
       headers: { cookie },
-      payload: { timezone: "Not/A_Timezone" }
+      payload: { timezone: "Not/A_Timezone" },
     });
     expect(badTimezone.statusCode).toBe(400);
 
@@ -217,7 +297,7 @@ describe("setup and session routes", () => {
       method: "POST",
       url: "/api/household/people",
       headers: { cookie },
-      payload: { displayName: "", role: "pet", color: "orange" }
+      payload: { displayName: "", role: "pet", color: "orange" },
     });
     expect(badMember.statusCode).toBe(400);
   });
