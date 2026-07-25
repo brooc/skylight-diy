@@ -1,6 +1,6 @@
 # Google Calendar Setup
 
-This guide configures the v0.1 read-only Google Calendar integration.
+This guide configures Google Calendar discovery and event reading/writing.
 
 ## Cost
 
@@ -76,10 +76,11 @@ Docker Compose reads the repo-root `.env` file and passes the Google OAuth varia
 
 ## Expected Behavior
 
-- The app requests only the read-only Calendar scope:
+- The app requests the minimum scopes needed to list calendars and read/write events:
 
 ```text
-https://www.googleapis.com/auth/calendar.readonly
+https://www.googleapis.com/auth/calendar.calendarlist.readonly
+https://www.googleapis.com/auth/calendar.events
 ```
 
 - Calendar events remain owned by Google Calendar.
@@ -87,7 +88,9 @@ https://www.googleapis.com/auth/calendar.readonly
 - Disconnect attempts to revoke the Google token, then removes the local connection, tracked calendar sources, and cached events. It does not delete events from Google Calendar.
 - The app stores replaceable display-cache data in Postgres for degraded/offline behavior.
 - Daymark refreshes expiring Google access tokens automatically. If Google rejects the refresh token, Settings marks the account as requiring reconnection and disables calendar discovery until it is reconnected.
-- v0.1 does not create, edit, or delete Google Calendar events.
+- Daymark can create, edit, and delete events only on tracked calendars where
+  Google reports owner/writer access and the household explicitly enables event
+  writing for that source.
 - Calendar discovery requires a connected Google account and does not track anything by itself. Only explicitly selected calendars are imported. Discovery, import, and event-fetch failures return explicit errors or degraded empty states instead of displaying fabricated events.
 
 ## Troubleshooting

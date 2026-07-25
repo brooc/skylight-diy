@@ -398,7 +398,7 @@ export function GoogleCalendarSettings(): JSX.Element {
     setStatus(
       googleStatus === "connected"
         ? "Google Calendar connected."
-        : "Google account identified, but Calendar access was not granted. Reconnect and allow read-only Calendar access.",
+        : "Google account identified, but Calendar access was not granted. Reconnect and allow calendar-list and event access.",
     );
     void Promise.all([accountsQuery.refetch(), sourcesQuery.refetch()]);
     url.searchParams.delete("google");

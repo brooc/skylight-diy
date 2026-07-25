@@ -183,7 +183,7 @@ describe("calendar and google integration routes", () => {
       expect(authUrl.origin).toBe("https://accounts.google.com");
       expect(authUrl.searchParams.get("client_id")).toBe("client-id");
       expect(authUrl.searchParams.get("scope")).toBe(
-        "https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/calendar.events",
+        "https://www.googleapis.com/auth/calendar.calendarlist.readonly https://www.googleapis.com/auth/calendar.events",
       );
       const state = authUrl.searchParams.get("state");
       expect(state).toBeTruthy();
@@ -323,7 +323,8 @@ describe("calendar and google integration routes", () => {
           access_token: "access-token-1",
           refresh_token: "refresh-token-1",
           expires_in: 3600,
-          scope: "https://www.googleapis.com/auth/calendar.readonly",
+          scope:
+            "https://www.googleapis.com/auth/calendar.calendarlist.readonly https://www.googleapis.com/auth/calendar.events",
         },
         { access_token: "access-token-2" },
       ];
@@ -357,7 +358,10 @@ describe("calendar and google integration routes", () => {
         providerAccountId: "family@example.com",
         displayName: "Family Gmail",
         email: "family@example.com",
-        scopes: ["https://www.googleapis.com/auth/calendar.readonly"],
+        scopes: [
+          "https://www.googleapis.com/auth/calendar.calendarlist.readonly",
+          "https://www.googleapis.com/auth/calendar.events",
+        ],
         reauthorizationRequired: false,
       });
 
@@ -377,7 +381,7 @@ describe("calendar and google integration routes", () => {
         .where(eq(connectedAccounts.id, account.id))
         .limit(1);
       expect(updatedAccount.scopes).toEqual([
-        "https://www.googleapis.com/auth/calendar.readonly",
+        "https://www.googleapis.com/auth/calendar.calendarlist.readonly",
         "https://www.googleapis.com/auth/calendar.events",
       ]);
       expect(updatedAccount.encryptedRefreshToken).toBe(

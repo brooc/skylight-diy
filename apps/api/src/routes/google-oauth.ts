@@ -10,14 +10,24 @@ import {
 } from "../modules/integrations/token-crypto";
 
 const GOOGLE_STATE_TTL_SECONDS = 60 * 10;
-const GOOGLE_CALENDAR_SCOPE =
-  "https://www.googleapis.com/auth/calendar.readonly";
+const GOOGLE_CALENDAR_LIST_READ_SCOPE =
+  "https://www.googleapis.com/auth/calendar.calendarlist.readonly";
 const GOOGLE_CALENDAR_WRITE_SCOPE =
   "https://www.googleapis.com/auth/calendar.events";
 const GOOGLE_CALENDAR_SCOPES = [
-  GOOGLE_CALENDAR_SCOPE,
+  GOOGLE_CALENDAR_LIST_READ_SCOPE,
   GOOGLE_CALENDAR_WRITE_SCOPE,
 ];
+const GOOGLE_CALENDAR_FULL_SCOPE =
+  "https://www.googleapis.com/auth/calendar";
+
+function hasRequiredGoogleCalendarScopes(scopes: string[]): boolean {
+  return (
+    scopes.includes(GOOGLE_CALENDAR_FULL_SCOPE) ||
+    (scopes.includes(GOOGLE_CALENDAR_LIST_READ_SCOPE) &&
+      scopes.includes(GOOGLE_CALENDAR_WRITE_SCOPE))
+  );
+}
 
 const callbackQuerySchema = z.object({
   code: z.string().optional(),
@@ -288,7 +298,7 @@ export const googleOauthRoutes: FastifyPluginAsync = async (app) => {
         connected: false,
         error: "google_primary_calendar_failed",
         message:
-          "Google connected, but Daymark could not access the primary calendar. Please reconnect and allow read-only Calendar access.",
+          "Google connected, but Daymark could not access the primary calendar. Please reconnect and allow calendar-list and event access.",
       });
     }
     const primaryCalendar = (await primaryCalendarResponse.json()) as {
@@ -364,7 +374,7 @@ export const googleOauthRoutes: FastifyPluginAsync = async (app) => {
     const scopes =
       tokenPayload.scope?.split(/\s+/).filter(Boolean) ??
       GOOGLE_CALENDAR_SCOPES;
-    const calendarAccessGranted = scopes.includes(GOOGLE_CALENDAR_SCOPE);
+    const calendarAccessGranted = hasRequiredGoogleCalendarScopes(scopes);
 
     if (existingAccount) {
       await app.db

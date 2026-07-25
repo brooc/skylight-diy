@@ -562,8 +562,10 @@ type GoogleAccessTokenResult =
   | { ok: false; error: string; message: string; reauthorizationRequired: boolean };
 
 const GOOGLE_TOKEN_REFRESH_MARGIN_MS = 60_000;
-const GOOGLE_CALENDAR_READ_SCOPE =
+const GOOGLE_CALENDAR_LEGACY_READ_SCOPE =
   "https://www.googleapis.com/auth/calendar.readonly";
+const GOOGLE_CALENDAR_LIST_READ_SCOPE =
+  "https://www.googleapis.com/auth/calendar.calendarlist.readonly";
 const GOOGLE_CALENDAR_WRITE_SCOPE =
   "https://www.googleapis.com/auth/calendar.events";
 const GOOGLE_CALENDAR_FULL_SCOPE =
@@ -577,10 +579,18 @@ function hasGoogleCalendarWriteScope(scopes: string[]): boolean {
 }
 
 function hasGoogleCalendarReadScope(scopes: string[]): boolean {
-  return (
-    scopes.includes(GOOGLE_CALENDAR_READ_SCOPE) ||
-    scopes.includes(GOOGLE_CALENDAR_FULL_SCOPE)
-  );
+  const hasFullAccess = scopes.includes(GOOGLE_CALENDAR_FULL_SCOPE);
+  const hasLegacyReadAccess = scopes.includes(GOOGLE_CALENDAR_LEGACY_READ_SCOPE);
+  const canListCalendars =
+    hasFullAccess ||
+    hasLegacyReadAccess ||
+    scopes.includes(GOOGLE_CALENDAR_LIST_READ_SCOPE);
+  const canReadEvents =
+    hasFullAccess ||
+    hasLegacyReadAccess ||
+    scopes.includes(GOOGLE_CALENDAR_WRITE_SCOPE);
+
+  return canListCalendars && canReadEvents;
 }
 
 function isGoogleCalendarWritable(accessRole: string | null): boolean {
