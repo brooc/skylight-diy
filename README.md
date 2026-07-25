@@ -55,6 +55,7 @@ Start here:
 - [Open Source Strategy](docs/open-source-strategy.md)
 - [Fire Tablet Setup](docs/fire-tablet-setup.md)
 - [Home Deployment](docs/deployment.md)
+- [Raspberry Pi Deployment](docs/raspberry-pi-deployment.md)
 
 ## Quick Start
 
