@@ -227,6 +227,16 @@ export function CalendarEventEditDialog({
   const [seriesCount, setSeriesCount] = useState(10);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const attendeeEmailsForUpdate = Array.from(
+    new Set([
+      ...preservedExternalAttendees,
+      ...participantEmails(
+        participants,
+        selectedParticipantIds,
+        organizerEmail,
+      ),
+    ]),
+  );
 
   useEffect(() => {
     if (!recurringTarget?.recurringEventId) return;
@@ -332,16 +342,7 @@ export function CalendarEventEditDialog({
           scope: canEditSeries ? scope : "event",
           title: title.trim(),
           location: location.trim() || null,
-          attendees: Array.from(
-            new Set([
-              ...preservedExternalAttendees,
-              ...participantEmails(
-                participants,
-                selectedParticipantIds,
-                organizerEmail,
-              ),
-            ]),
-          ),
+          attendees: attendeeEmailsForUpdate,
           allDay,
           start,
           end,
@@ -686,6 +687,38 @@ export function CalendarEventEditDialog({
                 selectedIds={selectedParticipantIds}
                 onChange={setSelectedParticipantIds}
               />
+              {preservedExternalAttendees.length ? (
+                <section
+                  aria-labelledby="other-calendar-guests"
+                  className="grid gap-2"
+                >
+                  <h3
+                    id="other-calendar-guests"
+                    className="text-sm font-semibold text-slate-700"
+                  >
+                    Other guests
+                  </h3>
+                  <div className="flex flex-wrap gap-2">
+                    {preservedExternalAttendees.map((email) => (
+                      <span
+                        key={email}
+                        className="max-w-full truncate rounded-full border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-700"
+                        title={email}
+                      >
+                        {email}
+                      </span>
+                    ))}
+                  </div>
+                  <p className="text-xs text-slate-500">
+                    Existing guests remain invited.
+                  </p>
+                </section>
+              ) : null}
+              {attendeeEmailsForUpdate.length ? (
+                <p className="rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-sm font-medium text-sky-900">
+                  Google Calendar will email participants about these changes.
+                </p>
+              ) : null}
               {error ? (
                 <p role="alert" className="text-sm font-medium text-rose-700">
                   {error}

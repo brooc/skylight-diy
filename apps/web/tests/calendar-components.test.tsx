@@ -220,6 +220,12 @@ describe("calendar components", () => {
     expect(screen.getByLabelText("Parent")).toBeDisabled();
     expect(screen.getByLabelText("Kiddo")).toBeChecked();
     expect(screen.getByLabelText("Other")).toBeDisabled();
+    expect(screen.getByText("outside@example.com")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Google Calendar will email participants about these changes.",
+      ),
+    ).toBeInTheDocument();
     await user.click(screen.getByLabelText("Kiddo"));
     await waitFor(() =>
       expect(

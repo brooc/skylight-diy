@@ -423,6 +423,14 @@ describe("TodayDashboard", () => {
     ).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Edit" }));
     const editDialog = await screen.findByRole("dialog", { name: "Edit event" });
+    expect(
+      within(editDialog).getByText("guest@example.com"),
+    ).toBeInTheDocument();
+    expect(
+      within(editDialog).getByText(
+        "Google Calendar will email participants about these changes.",
+      ),
+    ).toBeInTheDocument();
     const titleInput = within(editDialog).getByLabelText("Event title");
     await user.clear(titleInput);
     await user.type(titleInput, "Updated alignment");
@@ -430,6 +438,7 @@ describe("TodayDashboard", () => {
     expect(await screen.findByText("Event updated.")).toBeInTheDocument();
     expect(editedBody).toMatchObject({
       summary: "Updated alignment",
+      attendees: [{ email: "guest@example.com" }],
     });
 
     await user.click((await screen.findByText("Half-hour alignment")).closest("button")!);
