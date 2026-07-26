@@ -30,7 +30,8 @@ Keep `.env.production` and the token encryption key with the database backups. T
 ## 2. Start Daymark on the home LAN
 
 ```bash
-docker compose --env-file .env.production -f compose.production.yml up -d --build
+docker compose --env-file .env.production -f compose.production.yml pull
+docker compose --env-file .env.production -f compose.production.yml up -d --no-build
 docker compose --env-file .env.production -f compose.production.yml ps
 curl http://127.0.0.1:8080/api/health
 ```
@@ -96,11 +97,16 @@ View logs:
 docker compose --env-file .env.production -f compose.production.yml logs -f --tail=200
 ```
 
-Update after pulling new code:
+Update a manual Docker deployment after pulling new orchestration files:
 
 ```bash
-docker compose --env-file .env.production -f compose.production.yml up -d --build
+docker compose --env-file .env.production -f compose.production.yml pull
+docker compose --env-file .env.production -f compose.production.yml up -d --no-build
 ```
+
+Raspberry Pi appliances also provide an **Install latest update** button in
+unlocked Settings. The button is hidden on ordinary Docker hosts because it
+depends on the Pi's restricted host update service.
 
 Stop without deleting data:
 

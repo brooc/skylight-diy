@@ -15,6 +15,7 @@ const baseEnvSchema = z.object({
     .transform((value) => value === "true"),
   TOKEN_ENCRYPTION_KEY: z.string().min(1),
   DAYMARK_SETUP_TOKEN: z.string().min(32).optional(),
+  DAYMARK_UPDATE_DIR: z.string().min(1).optional(),
   GOOGLE_CLIENT_ID: z.string().optional(),
   GOOGLE_CLIENT_SECRET: z.string().optional(),
   GOOGLE_REDIRECT_URI: z.string().url().optional(),

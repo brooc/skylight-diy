@@ -9,16 +9,13 @@ be baked into a custom Daymark image.
 
 - Raspberry Pi 3 Model B+ or newer
 - Reliable 5V/2.5A power supply for the Pi 3 B+
-- 16 GB microSD card minimum; 32 GB or larger recommended while images are
-  built locally
+- 16 GB microSD card minimum; 32 GB or larger recommended
 - Ethernet recommended for the first provisioning run
 
 The Pi 3 B+ has a 64-bit CPU but only 1 GB of memory. Use the regular 64-bit
 desktop OS for the appliance test so Daymark can launch directly on the
-connected display. The provisioner creates swap on low-memory devices because
-the current production Compose configuration builds Daymark from source. This
-is a temporary compromise until versioned `arm64` container images are
-published.
+connected display. Daymark downloads prebuilt `arm64` images, so the Pi does
+not compile Node dependencies or need build swap.
 
 ## 1. Image Raspberry Pi OS
 
@@ -71,8 +68,8 @@ on. The Pi reboots automatically while it moves through these stages:
    first-boot service, removes the temporary installer files, and reboots into
    Chromium kiosk mode.
 
-The first source build can take a while on a Pi 3 B+. Do not remove power while
-provisioning is active.
+The first download can take several minutes on a Pi 3 B+. Do not remove power
+while provisioning is active.
 
 If provisioning fails, the completion marker is not created and the service
 remains enabled for the next reboot. Diagnose it over SSH:
@@ -115,12 +112,39 @@ sudo \
   DAYMARK_HOSTNAME=daymark \
   DAYMARK_HTTP_PORT=8080 \
   DAYMARK_KIOSK_USER=<desktop-user> \
-  DAYMARK_SWAP_SIZE_MB=2048 \
+  DAYMARK_UPDATE_CHANNEL=main \
   ./deploy/rpi/provision.sh
 ```
 
 Running the provisioner again preserves `.env.production`, fetches the selected
-Git ref, rebuilds the images, and restarts Daymark.
+Git ref, pulls its prebuilt images, and restarts Daymark.
+
+## Updates
+
+Unlock **Settings**, then select **Install latest update** in the **Daymark
+software** card. The appliance:
+
+1. Creates a compressed PostgreSQL backup.
+2. Resolves the configured update channel.
+3. Pulls immutable API and web images for that Git commit or release.
+4. Applies database migrations while the new API starts.
+5. Restarts the services and reports success or failure in Settings.
+
+The display may be unavailable while the containers restart. Update requests
+are passed to a narrow root-owned systemd service; the web API does not receive
+the Docker socket.
+
+Test appliances default to `DAYMARK_UPDATE_CHANNEL=main`. Each update uses the
+immutable `sha-<commit>` images associated with the newest `main` commit.
+Production appliances should use `stable`, which selects the newest `v*` Git
+tag and its matching semantic-version image.
+
+The five newest pre-update backups are retained under
+`/var/lib/daymark/backups`. Update logs are available with:
+
+```bash
+sudo journalctl -u daymark-update.service
+```
 
 ## Operations
 
@@ -165,20 +189,19 @@ Google OAuth tokens. Back it up with the PostgreSQL data.
 - [ ] Daymark starts automatically after a power cycle
 - [ ] First-run setup can be completed from another device
 - [ ] Google account connection, calendar discovery, and event read/write work
-- [ ] Memory and swap usage remain stable for 24 hours
-- [ ] Pulling and provisioning a newer Git ref preserves household data
+- [ ] Memory usage remains stable for 24 hours
+- [ ] Installing an update from Settings preserves household data
+- [ ] A failed image pull leaves the previous version running and reports an error
+- [ ] Pre-update backups are created and old backups are pruned
 - [ ] Database and `.env.production` backup can be restored
 
 ## Known test-stage limitations
 
-- The first installation builds Node images on a 1 GB Pi and may be slow.
 - The full desktop, Chromium, PostgreSQL, and Daymark share only 1 GB of RAM.
-- The swap file increases microSD writes during builds.
-- Updates currently fetch source rather than pull a signed, versioned image.
 - Backup and restore remain manual.
 - Google production OAuth still needs its public verification materials and
   verification submission.
 
-These limitations define the next packaging work: publish versioned multi-arch
-images, replace local builds with pulls, add automatic backups, and turn the
-provisioner into a small stable installer.
+These limitations define the next appliance work: add guided restore, publish
+a downloadable complete SD-card image, and turn the provisioner into a small
+stable installer.

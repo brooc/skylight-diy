@@ -65,10 +65,7 @@ services:
       retries: 10
 
   api:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      target: api
+    image: ${DAYMARK_API_IMAGE:-ghcr.io/brooc/daymark-api}:${DAYMARK_IMAGE_TAG:-main}
     restart: unless-stopped
     env_file:
       - ${DAYMARK_ENV_FILE:-.env.production}
@@ -80,6 +77,7 @@ services:
       TAILSCALE_SERVE_TARGET: http://web:8080
     volumes:
       - tailscale_socket:/var/run/tailscale
+      - ${DAYMARK_UPDATE_HOST_DIR:-./.daymark-update}:/var/lib/daymark/update
     depends_on:
       postgres:
         condition: service_healthy
@@ -98,10 +96,7 @@ services:
       retries: 10
 
   web:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      target: web
+    image: ${DAYMARK_WEB_IMAGE:-ghcr.io/brooc/daymark-web}:${DAYMARK_IMAGE_TAG:-main}
     restart: unless-stopped
     depends_on:
       api:

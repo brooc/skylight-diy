@@ -15,6 +15,7 @@ import { setupRoutes } from "./routes/setup";
 import { listsRoutes } from "./routes/lists";
 import { weatherRoutes } from "./routes/weather";
 import { tailscaleRoutes } from "./routes/tailscale";
+import { updateRoutes } from "./routes/update";
 
 export function buildServer() {
   const app = Fastify({
@@ -43,6 +44,7 @@ export function buildServer() {
     api.register(googleOauthRoutes, { prefix: "/api" });
     api.register(weatherRoutes, { prefix: "/api" });
     api.register(tailscaleRoutes, { prefix: "/api" });
+    api.register(updateRoutes, { prefix: "/api" });
   });
 
   return app;

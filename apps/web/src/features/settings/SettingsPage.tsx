@@ -7,6 +7,7 @@ import { LoadingState } from "../../components/LoadingState";
 import { GoogleCalendarSettings } from "./GoogleCalendarSettings";
 import { FamilySettings } from "./FamilySettings";
 import { TailscaleSettings } from "./TailscaleSettings";
+import { UpdateSettings } from "./UpdateSettings";
 
 export function SettingsPage(): JSX.Element {
   const navigate = useNavigate();
@@ -69,6 +70,7 @@ export function SettingsPage(): JSX.Element {
       <FamilySettings />
       <GoogleCalendarSettings />
       <TailscaleSettings canReset />
+      <UpdateSettings />
     </section>
   );
 }

@@ -25,3 +25,4 @@ client_secret_*.json
 
 # Logs
 *.log
+.daymark-update/

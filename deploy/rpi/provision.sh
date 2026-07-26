@@ -5,13 +5,13 @@ set -Eeuo pipefail
 DAYMARK_REPO_URL="${DAYMARK_REPO_URL:-https://github.com/brooc/skylight-diy.git}"
 DAYMARK_REF="${DAYMARK_REF:-main}"
 DAYMARK_INSTALL_DIR="${DAYMARK_INSTALL_DIR:-/opt/daymark}"
-DAYMARK_SWAP_SIZE_MB="${DAYMARK_SWAP_SIZE_MB:-2048}"
 DAYMARK_HTTP_PORT="${DAYMARK_HTTP_PORT:-8080}"
 DAYMARK_HOSTNAME="${DAYMARK_HOSTNAME:-$(hostname -s)}"
 DAYMARK_KIOSK_USER="${DAYMARK_KIOSK_USER:-${SUDO_USER:-}}"
+DAYMARK_UPDATE_CHANNEL="${DAYMARK_UPDATE_CHANNEL:-main}"
 DAYMARK_ENV_FILE="${DAYMARK_INSTALL_DIR}/.env.production"
 DAYMARK_COMPOSE_FILE="${DAYMARK_INSTALL_DIR}/compose.production.yml"
-DAYMARK_SWAP_FILE="/var/lib/daymark/swapfile"
+DAYMARK_UPDATE_DIR="/var/lib/daymark/update"
 
 log() {
   printf '\n==> %s\n' "$*"
@@ -54,7 +54,8 @@ install_base_packages() {
     curl \
     git \
     gnupg \
-    openssl
+    openssl \
+    util-linux
 }
 
 install_docker() {
@@ -86,28 +87,6 @@ install_docker() {
   systemctl enable --now docker
 }
 
-configure_build_swap() {
-  local memory_kb
-  memory_kb="$(awk '/MemTotal/ { print $2 }' /proc/meminfo)"
-  if (( memory_kb >= 1572864 )); then
-    return
-  fi
-
-  log "Configuring ${DAYMARK_SWAP_SIZE_MB} MB swap for source-image builds"
-  install -m 0700 -d "$(dirname "${DAYMARK_SWAP_FILE}")"
-  if [[ ! -f "${DAYMARK_SWAP_FILE}" ]]; then
-    fallocate -l "${DAYMARK_SWAP_SIZE_MB}M" "${DAYMARK_SWAP_FILE}"
-    chmod 0600 "${DAYMARK_SWAP_FILE}"
-    mkswap "${DAYMARK_SWAP_FILE}"
-  fi
-  if ! swapon --show=NAME --noheadings | grep -Fxq "${DAYMARK_SWAP_FILE}"; then
-    swapon "${DAYMARK_SWAP_FILE}"
-  fi
-  if ! grep -Fq "${DAYMARK_SWAP_FILE} none swap sw 0 0" /etc/fstab; then
-    printf '%s\n' "${DAYMARK_SWAP_FILE} none swap sw 0 0" >> /etc/fstab
-  fi
-}
-
 install_daymark_source() {
   log "Installing Daymark source at ${DAYMARK_INSTALL_DIR}"
   if [[ -d "${DAYMARK_INSTALL_DIR}/.git" ]]; then
@@ -135,10 +114,12 @@ create_environment() {
   local session_secret
   local setup_token
   local token_encryption_key
+  local current_commit
   postgres_password="$(openssl rand -hex 24)"
   session_secret="$(openssl rand -hex 32)"
   setup_token="$(openssl rand -hex 24)"
   token_encryption_key="$(openssl rand -base64 32)"
+  current_commit="$(git -C "${DAYMARK_INSTALL_DIR}" rev-parse --short=7 HEAD)"
 
   umask 077
   {
@@ -146,6 +127,11 @@ create_environment() {
     printf 'API_BASE_URL=http://%s.local:%s\n' "${DAYMARK_HOSTNAME}" "${DAYMARK_HTTP_PORT}"
     printf 'DAYMARK_BIND_ADDRESS=0.0.0.0\n'
     printf 'DAYMARK_HTTP_PORT=%s\n' "${DAYMARK_HTTP_PORT}"
+    printf 'DAYMARK_IMAGE_TAG=sha-%s\n' "${current_commit}"
+    printf 'DAYMARK_INSTALLED_VERSION=main@%s\n' "${current_commit}"
+    printf 'DAYMARK_UPDATE_CHANNEL=%s\n' "${DAYMARK_UPDATE_CHANNEL}"
+    printf 'DAYMARK_UPDATE_DIR=/var/lib/daymark/update\n'
+    printf 'DAYMARK_UPDATE_HOST_DIR=%s\n' "${DAYMARK_UPDATE_DIR}"
     printf 'TAILSCALE_ENABLED=false\n'
     printf 'POSTGRES_PASSWORD=%s\n' "${postgres_password}"
     printf 'DATABASE_URL=postgres://daymark:%s@postgres:5432/daymark\n' "${postgres_password}"
@@ -166,6 +152,22 @@ ensure_setup_token() {
 
   log "Adding a secure first-run pairing key"
   printf 'DAYMARK_SETUP_TOKEN=%s\n' "$(openssl rand -hex 24)" >> "${DAYMARK_ENV_FILE}"
+}
+
+ensure_update_environment() {
+  local current_commit
+  current_commit="$(git -C "${DAYMARK_INSTALL_DIR}" rev-parse --short=7 HEAD)"
+
+  grep -q '^DAYMARK_IMAGE_TAG=' "${DAYMARK_ENV_FILE}" ||
+    printf 'DAYMARK_IMAGE_TAG=sha-%s\n' "${current_commit}" >> "${DAYMARK_ENV_FILE}"
+  grep -q '^DAYMARK_INSTALLED_VERSION=' "${DAYMARK_ENV_FILE}" ||
+    printf 'DAYMARK_INSTALLED_VERSION=main@%s\n' "${current_commit}" >> "${DAYMARK_ENV_FILE}"
+  grep -q '^DAYMARK_UPDATE_CHANNEL=' "${DAYMARK_ENV_FILE}" ||
+    printf 'DAYMARK_UPDATE_CHANNEL=%s\n' "${DAYMARK_UPDATE_CHANNEL}" >> "${DAYMARK_ENV_FILE}"
+  grep -q '^DAYMARK_UPDATE_DIR=' "${DAYMARK_ENV_FILE}" ||
+    printf 'DAYMARK_UPDATE_DIR=/var/lib/daymark/update\n' >> "${DAYMARK_ENV_FILE}"
+  grep -q '^DAYMARK_UPDATE_HOST_DIR=' "${DAYMARK_ENV_FILE}" ||
+    printf 'DAYMARK_UPDATE_HOST_DIR=%s\n' "${DAYMARK_UPDATE_DIR}" >> "${DAYMARK_ENV_FILE}"
 }
 
 resolve_kiosk_user() {
@@ -250,7 +252,7 @@ Wants=network-online.target
 Type=oneshot
 RemainAfterExit=yes
 WorkingDirectory=${DAYMARK_INSTALL_DIR}
-ExecStart=/usr/bin/docker compose --env-file ${DAYMARK_ENV_FILE} -f ${DAYMARK_COMPOSE_FILE} up -d
+ExecStart=/usr/bin/docker compose --env-file ${DAYMARK_ENV_FILE} -f ${DAYMARK_COMPOSE_FILE} up -d --no-build
 ExecStop=/usr/bin/docker compose --env-file ${DAYMARK_ENV_FILE} -f ${DAYMARK_COMPOSE_FILE} down
 TimeoutStartSec=0
 
@@ -261,18 +263,72 @@ EOF
   systemctl enable daymark.service
 }
 
-build_and_start_daymark() {
+install_update_service() {
+  log "Installing the Daymark update service"
+  install -m 0700 -d "${DAYMARK_UPDATE_DIR}"
+  install -m 0755 \
+    "${DAYMARK_INSTALL_DIR}/deploy/rpi/update.sh" \
+    /usr/local/sbin/daymark-update
+  local installed_version
+  installed_version="$(sed -n 's/^DAYMARK_INSTALLED_VERSION=//p' "${DAYMARK_ENV_FILE}")"
+  if [[ ! -f "${DAYMARK_UPDATE_DIR}/status.json" ]]; then
+    printf '{"state":"idle","installedVersion":"%s","targetVersion":null,"message":null,"updatedAt":"%s"}\n' \
+      "${installed_version:-unknown}" "$(date --iso-8601=seconds)" \
+      > "${DAYMARK_UPDATE_DIR}/status.json"
+    chmod 0600 "${DAYMARK_UPDATE_DIR}/status.json"
+  fi
+
+  cat > /etc/systemd/system/daymark-update.service <<EOF
+[Unit]
+Description=Install a requested Daymark update
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+Environment=DAYMARK_INSTALL_DIR=${DAYMARK_INSTALL_DIR}
+Environment=DAYMARK_ENV_FILE=${DAYMARK_ENV_FILE}
+Environment=DAYMARK_UPDATE_DIR=${DAYMARK_UPDATE_DIR}
+EnvironmentFile=-${DAYMARK_ENV_FILE}
+ExecStart=/usr/local/sbin/daymark-update
+TimeoutStartSec=0
+EOF
+
+  cat > /etc/systemd/system/daymark-update.path <<EOF
+[Unit]
+Description=Watch for Daymark update requests
+
+[Path]
+PathExists=${DAYMARK_UPDATE_DIR}/request.json
+Unit=daymark-update.service
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+  systemctl daemon-reload
+  systemctl enable --now daymark-update.path
+}
+
+pull_and_start_daymark() {
   log "Validating the production configuration"
   docker compose \
     --env-file "${DAYMARK_ENV_FILE}" \
     -f "${DAYMARK_COMPOSE_FILE}" \
     config --quiet
 
-  log "Building Daymark (the first Pi 3 build can take a while)"
+  log "Downloading prebuilt Daymark images"
   docker compose \
     --env-file "${DAYMARK_ENV_FILE}" \
     -f "${DAYMARK_COMPOSE_FILE}" \
-    up -d --build
+    pull
+
+  log "Starting Daymark"
+  docker compose \
+    --env-file "${DAYMARK_ENV_FILE}" \
+    -f "${DAYMARK_COMPOSE_FILE}" \
+    up -d --no-build
 }
 
 wait_for_daymark() {
@@ -301,12 +357,13 @@ main() {
   require_supported_host
   install_base_packages
   install_docker
-  configure_build_swap
   install_daymark_source
   create_environment
+  ensure_update_environment
   configure_kiosk
   install_systemd_service
-  build_and_start_daymark
+  install_update_service
+  pull_and_start_daymark
   wait_for_daymark
 }
 

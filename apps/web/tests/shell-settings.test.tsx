@@ -43,6 +43,9 @@ function mockSettingsRequests(unlocked: boolean): ReturnType<typeof vi.spyOn> {
     if (url.startsWith("/api/integrations/tailscale/reset")) {
       return mockJsonResponse({ reset: true });
     }
+    if (url.startsWith("/api/system/update")) {
+      return mockJsonResponse({ available: false, state: "idle" });
+    }
     return mockJsonResponse({}, 404);
   });
 }
@@ -232,6 +235,52 @@ describe("shell and settings", () => {
 
     expect(fetchSpy).toHaveBeenCalledWith(
       "/api/integrations/tailscale/reset",
+      expect.objectContaining({ method: "POST" })
+    );
+  });
+
+  it("lets an unlocked appliance admin request an update", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const url = typeof input === "string" ? input : input.url;
+      if (url.startsWith("/api/session/current")) {
+        return mockJsonResponse({ unlocked: true });
+      }
+      if (url.startsWith("/api/system/update")) {
+        return mockJsonResponse({
+          available: true,
+          state: "idle",
+          installedVersion: "main@1234567",
+          targetVersion: null,
+          message: null,
+          updatedAt: "2026-07-25T12:00:00.000Z"
+        });
+      }
+      if (url.startsWith("/api/calendar/accounts")) return mockJsonResponse({ accounts: [] });
+      if (url.startsWith("/api/calendar/sources")) return mockJsonResponse({ sources: [] });
+      if (url.startsWith("/api/household/current")) {
+        return mockJsonResponse({
+          household: {
+            name: "Test Household",
+            timezone: "America/Los_Angeles"
+          },
+          people: []
+        });
+      }
+      if (url.startsWith("/api/integrations/google/status")) {
+        return mockJsonResponse({ available: false, redirectUri: null });
+      }
+      if (url.startsWith("/api/integrations/tailscale/status")) {
+        return mockJsonResponse({ available: false, state: "unavailable" });
+      }
+      return mockJsonResponse({}, 404);
+    });
+    renderWithRoute("/settings", <SettingsPage />);
+
+    expect(await screen.findByText("main@1234567")).toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole("button", { name: "Install latest update" }));
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "/api/system/update",
       expect.objectContaining({ method: "POST" })
     );
   });
