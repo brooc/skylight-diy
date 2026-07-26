@@ -10,7 +10,7 @@ be baked into a custom Daymark image.
 - Raspberry Pi 3 Model B+ or newer
 - Reliable 5V/2.5A power supply for the Pi 3 B+
 - 16 GB microSD card minimum; 32 GB or larger recommended
-- Ethernet recommended for the first provisioning run
+- Ethernet available as a fallback for the first provisioning run
 
 The Pi 3 B+ has a 64-bit CPU but only 1 GB of memory. Use the regular 64-bit
 desktop OS for the appliance test so Daymark can launch directly on the
@@ -51,10 +51,11 @@ card, run:
 boot partition path.
 
 This preserves Imager's hostname, user, Wi-Fi, locale, and SSH customisation. It
-adds a small installer through either Imager's current cloud-init boot path or
-the legacy `firstrun.sh` path, depending on the selected OS image. That
-installer places the full Daymark provisioner on the root filesystem and
-enables a one-shot `daymark-first-boot.service`.
+adds a small installer to Imager's existing cloud-init `runcmd` list, or to the
+legacy `firstrun.sh` path on older images. The installer also imports Imager's
+Wi-Fi settings into NetworkManager when the OS does not do so itself. It places
+the full Daymark provisioner on the root filesystem and enables a one-shot
+`daymark-first-boot.service`.
 
 ## 3. Boot and wait
 
@@ -65,8 +66,9 @@ on. The Pi reboots automatically while it moves through these stages:
    first-boot service.
 2. The service waits for networking and runs the Daymark provisioner.
 3. Successful provisioning creates `/var/lib/daymark/provisioned`, disables the
-   first-boot service, removes the temporary installer files, and reboots into
-   Chromium kiosk mode.
+   first-boot service, removes the temporary boot-partition payload, and reboots
+   into Chromium kiosk mode. The marker prevents the retained recovery scripts
+   from running again.
 
 The first download can take several minutes on a Pi 3 B+. Do not remove power
 while provisioning is active.
@@ -177,8 +179,8 @@ Google OAuth tokens. Back it up with the PostgreSQL data.
 - [ ] Pi boots with the connected display and responds at `daymark.local`
 - [ ] Imager customisation runs without being replaced
 - [ ] First-boot provisioning creates `/var/lib/daymark/provisioned`
-- [ ] `daymark-first-boot.service` and its temporary runner are removed after
-      success
+- [ ] `daymark-first-boot.service` is disabled after success and remains inert
+      while `/var/lib/daymark/provisioned` exists
 - [ ] Failed provisioning remains diagnosable and retries after reboot
 - [ ] Chromium opens the appliance setup screen automatically
 - [ ] QR setup works from a phone on the same Wi-Fi

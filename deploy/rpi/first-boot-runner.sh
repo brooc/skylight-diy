@@ -4,9 +4,7 @@ set -Eeuo pipefail
 
 DAYMARK_MARKER="/var/lib/daymark/provisioned"
 DAYMARK_LOG="/var/lib/daymark/first-boot.log"
-DAYMARK_RUNNER="/usr/local/sbin/daymark-first-boot"
 DAYMARK_PROVISIONER="/usr/local/sbin/daymark-provision"
-DAYMARK_SERVICE="/etc/systemd/system/daymark-first-boot.service"
 
 if [[ -f "${DAYMARK_MARKER}" ]]; then
   exit 0
@@ -35,8 +33,6 @@ fi
 if "${DAYMARK_PROVISIONER}"; then
   touch "${DAYMARK_MARKER}"
   systemctl disable daymark-first-boot.service
-  rm -f "${DAYMARK_PROVISIONER}" "${DAYMARK_RUNNER}" "${DAYMARK_SERVICE}"
-  systemctl daemon-reload
   printf '\n==> Daymark provisioning completed successfully. Rebooting.\n'
   systemctl --no-block reboot
   exit 0

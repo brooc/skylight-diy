@@ -7,7 +7,6 @@ BOOTFS_DIR="${1:-}"
 DAYMARK_PAYLOAD_DIR=""
 FIRSTRUN_FILE=""
 INJECTION_MARKER="# Daymark first-boot installer"
-DAYMARK_SYSTEMD_RUN="systemd.run=/boot/firmware/daymark/install-first-boot.sh"
 
 fail() {
   printf 'Daymark SD preparation failed: %s\n' "$*" >&2
@@ -37,6 +36,8 @@ copy_payload() {
     "${DAYMARK_PAYLOAD_DIR}/first-boot-runner.sh"
   cp "${SCRIPT_DIR}/provision.sh" \
     "${DAYMARK_PAYLOAD_DIR}/provision.sh"
+  cp "${SCRIPT_DIR}/configure-imager-wifi.py" \
+    "${DAYMARK_PAYLOAD_DIR}/configure-imager-wifi.py"
 }
 
 inject_first_boot_installer() {
@@ -67,19 +68,58 @@ inject_first_boot_installer() {
   mv "${next_file}" "${FIRSTRUN_FILE}"
 }
 
-inject_cloud_init_boot_command() {
+inject_cloud_init_installer() {
+  local user_data_file="${BOOTFS_DIR}/user-data"
+  if grep -Fq "${INJECTION_MARKER}" "${user_data_file}"; then
+    return
+  fi
+  grep -Eq '^runcmd:[[:space:]]*$' "${user_data_file}" ||
+    fail "${user_data_file} does not contain the expected cloud-init runcmd section"
+
+  local next_file="${user_data_file}.daymark"
+  awk -v marker="${INJECTION_MARKER}" '
+    function add_daymark() {
+      print "  " marker
+      print "  - [ /bin/bash, /boot/firmware/daymark/install-first-boot.sh ]"
+      added = 1
+    }
+    /^runcmd:[[:space:]]*$/ {
+      in_runcmd = 1
+      print
+      next
+    }
+    in_runcmd && /^[[:alnum:]_][[:alnum:]_-]*:[[:space:]]*/ {
+      add_daymark()
+      in_runcmd = 0
+    }
+    { print }
+    END {
+      if (in_runcmd && !added) {
+        add_daymark()
+      }
+    }
+  ' "${user_data_file}" > "${next_file}"
+  mv "${next_file}" "${user_data_file}"
+}
+
+remove_legacy_cloud_init_boot_command() {
   local cmdline_file="${BOOTFS_DIR}/cmdline.txt"
-  if grep -Fq "${DAYMARK_SYSTEMD_RUN}" "${cmdline_file}"; then
+  if ! grep -Fq \
+    'systemd.run=/boot/firmware/daymark/install-first-boot.sh' \
+    "${cmdline_file}"; then
     return
   fi
 
   local next_file="${cmdline_file}.daymark"
-  awk -v systemd_run="${DAYMARK_SYSTEMD_RUN}" '
-    NR == 1 {
-      print $0 " " systemd_run " systemd.run_success_action=none"
-      next
+  awk '
+    {
+      gsub(/systemd\.run=\/boot\/firmware\/daymark\/install-first-boot\.sh/, "")
+      gsub(/systemd\.run_success_action=none/, "")
+      gsub(/[[:space:]]+/, " ")
+      sub(/^ /, "")
+      sub(/ $/, "")
+      print
     }
-    { print }
   ' "${cmdline_file}" > "${next_file}"
   mv "${next_file}" "${cmdline_file}"
 }
@@ -90,7 +130,8 @@ main() {
   if [[ -f "${FIRSTRUN_FILE}" ]]; then
     inject_first_boot_installer
   else
-    inject_cloud_init_boot_command
+    inject_cloud_init_installer
+    remove_legacy_cloud_init_boot_command
   fi
 
   printf 'Daymark first-boot provisioning added to %s\n' "${BOOTFS_DIR}"
