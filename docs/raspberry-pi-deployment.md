@@ -40,49 +40,51 @@ In OS customisation set:
 Writing the image erases the selected storage device. Verify its capacity and
 device name in Imager before continuing.
 
-## 2. Boot and connect
+## 2. Add automatic Daymark provisioning
 
-Insert the card, connect Ethernet if available, and power on the Pi. First boot
-can take several minutes.
+After Imager finishes, keep the card mounted. If Imager ejected it, remove and
+reinsert it. From the cloned Daymark repository on the computer that imaged the
+card, run:
+
+```bash
+./deploy/rpi/prepare-bootfs.sh /Volumes/bootfs
+```
+
+`/Volumes/bootfs` is the usual macOS path. On Linux, pass the actual mounted
+boot partition path.
+
+This preserves Imager's hostname, user, Wi-Fi, locale, and SSH customisation. It
+adds a small installer through either Imager's current cloud-init boot path or
+the legacy `firstrun.sh` path, depending on the selected OS image. That
+installer places the full Daymark provisioner on the root filesystem and
+enables a one-shot `daymark-first-boot.service`.
+
+## 3. Boot and wait
+
+Eject the card, insert it in the Pi, connect Ethernet if available, and power it
+on. The Pi reboots automatically while it moves through these stages:
+
+1. Raspberry Pi OS applies the Imager customisation and installs the Daymark
+   first-boot service.
+2. The service waits for networking and runs the Daymark provisioner.
+3. Successful provisioning creates `/var/lib/daymark/provisioned`, disables the
+   first-boot service, removes the temporary installer files, and reboots into
+   Chromium kiosk mode.
+
+The first source build can take a while on a Pi 3 B+. Do not remove power while
+provisioning is active.
+
+If provisioning fails, the completion marker is not created and the service
+remains enabled for the next reboot. Diagnose it over SSH:
 
 ```bash
 ssh <admin-user>@daymark.local
+sudo journalctl -u daymark-first-boot.service
+sudo less /var/lib/daymark/first-boot.log
 ```
 
-If mDNS discovery does not work, find the Pi's address in the router and connect
-to that address instead.
-
-## 3. Provision Daymark
-
-The repository is currently public, so the test provisioner can be downloaded
-without GitHub credentials:
-
-```bash
-git clone --depth 1 https://github.com/brooc/skylight-diy.git
-cd skylight-diy
-sudo ./deploy/rpi/provision.sh
-```
-
-The provisioner:
-
-- Verifies Raspberry Pi OS/Debian `arm64`
-- Installs Docker Engine, Compose, and Chromium
-- Creates build swap on devices with less than 1.5 GB RAM
-- Installs Daymark under `/opt/daymark`
-- Generates database, session, setup-pairing, and token-encryption secrets
-- Builds and starts the production Compose stack
-- Installs a `daymark.service` systemd unit
-- Enables desktop auto-login and launches Daymark in Chromium kiosk mode
-- Waits for the Daymark health endpoint
-
-When it finishes, reboot:
-
-```bash
-sudo reboot
-```
-
-The connected display opens Daymark automatically. It presents two equivalent
-setup paths:
+When provisioning succeeds, the connected display opens Daymark automatically.
+It presents two equivalent setup paths:
 
 - Scan the displayed QR code using a phone on the same network.
 - Select **Set up on this display** and use touch, a mouse, or a keyboard.
@@ -102,9 +104,11 @@ Complete the first-run household setup in the browser.
 
 ## Provisioner options
 
-Environment variables can override the test defaults:
+The automatic path uses the defaults. For development and recovery, the
+provisioner remains available under `/opt/daymark` and supports overrides:
 
 ```bash
+cd /opt/daymark
 sudo \
   DAYMARK_REF=main \
   DAYMARK_INSTALL_DIR=/opt/daymark \
@@ -147,6 +151,11 @@ Google OAuth tokens. Back it up with the PostgreSQL data.
 ## Test checklist
 
 - [ ] Pi boots with the connected display and responds at `daymark.local`
+- [ ] Imager customisation runs without being replaced
+- [ ] First-boot provisioning creates `/var/lib/daymark/provisioned`
+- [ ] `daymark-first-boot.service` and its temporary runner are removed after
+      success
+- [ ] Failed provisioning remains diagnosable and retries after reboot
 - [ ] Chromium opens the appliance setup screen automatically
 - [ ] QR setup works from a phone on the same Wi-Fi
 - [ ] On-display setup works with touch and with keyboard/mouse
