@@ -185,9 +185,9 @@ sudo systemctl restart daymark
 The generated `/opt/daymark/.env.production` contains the key used to encrypt
 Google OAuth tokens. Back it up with the PostgreSQL data.
 
-When the shared Google connection service is deployed, provision with
-`DAYMARK_GOOGLE_OAUTH_BROKER_URL=https://<broker-host>` so households can
-connect Calendar without their own Google Cloud project. See
+The provisioner includes Daymark's shared Google connection service by default,
+so households can connect Calendar without their own Google Cloud project. Set
+`DAYMARK_GOOGLE_OAUTH_BROKER_URL` only to override or disable that default. See
 [Google OAuth Broker](google-oauth-broker.md).
 
 ## Test checklist
@@ -201,6 +201,7 @@ connect Calendar without their own Google Cloud project. See
 - [ ] Chromium opens the appliance setup screen automatically
 - [ ] QR setup works from a phone on the same Wi-Fi
 - [ ] On-display setup works with touch and with keyboard/mouse
+- [ ] Google Calendar is available without appliance-side OAuth credentials
 - [ ] The display switches to Today after setup completes on another device
 - [ ] Provisioner completes from a clean desktop image
 - [ ] Re-running the provisioner is safe and preserves secrets/data

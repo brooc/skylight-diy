@@ -139,15 +139,17 @@ Only the public Worker origin is needed:
 GOOGLE_OAUTH_BROKER_URL=https://daymark-oauth-broker.<account-subdomain>.workers.dev
 ```
 
-For a new Raspberry Pi image, pass it to the provisioning script:
+The official Raspberry Pi provisioner already uses the production Worker by
+default, so households do not need to configure this value. An operator can
+override the URL for a private broker:
 
 ```bash
 sudo DAYMARK_GOOGLE_OAUTH_BROKER_URL=https://daymark-oauth-broker.<account-subdomain>.workers.dev \
   ./deploy/rpi/provision.sh
 ```
 
-Once the production hostname is stable, set it as the provisioner's default.
-That removes this step for households entirely.
+Set `DAYMARK_GOOGLE_OAUTH_BROKER_URL=` explicitly to provision without a shared
+broker.
 
 For an already provisioned appliance, add or replace
 `GOOGLE_OAUTH_BROKER_URL` in `/opt/daymark/.env.production`, then recreate the

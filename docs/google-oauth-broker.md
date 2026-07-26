@@ -63,16 +63,16 @@ Set the public broker origin in the appliance production environment:
 GOOGLE_OAUTH_BROKER_URL=https://<broker-host>
 ```
 
-For Raspberry Pi provisioning, the operator can bake that non-secret URL into
-the generated environment:
+The official Raspberry Pi provisioner uses Daymark's production broker by
+default. An operator can override that non-secret URL:
 
 ```bash
 sudo DAYMARK_GOOGLE_OAUTH_BROKER_URL=https://<broker-host> \
   ./deploy/rpi/provision.sh
 ```
 
-Once the production broker hostname is final, this value should become the
-provisioner's default so households do not configure it.
+Set `DAYMARK_GOOGLE_OAUTH_BROKER_URL=` explicitly to provision without a shared
+broker.
 
 When `GOOGLE_OAUTH_BROKER_URL` is present, Daymark uses the broker even if local
 Google client variables are also present. To use a private OAuth client instead,
