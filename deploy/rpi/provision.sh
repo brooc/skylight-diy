@@ -13,9 +13,16 @@ DAYMARK_GOOGLE_OAUTH_BROKER_URL="${DAYMARK_GOOGLE_OAUTH_BROKER_URL:-}"
 DAYMARK_ENV_FILE="${DAYMARK_INSTALL_DIR}/.env.production"
 DAYMARK_COMPOSE_FILE="${DAYMARK_INSTALL_DIR}/compose.production.yml"
 DAYMARK_UPDATE_DIR="/var/lib/daymark/update"
+DAYMARK_PROGRESS="${DAYMARK_PROGRESS:-/usr/local/sbin/daymark-progress}"
 
 log() {
   printf '\n==> %s\n' "$*"
+}
+
+progress() {
+  if [[ -x "${DAYMARK_PROGRESS}" ]]; then
+    "${DAYMARK_PROGRESS}" "$@" || true
+  fi
 }
 
 fail() {
@@ -363,17 +370,35 @@ wait_for_daymark() {
 }
 
 main() {
+  progress 15 "Checking this Raspberry Pi" \
+    "Confirming the operating system and processor are supported."
   require_root
   require_supported_host
+  progress 20 "Installing system packages" \
+    "Downloading the browser and secure connection tools."
   install_base_packages
+  progress 35 "Preparing the container runtime" \
+    "Installing or validating Docker Engine."
   install_docker
+  progress 45 "Downloading Daymark" \
+    "Fetching the current Daymark release configuration."
   install_daymark_source
+  progress 52 "Creating appliance settings" \
+    "Generating private local keys and production configuration."
   create_environment
   ensure_update_environment
+  progress 60 "Configuring the display" \
+    "Preparing automatic full-screen kiosk mode."
   configure_kiosk
+  progress 68 "Installing appliance services" \
+    "Enabling Daymark and its safe update service."
   install_systemd_service
   install_update_service
+  progress 75 "Downloading Daymark" \
+    "Fetching prebuilt application images. This is usually the longest step."
   pull_and_start_daymark
+  progress 94 "Starting Daymark" \
+    "Waiting for the application and database to become healthy."
   wait_for_daymark
 }
 

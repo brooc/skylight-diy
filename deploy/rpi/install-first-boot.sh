@@ -8,6 +8,7 @@ DAYMARK_MARKER="${DAYMARK_STATE_DIR}/provisioned"
 DAYMARK_LOG="${DAYMARK_STATE_DIR}/first-boot.log"
 DAYMARK_RUNNER="/usr/local/sbin/daymark-first-boot"
 DAYMARK_PROVISIONER="/usr/local/sbin/daymark-provision"
+DAYMARK_PROGRESS="/usr/local/sbin/daymark-progress"
 DAYMARK_SERVICE="/etc/systemd/system/daymark-first-boot.service"
 DAYMARK_WIFI_IMPORTER="${BOOTFS_DIR}/daymark/configure-imager-wifi.py"
 
@@ -21,6 +22,9 @@ install -m 0755 "${BOOTFS_DIR}/daymark/provision.sh" "${DAYMARK_PROVISIONER}"
 install -m 0755 \
   "${BOOTFS_DIR}/daymark/first-boot-runner.sh" \
   "${DAYMARK_RUNNER}"
+install -m 0755 \
+  "${BOOTFS_DIR}/daymark/provisioning-progress.sh" \
+  "${DAYMARK_PROGRESS}"
 
 if command -v nmcli >/dev/null 2>&1 && [[ -f "${DAYMARK_WIFI_IMPORTER}" ]]; then
   if ! python3 "${DAYMARK_WIFI_IMPORTER}"; then
@@ -33,14 +37,15 @@ cat > "${DAYMARK_SERVICE}" <<EOF
 Description=Provision Daymark on first boot
 Wants=network-online.target
 After=network-online.target
+Conflicts=getty@tty1.service
 ConditionPathExists=!${DAYMARK_MARKER}
 
 [Service]
 Type=oneshot
 ExecStart=${DAYMARK_RUNNER}
 RemainAfterExit=yes
-StandardOutput=journal+console
-StandardError=journal+console
+StandardOutput=journal
+StandardError=journal
 TimeoutStartSec=0
 
 [Install]
@@ -49,6 +54,14 @@ EOF
 
 systemctl daemon-reload
 systemctl enable daymark-first-boot.service
+
+# Keep the connected display on a dependable local progress screen until the
+# appliance is ready. Successful provisioning restores graphical boot.
+systemctl set-default multi-user.target
+systemctl stop display-manager.service 2>/dev/null || true
+chvt 1 2>/dev/null || true
+"${DAYMARK_PROGRESS}" 2 "Preparing Daymark" \
+  "Starting the automatic first-boot installer." || true
 systemctl start --no-block daymark-first-boot.service
 
 if grep -Fq \
@@ -62,6 +75,7 @@ fi
 
 rm -f "${BOOTFS_DIR}/daymark/provision.sh"
 rm -f "${BOOTFS_DIR}/daymark/first-boot-runner.sh"
+rm -f "${BOOTFS_DIR}/daymark/provisioning-progress.sh"
 rm -f "${BOOTFS_DIR}/daymark/install-first-boot.sh"
 rm -f "${BOOTFS_DIR}/daymark/configure-imager-wifi.py"
 rmdir "${BOOTFS_DIR}/daymark" 2>/dev/null || true

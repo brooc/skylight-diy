@@ -34,6 +34,8 @@ copy_payload() {
     "${DAYMARK_PAYLOAD_DIR}/install-first-boot.sh"
   cp "${SCRIPT_DIR}/first-boot-runner.sh" \
     "${DAYMARK_PAYLOAD_DIR}/first-boot-runner.sh"
+  cp "${SCRIPT_DIR}/provisioning-progress.sh" \
+    "${DAYMARK_PAYLOAD_DIR}/provisioning-progress.sh"
   cp "${SCRIPT_DIR}/provision.sh" \
     "${DAYMARK_PAYLOAD_DIR}/provision.sh"
   cp "${SCRIPT_DIR}/configure-imager-wifi.py" \

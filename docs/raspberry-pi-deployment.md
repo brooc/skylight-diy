@@ -73,6 +73,14 @@ on. The Pi reboots automatically while it moves through these stages:
 The first download can take several minutes on a Pi 3 B+. Do not remove power
 while provisioning is active.
 
+During this work, the connected display shows a Daymark installation screen
+with the current stage and a progress bar. Daymark temporarily uses text-mode
+boot so the progress screen does not depend on the desktop, browser, Docker, or
+network already being available. Successful provisioning restores graphical
+boot and restarts directly into the full-screen Daymark display. If installation
+fails, the screen preserves the recovery instructions and the next reboot
+retries automatically.
+
 If provisioning fails, the completion marker is not created and the service
 remains enabled for the next reboot. Diagnose it over SSH:
 
