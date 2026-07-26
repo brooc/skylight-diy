@@ -6,6 +6,7 @@ import {
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { BrokerEnv } from "../src/env";
 import { buildBrokerServer, isAllowedApplianceReturnUrl } from "../src/server";
+import { handleWorkerRequest, type CloudflareBrokerEnv } from "../src/worker";
 
 const env: BrokerEnv = {
   NODE_ENV: "test",
@@ -15,6 +16,12 @@ const env: BrokerEnv = {
   GOOGLE_CLIENT_SECRET: "client-secret",
   GOOGLE_REDIRECT_URI: "https://auth.daymark.example/v1/google/callback",
   BROKER_STATE_SECRET: "broker-state-secret-with-at-least-32-characters",
+};
+
+const workerEnv: CloudflareBrokerEnv = {
+  GOOGLE_CLIENT_ID: env.GOOGLE_CLIENT_ID,
+  GOOGLE_CLIENT_SECRET: env.GOOGLE_CLIENT_SECRET,
+  BROKER_STATE_SECRET: env.BROKER_STATE_SECRET,
 };
 
 function decodeFragment(location: string): {
@@ -158,5 +165,92 @@ describe("Daymark OAuth broker", () => {
     expect(body.get("refresh_token")).toBe("stored-only-on-appliance");
     expect(body.get("client_secret")).toBe("client-secret");
     await app.close();
+  });
+
+  it("runs the encrypted callback flow in the Cloudflare Worker runtime", async () => {
+    const keyPair = generateApplianceKeyPair();
+    const authorize = await handleWorkerRequest(
+      new Request(
+        "https://daymark-oauth-broker.example.workers.dev/v1/google/authorize",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            returnUrl: "http://daymark.local:8080/settings",
+            completionState: "worker-local-state",
+            publicKey: keyPair.publicKey,
+          }),
+        },
+      ),
+      workerEnv,
+    );
+    expect(authorize.status).toBe(200);
+    const authorization = (await authorize.json()) as { authUrl: string };
+    const authUrl = new URL(authorization.authUrl);
+    expect(authUrl.searchParams.get("redirect_uri")).toBe(
+      "https://daymark-oauth-broker.example.workers.dev/v1/google/callback",
+    );
+
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          access_token: "worker-access-token",
+          refresh_token: "worker-refresh-token",
+          expires_in: 3_600,
+          scope:
+            "https://www.googleapis.com/auth/calendar.calendarlist.readonly https://www.googleapis.com/auth/calendar.events",
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+    const callback = await handleWorkerRequest(
+      new Request(
+        `https://daymark-oauth-broker.example.workers.dev/v1/google/callback?code=worker-code&state=${encodeURIComponent(authUrl.searchParams.get("state") ?? "")}`,
+      ),
+      workerEnv,
+    );
+    expect(callback.status).toBe(302);
+    const result = decodeFragment(callback.headers.get("location") ?? "");
+    expect(result.completionState).toBe("worker-local-state");
+    expect(
+      decryptBrokerEnvelope(
+        keyPair.privateKey,
+        result.envelope as BrokerEnvelope,
+      ),
+    ).toMatchObject({
+      accessToken: "worker-access-token",
+      refreshToken: "worker-refresh-token",
+    });
+    expect(callback.headers.get("cache-control")).toBe("no-store");
+  });
+
+  it("runs stateless refresh proxying in the Cloudflare Worker runtime", async () => {
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(
+        new Response(
+          JSON.stringify({ access_token: "worker-refreshed", expires_in: 900 }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        ),
+      );
+    const response = await handleWorkerRequest(
+      new Request(
+        "https://daymark-oauth-broker.example.workers.dev/v1/google/refresh",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            refreshToken: "worker-appliance-refresh-token",
+          }),
+        },
+      ),
+      workerEnv,
+    );
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      access_token: "worker-refreshed",
+    });
+    const body = fetchMock.mock.calls[0]?.[1]?.body as URLSearchParams;
+    expect(body.get("refresh_token")).toBe("worker-appliance-refresh-token");
   });
 });

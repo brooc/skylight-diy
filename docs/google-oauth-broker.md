@@ -94,3 +94,46 @@ omit the broker URL and set `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, and
 
 The public broker endpoints should additionally receive platform-level rate
 limiting and alerting before a broad launch.
+
+## Cloudflare Workers
+
+For small and community deployments, the recommended broker runtime is a
+Cloudflare Worker. It keeps the broker stateless, provides a public HTTPS
+`workers.dev` endpoint, and does not require a container or database.
+
+The Worker entry point and configuration live in `apps/oauth-broker`:
+
+```bash
+pnpm --filter @daymark/oauth-broker test
+pnpm --filter @daymark/oauth-broker deploy:cloudflare
+```
+
+Configure all credentials as encrypted Worker secrets rather than plaintext
+Wrangler variables:
+
+```bash
+pnpm --filter @daymark/oauth-broker exec wrangler secret put GOOGLE_CLIENT_ID
+pnpm --filter @daymark/oauth-broker exec wrangler secret put GOOGLE_CLIENT_SECRET
+pnpm --filter @daymark/oauth-broker exec wrangler secret put BROKER_STATE_SECRET
+```
+
+The Worker derives its Google callback from its own request origin:
+
+```text
+https://<worker-host>/v1/google/callback
+```
+
+Add that exact URI to the shared Google web OAuth client. Configure appliances
+with the Worker origin only, without a trailing path:
+
+```text
+GOOGLE_OAUTH_BROKER_URL=https://<worker-host>
+```
+
+The free Workers plan is suitable for household-scale Daymark usage, but it has
+two relevant ceilings: 100,000 requests per day and 10 milliseconds of CPU time
+per invocation. Google and appliance network wait time does not consume the CPU
+allowance. Authorization state signing and token encryption do consume it, so
+the Worker runtime should be smoke-tested after cryptography or dependency
+changes. At large public scale, add abuse controls and move to a paid Worker or
+the container deployment before approaching those limits.

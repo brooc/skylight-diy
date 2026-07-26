@@ -14,6 +14,7 @@ This folder is the working plan for Daymark.
 - [v0.1 Operational Checklist](v0.1-operational-checklist.md)
 - [Google Calendar Setup](google-calendar-setup.md)
 - [Google OAuth Broker](google-oauth-broker.md)
+- [Cloudflare OAuth Broker Setup](cloudflare-oauth-broker-setup.md)
 - [Open Source Strategy](open-source-strategy.md)
 - [Fire Tablet Setup](fire-tablet-setup.md)
 - [Home Deployment](deployment.md)
