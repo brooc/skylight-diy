@@ -1,7 +1,7 @@
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import {
   ecPublicJwkSchema,
-  encryptForAppliance,
+  encryptForApplianceWebCrypto,
 } from "@daymark/oauth-protocol";
 import { z } from "zod";
 
@@ -256,7 +256,7 @@ export async function completeGoogleAuthorization(
       }),
     };
   }
-  const envelope = encryptForAppliance(state.publicKey, {
+  const envelope = await encryptForApplianceWebCrypto(state.publicKey, {
     accessToken: tokenPayload.access_token,
     ...(tokenPayload.refresh_token
       ? { refreshToken: tokenPayload.refresh_token }

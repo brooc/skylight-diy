@@ -11,6 +11,9 @@ import {
 import { z } from "zod";
 
 const KEY_DERIVATION_INFO = Buffer.from("daymark-google-oauth-v1", "utf8");
+const KEY_DERIVATION_INFO_BYTES = new TextEncoder().encode(
+  "daymark-google-oauth-v1",
+);
 
 export const ecPublicJwkSchema = z.object({
   kty: z.literal("EC"),
@@ -97,6 +100,77 @@ export function encryptForAppliance(
     iv: iv.toString("base64url"),
     ciphertext: ciphertext.toString("base64url"),
     authTag: cipher.getAuthTag().toString("base64url"),
+  };
+}
+
+export async function encryptForApplianceWebCrypto(
+  appliancePublicKeyInput: EcPublicJwk,
+  payloadInput: GoogleTokenPayload,
+): Promise<BrokerEnvelope> {
+  const appliancePublicKey = ecPublicJwkSchema.parse(appliancePublicKeyInput);
+  const payload = googleTokenPayloadSchema.parse(payloadInput);
+  const subtle = globalThis.crypto.subtle;
+  const importedApplianceKey = await subtle.importKey(
+    "jwk",
+    appliancePublicKey,
+    { name: "ECDH", namedCurve: "P-256" },
+    false,
+    [],
+  );
+  const ephemeral = await subtle.generateKey(
+    { name: "ECDH", namedCurve: "P-256" },
+    true,
+    ["deriveBits"],
+  );
+  const sharedSecret = await subtle.deriveBits(
+    { name: "ECDH", public: importedApplianceKey },
+    ephemeral.privateKey,
+    256,
+  );
+  const keyMaterial = await subtle.importKey(
+    "raw",
+    sharedSecret,
+    "HKDF",
+    false,
+    ["deriveKey"],
+  );
+  const salt = globalThis.crypto.getRandomValues(new Uint8Array(16));
+  const iv = globalThis.crypto.getRandomValues(new Uint8Array(12));
+  const key = await subtle.deriveKey(
+    {
+      name: "HKDF",
+      hash: "SHA-256",
+      salt,
+      info: KEY_DERIVATION_INFO_BYTES,
+    },
+    keyMaterial,
+    { name: "AES-GCM", length: 256 },
+    false,
+    ["encrypt"],
+  );
+  const sealedPayload = new Uint8Array(
+    await subtle.encrypt(
+      { name: "AES-GCM", iv, tagLength: 128 },
+      key,
+      new TextEncoder().encode(JSON.stringify(payload)),
+    ),
+  );
+  const authTagLength = 16;
+  const ciphertext = sealedPayload.subarray(
+    0,
+    sealedPayload.length - authTagLength,
+  );
+  const authTag = sealedPayload.subarray(sealedPayload.length - authTagLength);
+
+  return {
+    version: 1,
+    ephemeralPublicKey: ecPublicJwkSchema.parse(
+      await subtle.exportKey("jwk", ephemeral.publicKey),
+    ),
+    salt: Buffer.from(salt).toString("base64url"),
+    iv: Buffer.from(iv).toString("base64url"),
+    ciphertext: Buffer.from(ciphertext).toString("base64url"),
+    authTag: Buffer.from(authTag).toString("base64url"),
   };
 }
 
