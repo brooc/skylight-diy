@@ -70,10 +70,68 @@ set_env_value() {
 }
 
 compose() {
-  docker compose \
+  local image_tag
+  image_tag="$(read_env_value DAYMARK_IMAGE_TAG)"
+  [[ -n "${image_tag}" ]] || image_tag="main"
+  compose_with_image_tag "${image_tag}" "$@"
+}
+
+compose_with_image_tag() {
+  local image_tag="$1"
+  shift
+  env DAYMARK_IMAGE_TAG="${image_tag}" docker compose \
     --env-file "${DAYMARK_ENV_FILE}" \
     -f "${DAYMARK_COMPOSE_FILE}" \
     "$@"
+}
+
+image_reference() {
+  local key="$1"
+  local default_image="$2"
+  local image
+  image="$(read_env_value "${key}")"
+  [[ -n "${image}" ]] || image="${default_image}"
+  printf '%s:%s\n' "${image}" "${target_image_tag}"
+}
+
+verify_running_images() {
+  local service
+  local expected_reference
+  local expected_image_id
+  local container_id
+  local running_image_id
+
+  for service in api web; do
+    case "${service}" in
+      api)
+        expected_reference="$(
+          image_reference DAYMARK_API_IMAGE ghcr.io/brooc/daymark-api
+        )"
+        ;;
+      web)
+        expected_reference="$(
+          image_reference DAYMARK_WEB_IMAGE ghcr.io/brooc/daymark-web
+        )"
+        ;;
+    esac
+
+    expected_image_id="$(
+      docker image inspect --format '{{.Id}}' "${expected_reference}"
+    )"
+    container_id="$(compose ps -q "${service}")"
+    [[ -n "${container_id}" ]] || {
+      printf 'Daymark %s container is not running.\n' "${service}" >&2
+      return 1
+    }
+    running_image_id="$(
+      docker inspect --format '{{.Image}}' "${container_id}"
+    )"
+    [[ "${running_image_id}" == "${expected_image_id}" ]] || {
+      printf 'Daymark %s is not running the requested image %s.\n' \
+        "${service}" "${expected_reference}" >&2
+      return 1
+    }
+  done
 }
 
 wait_for_health() {
@@ -188,19 +246,22 @@ main() {
   write_status running "Downloading ${target_version}"
 
   git -C "${DAYMARK_INSTALL_DIR}" checkout --detach "${target_ref}"
-  DAYMARK_IMAGE_TAG="${target_image_tag}" compose config --quiet
-  DAYMARK_IMAGE_TAG="${target_image_tag}" compose pull api web
+  compose_with_image_tag "${target_image_tag}" config --quiet
+  compose_with_image_tag "${target_image_tag}" pull api web
 
   set_env_value DAYMARK_IMAGE_TAG "${target_image_tag}"
-  set_env_value DAYMARK_INSTALLED_VERSION "${target_version}"
   environment_changed=true
   compose up -d --no-build
   wait_for_health
+  verify_running_images
 
   install -m 0755 "${DAYMARK_INSTALL_DIR}/deploy/rpi/update.sh" "${DAYMARK_UPDATE_SCRIPT}"
+  set_env_value DAYMARK_INSTALLED_VERSION "${target_version}"
   installed_version="${target_version}"
   rm -f "${REQUEST_FILE}"
   write_status succeeded "Daymark update completed"
 }
 
-main "$@"
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+  main "$@"
+fi
