@@ -19,6 +19,10 @@ import {
 } from "../modules/calendar/cache";
 import { decryptToken, encryptToken } from "../modules/integrations/token-crypto";
 import {
+  getGoogleOauthMode,
+  refreshGoogleAccessToken
+} from "../modules/integrations/google-oauth-provider";
+import {
   mergeSharedEvents,
   type SourceCalendarEvent
 } from "../modules/calendar/merge-shared-events";
@@ -69,7 +73,6 @@ const recurrenceWeekdayIndex: Record<RecurrenceWeekday, number> = {
   FR: 5,
   SA: 6
 };
-
 function shiftDateKey(dateKey: string, days: number): string {
   const [year, month, day] = dateKey.split("-").map(Number);
   const shifted = new Date(Date.UTC(year!, month! - 1, day! + days));
@@ -622,7 +625,7 @@ async function requireGoogleAccessToken(
       .set({ reauthorizationRequired: true, updatedAt: new Date() })
       .where(eq(connectedAccounts.id, account.id));
   };
-  if (!account.encryptedRefreshToken || !env.GOOGLE_CLIENT_ID || !env.GOOGLE_CLIENT_SECRET) {
+  if (!account.encryptedRefreshToken || !getGoogleOauthMode()) {
     await markReauthorizationRequired();
     return {
       ok: false,
@@ -646,17 +649,8 @@ async function requireGoogleAccessToken(
   }
 
   try {
-    const response = await fetch("https://oauth2.googleapis.com/token", {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({
-        client_id: env.GOOGLE_CLIENT_ID,
-        client_secret: env.GOOGLE_CLIENT_SECRET,
-        refresh_token: refreshToken,
-        grant_type: "refresh_token"
-      })
-    });
-    if (!response.ok) {
+    const response = await refreshGoogleAccessToken(refreshToken);
+    if (!response?.ok) {
       await markReauthorizationRequired();
       return {
         ok: false,

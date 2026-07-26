@@ -19,6 +19,7 @@ const baseEnvSchema = z.object({
   GOOGLE_CLIENT_ID: z.string().optional(),
   GOOGLE_CLIENT_SECRET: z.string().optional(),
   GOOGLE_REDIRECT_URI: z.string().url().optional(),
+  GOOGLE_OAUTH_BROKER_URL: z.string().url().optional(),
   TAILSCALE_ENABLED: z
     .enum(["true", "false"])
     .default("false")

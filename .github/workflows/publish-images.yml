@@ -20,6 +20,8 @@ jobs:
         include:
           - image: daymark-api
             target: api
+          - image: daymark-oauth-broker
+            target: oauth-broker
           - image: daymark-web
             target: web
     steps:

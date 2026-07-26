@@ -1,9 +1,20 @@
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { calendarEventCache, connectedAccounts, households } from "@daymark/db";
+import {
+  brokerEnvelopeSchema,
+  decryptBrokerEnvelope,
+  ecPrivateJwkSchema,
+  generateApplianceKeyPair,
+  type GoogleTokenPayload,
+} from "@daymark/oauth-protocol";
 import { and, eq } from "drizzle-orm";
-import type { FastifyPluginAsync } from "fastify";
+import type { FastifyInstance, FastifyPluginAsync } from "fastify";
 import { z } from "zod";
 import { env } from "../env";
+import {
+  getGoogleOauthMode,
+  googleBrokerEndpoint,
+} from "../modules/integrations/google-oauth-provider";
 import {
   decryptToken,
   encryptToken,
@@ -18,8 +29,7 @@ const GOOGLE_CALENDAR_SCOPES = [
   GOOGLE_CALENDAR_LIST_READ_SCOPE,
   GOOGLE_CALENDAR_WRITE_SCOPE,
 ];
-const GOOGLE_CALENDAR_FULL_SCOPE =
-  "https://www.googleapis.com/auth/calendar";
+const GOOGLE_CALENDAR_FULL_SCOPE = "https://www.googleapis.com/auth/calendar";
 
 function hasRequiredGoogleCalendarScopes(scopes: string[]): boolean {
   return (
@@ -44,11 +54,16 @@ const accountParamsSchema = z.object({
   accountId: z.string().uuid(),
 });
 
-function hasGoogleOauthConfig(): boolean {
-  return Boolean(
-    env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET && env.GOOGLE_REDIRECT_URI,
-  );
-}
+const brokerCompletionBodySchema = z.object({
+  completionState: z.string().min(1).max(8_192),
+  envelope: brokerEnvelopeSchema,
+});
+
+const brokerLocalStateSchema = z.object({
+  privateKey: ecPrivateJwkSchema,
+  expiresAt: z.number().int(),
+  accountId: z.string().uuid().optional(),
+});
 
 function signStatePayload(payload: string): string {
   return createHmac("sha256", env.SESSION_SECRET)
@@ -129,11 +144,168 @@ function parseOauthState(state: string | undefined): OauthStatePayload | null {
   }
 }
 
+type GoogleConnectionResult =
+  | { ok: true; connectionStatus: "connected" | "calendar_access_required" }
+  | {
+      ok: false;
+      statusCode: number;
+      body: { connected: false; error: string; message?: string };
+    };
+
+async function completeGoogleConnection(
+  app: FastifyInstance,
+  tokenPayload: GoogleTokenPayload,
+  accountId?: string,
+): Promise<GoogleConnectionResult> {
+  const [household] = await app.db.select().from(households).limit(1);
+  if (!household) {
+    return {
+      ok: false,
+      statusCode: 404,
+      body: { connected: false, error: "setup_not_completed" },
+    };
+  }
+
+  const primaryCalendarResponse = await fetch(
+    "https://www.googleapis.com/calendar/v3/users/me/calendarList/primary",
+    {
+      headers: { Authorization: `Bearer ${tokenPayload.accessToken}` },
+    },
+  ).catch(() => null);
+  if (!primaryCalendarResponse?.ok) {
+    return {
+      ok: false,
+      statusCode: 502,
+      body: {
+        connected: false,
+        error: "google_primary_calendar_failed",
+        message:
+          "Google connected, but Daymark could not access the primary calendar. Please reconnect and allow calendar-list and event access.",
+      },
+    };
+  }
+  const primaryCalendar = (await primaryCalendarResponse.json()) as {
+    id?: string;
+    summary?: string;
+  };
+  if (!primaryCalendar.id) {
+    return {
+      ok: false,
+      statusCode: 502,
+      body: {
+        connected: false,
+        error: "google_identity_missing",
+        message:
+          "Google did not provide a primary calendar identifier. Please try connecting again.",
+      },
+    };
+  }
+
+  let existingAccount: typeof connectedAccounts.$inferSelect | undefined;
+  if (accountId) {
+    [existingAccount] = await app.db
+      .select()
+      .from(connectedAccounts)
+      .where(
+        and(
+          eq(connectedAccounts.id, accountId),
+          eq(connectedAccounts.householdId, household.id),
+          eq(connectedAccounts.provider, "google"),
+        ),
+      )
+      .limit(1);
+    if (!existingAccount) {
+      return {
+        ok: false,
+        statusCode: 404,
+        body: { connected: false, error: "connected_account_not_found" },
+      };
+    }
+    if (
+      existingAccount.providerAccountId &&
+      existingAccount.providerAccountId !== primaryCalendar.id
+    ) {
+      return {
+        ok: false,
+        statusCode: 409,
+        body: {
+          connected: false,
+          error: "google_account_mismatch",
+          message: `Sign in as ${existingAccount.email || existingAccount.displayName || "the original Google account"} to reconnect.`,
+        },
+      };
+    }
+  } else {
+    [existingAccount] = await app.db
+      .select()
+      .from(connectedAccounts)
+      .where(
+        and(
+          eq(connectedAccounts.householdId, household.id),
+          eq(connectedAccounts.provider, "google"),
+          eq(connectedAccounts.providerAccountId, primaryCalendar.id),
+        ),
+      )
+      .limit(1);
+  }
+
+  const encryptedAccessToken = encryptToken(tokenPayload.accessToken);
+  const persistedRefreshToken = tokenPayload.refreshToken
+    ? encryptToken(tokenPayload.refreshToken)
+    : existingAccount?.encryptedRefreshToken;
+  const expiresAt =
+    typeof tokenPayload.expiresIn === "number"
+      ? new Date(Date.now() + tokenPayload.expiresIn * 1000)
+      : null;
+  const scopes =
+    tokenPayload.scope?.split(/\s+/).filter(Boolean) ?? GOOGLE_CALENDAR_SCOPES;
+  const calendarAccessGranted = hasRequiredGoogleCalendarScopes(scopes);
+
+  if (existingAccount) {
+    await app.db
+      .update(connectedAccounts)
+      .set({
+        providerAccountId: primaryCalendar.id,
+        displayName: primaryCalendar.summary || "Google Calendar",
+        email: primaryCalendar.id,
+        encryptedAccessToken,
+        encryptedRefreshToken: persistedRefreshToken ?? null,
+        accessTokenExpiresAt: expiresAt,
+        scopes,
+        reauthorizationRequired: !calendarAccessGranted,
+        updatedAt: new Date(),
+      })
+      .where(eq(connectedAccounts.id, existingAccount.id));
+  } else {
+    await app.db.insert(connectedAccounts).values({
+      householdId: household.id,
+      provider: "google",
+      providerAccountId: primaryCalendar.id,
+      displayName: primaryCalendar.summary || "Google Calendar",
+      email: primaryCalendar.id,
+      encryptedAccessToken,
+      encryptedRefreshToken: persistedRefreshToken ?? null,
+      accessTokenExpiresAt: expiresAt,
+      scopes,
+      reauthorizationRequired: !calendarAccessGranted,
+    });
+  }
+
+  return {
+    ok: true,
+    connectionStatus: calendarAccessGranted
+      ? "connected"
+      : "calendar_access_required",
+  };
+}
+
 export const googleOauthRoutes: FastifyPluginAsync = async (app) => {
   app.get("/integrations/google/status", async () => {
+    const mode = getGoogleOauthMode();
     return {
-      available: hasGoogleOauthConfig(),
-      redirectUri: env.GOOGLE_REDIRECT_URI ?? null,
+      available: mode !== null,
+      mode,
+      redirectUri: mode === "direct" ? (env.GOOGLE_REDIRECT_URI ?? null) : null,
     };
   });
 
@@ -142,10 +314,11 @@ export const googleOauthRoutes: FastifyPluginAsync = async (app) => {
       return reply.status(401).send({ error: "admin_unlock_required" });
     }
 
-    if (!hasGoogleOauthConfig()) {
+    const oauthMode = getGoogleOauthMode();
+    if (!oauthMode) {
       return reply.status(400).send({
         available: false,
-        message: "Google OAuth environment variables are not configured.",
+        message: "Google OAuth is not available on this Daymark installation.",
       });
     }
 
@@ -176,6 +349,56 @@ export const googleOauthRoutes: FastifyPluginAsync = async (app) => {
       }
     }
 
+    if (oauthMode === "broker") {
+      const keyPair = generateApplianceKeyPair();
+      const expiresAt = Date.now() + GOOGLE_STATE_TTL_SECONDS * 1000;
+      const completionState = encryptToken(
+        JSON.stringify({
+          privateKey: keyPair.privateKey,
+          expiresAt,
+          ...(reconnectAccount ? { accountId: reconnectAccount.id } : {}),
+        }),
+      );
+      const brokerResponse = await fetch(
+        googleBrokerEndpoint("/v1/google/authorize"),
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            returnUrl: new URL("/settings", env.APP_BASE_URL).toString(),
+            completionState,
+            publicKey: keyPair.publicKey,
+            ...(reconnectAccount?.email
+              ? { accountHint: reconnectAccount.email }
+              : {}),
+          }),
+        },
+      ).catch(() => null);
+      if (!brokerResponse?.ok) {
+        return reply.status(502).send({
+          available: false,
+          message: "Daymark could not reach the Google connection service.",
+        });
+      }
+      const brokerPayload = (await brokerResponse.json()) as {
+        authUrl?: string;
+        expiresAt?: number;
+      };
+      if (!brokerPayload.authUrl) {
+        return reply.status(502).send({
+          available: false,
+          message:
+            "The Google connection service returned an invalid response.",
+        });
+      }
+      return {
+        available: true,
+        mode: "broker",
+        authUrl: brokerPayload.authUrl,
+        expiresAt: brokerPayload.expiresAt ?? expiresAt,
+      };
+    }
+
     const { state, expiresAt } = createOauthState(reconnectAccount?.id);
 
     const authUrl = new URL("https://accounts.google.com/o/oauth2/v2/auth");
@@ -196,8 +419,49 @@ export const googleOauthRoutes: FastifyPluginAsync = async (app) => {
 
     return {
       available: true,
+      mode: "direct",
       authUrl: authUrl.toString(),
       expiresAt,
+    };
+  });
+
+  app.post("/integrations/google/broker/complete", async (request, reply) => {
+    if (getGoogleOauthMode() !== "broker") {
+      return reply.status(400).send({ error: "oauth_broker_not_configured" });
+    }
+    const parsed = brokerCompletionBodySchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: "invalid_broker_completion" });
+    }
+
+    let localState: z.infer<typeof brokerLocalStateSchema>;
+    let tokenPayload: GoogleTokenPayload;
+    try {
+      localState = brokerLocalStateSchema.parse(
+        JSON.parse(decryptToken(parsed.data.completionState)),
+      );
+      if (localState.expiresAt <= Date.now()) {
+        return reply.status(400).send({ error: "expired_broker_completion" });
+      }
+      tokenPayload = decryptBrokerEnvelope(
+        localState.privateKey,
+        parsed.data.envelope,
+      );
+    } catch {
+      return reply.status(400).send({ error: "invalid_broker_completion" });
+    }
+
+    const result = await completeGoogleConnection(
+      app,
+      tokenPayload,
+      localState.accountId,
+    );
+    if (!result.ok) {
+      return reply.status(result.statusCode).send(result.body);
+    }
+    return {
+      connected: true,
+      connectionStatus: result.connectionStatus,
     };
   });
 
@@ -235,7 +499,7 @@ export const googleOauthRoutes: FastifyPluginAsync = async (app) => {
       });
     }
 
-    if (!hasGoogleOauthConfig()) {
+    if (getGoogleOauthMode() !== "direct") {
       return reply.status(400).send({
         connected: false,
         error: "oauth_not_configured",

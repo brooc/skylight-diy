@@ -174,6 +174,11 @@ sudo systemctl restart daymark
 The generated `/opt/daymark/.env.production` contains the key used to encrypt
 Google OAuth tokens. Back it up with the PostgreSQL data.
 
+When the shared Google connection service is deployed, provision with
+`DAYMARK_GOOGLE_OAUTH_BROKER_URL=https://<broker-host>` so households can
+connect Calendar without their own Google Cloud project. See
+[Google OAuth Broker](google-oauth-broker.md).
+
 ## Test checklist
 
 - [ ] Pi boots with the connected display and responds at `daymark.local`

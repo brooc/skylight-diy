@@ -9,6 +9,7 @@ DAYMARK_HTTP_PORT="${DAYMARK_HTTP_PORT:-8080}"
 DAYMARK_HOSTNAME="${DAYMARK_HOSTNAME:-$(hostname -s)}"
 DAYMARK_KIOSK_USER="${DAYMARK_KIOSK_USER:-${SUDO_USER:-}}"
 DAYMARK_UPDATE_CHANNEL="${DAYMARK_UPDATE_CHANNEL:-main}"
+DAYMARK_GOOGLE_OAUTH_BROKER_URL="${DAYMARK_GOOGLE_OAUTH_BROKER_URL:-}"
 DAYMARK_ENV_FILE="${DAYMARK_INSTALL_DIR}/.env.production"
 DAYMARK_COMPOSE_FILE="${DAYMARK_INSTALL_DIR}/compose.production.yml"
 DAYMARK_UPDATE_DIR="/var/lib/daymark/update"
@@ -142,6 +143,9 @@ create_environment() {
     printf 'TOKEN_ENCRYPTION_KEY=%s\n' "${token_encryption_key}"
     printf 'CALENDAR_CACHE_FRESH_TTL_SECONDS=300\n'
     printf 'CALENDAR_CACHE_STALE_TTL_SECONDS=86400\n'
+    if [[ -n "${DAYMARK_GOOGLE_OAUTH_BROKER_URL}" ]]; then
+      printf 'GOOGLE_OAUTH_BROKER_URL=%s\n' "${DAYMARK_GOOGLE_OAUTH_BROKER_URL}"
+    fi
   } > "${DAYMARK_ENV_FILE}"
 }
 
@@ -168,6 +172,11 @@ ensure_update_environment() {
     printf 'DAYMARK_UPDATE_DIR=/var/lib/daymark/update\n' >> "${DAYMARK_ENV_FILE}"
   grep -q '^DAYMARK_UPDATE_HOST_DIR=' "${DAYMARK_ENV_FILE}" ||
     printf 'DAYMARK_UPDATE_HOST_DIR=%s\n' "${DAYMARK_UPDATE_DIR}" >> "${DAYMARK_ENV_FILE}"
+  if [[ -n "${DAYMARK_GOOGLE_OAUTH_BROKER_URL}" ]] &&
+    ! grep -q '^GOOGLE_OAUTH_BROKER_URL=' "${DAYMARK_ENV_FILE}"; then
+    printf 'GOOGLE_OAUTH_BROKER_URL=%s\n' \
+      "${DAYMARK_GOOGLE_OAUTH_BROKER_URL}" >> "${DAYMARK_ENV_FILE}"
+  fi
 }
 
 resolve_kiosk_user() {

@@ -52,6 +52,7 @@ Start here:
 - [Architecture](docs/architecture.md)
 - [Roadmap](docs/roadmap.md)
 - [Google Calendar Setup](docs/google-calendar-setup.md)
+- [Google OAuth Broker](docs/google-oauth-broker.md)
 - [Open Source Strategy](docs/open-source-strategy.md)
 - [Fire Tablet Setup](docs/fire-tablet-setup.md)
 - [Home Deployment](docs/deployment.md)

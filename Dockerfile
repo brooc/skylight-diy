@@ -11,10 +11,12 @@ RUN corepack enable && corepack prepare pnpm@10.12.1 --activate
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json tsconfig.base.json ./
 COPY apps/api/package.json apps/api/package.json
+COPY apps/oauth-broker/package.json apps/oauth-broker/package.json
 COPY apps/web/package.json apps/web/package.json
 COPY packages/config/package.json packages/config/package.json
 COPY packages/db/package.json packages/db/package.json
 COPY packages/domain/package.json packages/domain/package.json
+COPY packages/oauth-protocol/package.json packages/oauth-protocol/package.json
 
 RUN pnpm install --frozen-lockfile
 
@@ -31,6 +33,16 @@ ENV PORT=3000
 EXPOSE 3000
 
 CMD ["sh", "-c", "pnpm --filter @daymark/db db:migrate && exec pnpm --filter @daymark/api exec tsx src/index.ts"]
+
+FROM workspace AS oauth-broker
+
+ENV NODE_ENV=production
+ENV HOST=0.0.0.0
+ENV PORT=3001
+
+EXPOSE 3001
+
+CMD ["pnpm", "--filter", "@daymark/oauth-broker", "exec", "tsx", "src/index.ts"]
 
 FROM workspace AS web-build
 

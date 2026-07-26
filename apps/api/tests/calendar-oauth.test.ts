@@ -8,6 +8,7 @@ import {
   households,
   people,
 } from "@daymark/db";
+import { encryptForAppliance } from "@daymark/oauth-protocol";
 import { eq } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import {
@@ -195,6 +196,97 @@ describe("calendar and google integration routes", () => {
       env.GOOGLE_CLIENT_ID = originalGoogleEnv.clientId;
       env.GOOGLE_CLIENT_SECRET = originalGoogleEnv.clientSecret;
       env.GOOGLE_REDIRECT_URI = originalGoogleEnv.redirectUri;
+    }
+  });
+
+  it("uses the shared broker and completes an encrypted appliance callback", async () => {
+    await setupHousehold(app);
+    const originalBrokerUrl = env.GOOGLE_OAUTH_BROKER_URL;
+    env.GOOGLE_OAUTH_BROKER_URL = "https://auth.daymark.example";
+    let authorizationRequest:
+      | {
+          completionState: string;
+          publicKey: Parameters<typeof encryptForAppliance>[0];
+        }
+      | undefined;
+
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url = String(input);
+      if (url === "https://auth.daymark.example/v1/google/authorize") {
+        authorizationRequest = JSON.parse(String(init?.body));
+        return new Response(
+          JSON.stringify({
+            authUrl:
+              "https://accounts.google.com/o/oauth2/v2/auth?state=broker-state",
+            expiresAt: Date.now() + 10 * 60 * 1_000,
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      if (
+        url ===
+        "https://www.googleapis.com/calendar/v3/users/me/calendarList/primary"
+      ) {
+        return new Response(
+          JSON.stringify({
+            id: "family@example.com",
+            summary: "Family Google",
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      return new Response("not found", { status: 404 });
+    });
+
+    try {
+      const { cookie } = await unlockAdmin(app);
+      const status = await app.inject({
+        method: "GET",
+        url: "/api/integrations/google/status",
+      });
+      expect(status.json()).toMatchObject({ available: true, mode: "broker" });
+
+      const connect = await app.inject({
+        method: "GET",
+        url: "/api/integrations/google/connect",
+        headers: { cookie },
+      });
+      expect(connect.statusCode).toBe(200);
+      expect(connect.json()).toMatchObject({
+        available: true,
+        mode: "broker",
+        authUrl:
+          "https://accounts.google.com/o/oauth2/v2/auth?state=broker-state",
+      });
+      expect(authorizationRequest).toBeDefined();
+
+      const completion = await app.inject({
+        method: "POST",
+        url: "/api/integrations/google/broker/complete",
+        payload: {
+          completionState: authorizationRequest?.completionState,
+          envelope: encryptForAppliance(authorizationRequest!.publicKey, {
+            accessToken: "broker-access-token",
+            refreshToken: "broker-refresh-token",
+            expiresIn: 3_600,
+            scope:
+              "https://www.googleapis.com/auth/calendar.calendarlist.readonly https://www.googleapis.com/auth/calendar.events",
+          }),
+        },
+      });
+      expect(completion.statusCode).toBe(200);
+      expect(completion.json()).toEqual({
+        connected: true,
+        connectionStatus: "connected",
+      });
+
+      const [account] = await app.db.select().from(connectedAccounts).limit(1);
+      expect(account?.email).toBe("family@example.com");
+      expect(decryptToken(account?.encryptedRefreshToken ?? "")).toBe(
+        "broker-refresh-token",
+      );
+    } finally {
+      env.GOOGLE_OAUTH_BROKER_URL = originalBrokerUrl;
     }
   });
 
@@ -1688,9 +1780,9 @@ describe("calendar and google integration routes", () => {
       },
     });
     expect(tooEarlyRecurrenceEnd.statusCode).toBe(400);
-    expect(tooEarlyRecurrenceEnd.json().details.fieldErrors.recurrence).toContain(
-      "The recurrence end date must be 2026-07-23 or later.",
-    );
+    expect(
+      tooEarlyRecurrenceEnd.json().details.fieldErrors.recurrence,
+    ).toContain("The recurrence end date must be 2026-07-23 or later.");
     expect(fetchSpy).not.toHaveBeenCalled();
 
     const created = await app.inject({
@@ -1785,46 +1877,77 @@ describe("calendar and google integration routes", () => {
 
   it("edits one occurrence and splits a counted series for following occurrences", async () => {
     const setup = await setupHousehold(app);
-    const [account] = await app.db.insert(connectedAccounts).values({
-      householdId: setup.household.id,
-      provider: "google",
-      providerAccountId: "google-event-edit",
-      encryptedAccessToken: encryptToken("token-value"),
-      scopes: [
-        "https://www.googleapis.com/auth/calendar.readonly",
-        "https://www.googleapis.com/auth/calendar.events",
-      ],
-    }).returning();
-    const [source] = await app.db.insert(calendarSources).values({
-      householdId: setup.household.id,
-      connectedAccountId: account.id,
-      provider: "google",
-      externalCalendarId: "family@example.com",
-      displayName: "Family",
-      enabled: true,
-      allowEventWrites: true,
-      googleAccessRole: "owner",
-    }).returning();
+    const [account] = await app.db
+      .insert(connectedAccounts)
+      .values({
+        householdId: setup.household.id,
+        provider: "google",
+        providerAccountId: "google-event-edit",
+        encryptedAccessToken: encryptToken("token-value"),
+        scopes: [
+          "https://www.googleapis.com/auth/calendar.readonly",
+          "https://www.googleapis.com/auth/calendar.events",
+        ],
+      })
+      .returning();
+    const [source] = await app.db
+      .insert(calendarSources)
+      .values({
+        householdId: setup.household.id,
+        connectedAccountId: account.id,
+        provider: "google",
+        externalCalendarId: "family@example.com",
+        displayName: "Family",
+        enabled: true,
+        allowEventWrites: true,
+        googleAccessRole: "owner",
+      })
+      .returning();
 
     let instanceItems = [{ id: "one" }, { id: "two" }];
     let recurrenceRule = "RRULE:FREQ=WEEKLY;COUNT=5;BYDAY=MO";
-    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
-      const url = input.toString();
-      if (init?.method === "PATCH") return new Response(JSON.stringify({ id: "updated" }), { status: 200 });
-      if (init?.method === "POST") return new Response(JSON.stringify({ id: "new-series" }), { status: 200 });
-      if (url.includes("/instances")) {
-        return new Response(JSON.stringify({ items: instanceItems }), { status: 200 });
-      }
-      return new Response(JSON.stringify({
-        id: "series-id",
-        summary: "Gym",
-        start: { dateTime: "2026-07-20T09:00:00-07:00", timeZone: "America/Los_Angeles" },
-        end: { dateTime: "2026-07-20T10:00:00-07:00", timeZone: "America/Los_Angeles" },
-        recurrence: [recurrenceRule],
-      }), { status: 200 });
-    });
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async (input, init) => {
+        const url = input.toString();
+        if (init?.method === "PATCH")
+          return new Response(JSON.stringify({ id: "updated" }), {
+            status: 200,
+          });
+        if (init?.method === "POST")
+          return new Response(JSON.stringify({ id: "new-series" }), {
+            status: 200,
+          });
+        if (url.includes("/instances")) {
+          return new Response(JSON.stringify({ items: instanceItems }), {
+            status: 200,
+          });
+        }
+        return new Response(
+          JSON.stringify({
+            id: "series-id",
+            summary: "Gym",
+            start: {
+              dateTime: "2026-07-20T09:00:00-07:00",
+              timeZone: "America/Los_Angeles",
+            },
+            end: {
+              dateTime: "2026-07-20T10:00:00-07:00",
+              timeZone: "America/Los_Angeles",
+            },
+            recurrence: [recurrenceRule],
+          }),
+          { status: 200 },
+        );
+      });
     const basePayload = {
-      targets: [{ sourceId: source.id, providerEventId: "instance-id", recurringEventId: "series-id" }],
+      targets: [
+        {
+          sourceId: source.id,
+          providerEventId: "instance-id",
+          recurringEventId: "series-id",
+        },
+      ],
       title: "Evening Gym",
       location: "Community center",
       attendees: ["kid@example.com"],
@@ -1851,13 +1974,19 @@ describe("calendar and google integration routes", () => {
     });
     fetchSpy.mockClear();
 
-    const occurrence = await app.inject({ method: "PATCH", url: "/api/calendar/events", payload: { ...basePayload, scope: "event" } });
-    expect(occurrence.statusCode).toBe(200);
-    expect(JSON.parse(String(fetchSpy.mock.calls[0]?.[1]?.body))).toMatchObject({
-      summary: "Evening Gym",
-      location: "Community center",
-      attendees: [{ email: "kid@example.com" }],
+    const occurrence = await app.inject({
+      method: "PATCH",
+      url: "/api/calendar/events",
+      payload: { ...basePayload, scope: "event" },
     });
+    expect(occurrence.statusCode).toBe(200);
+    expect(JSON.parse(String(fetchSpy.mock.calls[0]?.[1]?.body))).toMatchObject(
+      {
+        summary: "Evening Gym",
+        location: "Community center",
+        attendees: [{ email: "kid@example.com" }],
+      },
+    );
 
     const following = await app.inject({
       method: "PATCH",
@@ -1872,12 +2001,18 @@ describe("calendar and google integration routes", () => {
       },
     });
     expect(following.statusCode).toBe(200);
-    const requestBodies = fetchSpy.mock.calls.map((call) => call[1]?.body ? JSON.parse(String(call[1]?.body)) : null);
-    expect(requestBodies).toContainEqual({ recurrence: ["RRULE:FREQ=WEEKLY;BYDAY=MO;COUNT=2"] });
-    expect(requestBodies).toContainEqual(expect.objectContaining({
-      summary: "Evening Gym",
-      recurrence: ["RRULE:FREQ=WEEKLY;BYDAY=TU,WE,TH;COUNT=3"],
-    }));
+    const requestBodies = fetchSpy.mock.calls.map((call) =>
+      call[1]?.body ? JSON.parse(String(call[1]?.body)) : null,
+    );
+    expect(requestBodies).toContainEqual({
+      recurrence: ["RRULE:FREQ=WEEKLY;BYDAY=MO;COUNT=2"],
+    });
+    expect(requestBodies).toContainEqual(
+      expect.objectContaining({
+        summary: "Evening Gym",
+        recurrence: ["RRULE:FREQ=WEEKLY;BYDAY=TU,WE,TH;COUNT=3"],
+      }),
+    );
 
     fetchSpy.mockClear();
     const wholeSeries = await app.inject({
@@ -1917,10 +2052,12 @@ describe("calendar and google integration routes", () => {
     const extendedBodies = fetchSpy.mock.calls.map((call) =>
       call[1]?.body ? JSON.parse(String(call[1]?.body)) : null,
     );
-    expect(extendedBodies).toContainEqual(expect.objectContaining({
-      summary: "Evening Gym",
-      recurrence: ["RRULE:FREQ=WEEKLY;BYDAY=MO;UNTIL=20261001T065959Z"],
-    }));
+    expect(extendedBodies).toContainEqual(
+      expect.objectContaining({
+        summary: "Evening Gym",
+        recurrence: ["RRULE:FREQ=WEEKLY;BYDAY=MO;UNTIL=20261001T065959Z"],
+      }),
+    );
 
     recurrenceRule = "RRULE:FREQ=DAILY;UNTIL=20260721T065959Z";
     instanceItems = [];
@@ -1939,8 +2076,12 @@ describe("calendar and google integration routes", () => {
       },
     });
     expect(firstOccurrence.statusCode).toBe(200);
-    expect(fetchSpy.mock.calls.filter((call) => call[1]?.method === "POST")).toHaveLength(0);
-    const masterPatches = fetchSpy.mock.calls.filter((call) => call[1]?.method === "PATCH");
+    expect(
+      fetchSpy.mock.calls.filter((call) => call[1]?.method === "POST"),
+    ).toHaveLength(0);
+    const masterPatches = fetchSpy.mock.calls.filter(
+      (call) => call[1]?.method === "PATCH",
+    );
     expect(masterPatches).toHaveLength(1);
     expect(JSON.parse(String(masterPatches[0]?.[1]?.body))).toMatchObject({
       summary: "Evening Gym",
@@ -1990,7 +2131,9 @@ async function withGoogleOauthConfig<T>(run: () => Promise<T>): Promise<T> {
     clientId: env.GOOGLE_CLIENT_ID,
     clientSecret: env.GOOGLE_CLIENT_SECRET,
     redirectUri: env.GOOGLE_REDIRECT_URI,
+    brokerUrl: env.GOOGLE_OAUTH_BROKER_URL,
   };
+  env.GOOGLE_OAUTH_BROKER_URL = undefined;
   env.GOOGLE_CLIENT_ID = "client-id";
   env.GOOGLE_CLIENT_SECRET = "client-secret";
   env.GOOGLE_REDIRECT_URI =
@@ -2002,6 +2145,7 @@ async function withGoogleOauthConfig<T>(run: () => Promise<T>): Promise<T> {
     env.GOOGLE_CLIENT_ID = originalGoogleEnv.clientId;
     env.GOOGLE_CLIENT_SECRET = originalGoogleEnv.clientSecret;
     env.GOOGLE_REDIRECT_URI = originalGoogleEnv.redirectUri;
+    env.GOOGLE_OAUTH_BROKER_URL = originalGoogleEnv.brokerUrl;
   }
 }
 
@@ -2012,10 +2156,12 @@ async function withGoogleOauthConfigCleared<T>(
     clientId: env.GOOGLE_CLIENT_ID,
     clientSecret: env.GOOGLE_CLIENT_SECRET,
     redirectUri: env.GOOGLE_REDIRECT_URI,
+    brokerUrl: env.GOOGLE_OAUTH_BROKER_URL,
   };
   env.GOOGLE_CLIENT_ID = undefined;
   env.GOOGLE_CLIENT_SECRET = undefined;
   env.GOOGLE_REDIRECT_URI = undefined;
+  env.GOOGLE_OAUTH_BROKER_URL = undefined;
 
   try {
     return await run();
@@ -2023,5 +2169,6 @@ async function withGoogleOauthConfigCleared<T>(
     env.GOOGLE_CLIENT_ID = originalGoogleEnv.clientId;
     env.GOOGLE_CLIENT_SECRET = originalGoogleEnv.clientSecret;
     env.GOOGLE_REDIRECT_URI = originalGoogleEnv.redirectUri;
+    env.GOOGLE_OAUTH_BROKER_URL = originalGoogleEnv.brokerUrl;
   }
 }

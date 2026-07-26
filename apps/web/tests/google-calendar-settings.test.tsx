@@ -2,6 +2,7 @@ import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  decodeGoogleBrokerReturn,
   GoogleCalendarSettings,
   googleAuthLaunchTarget,
 } from "../src/features/settings/GoogleCalendarSettings";
@@ -10,9 +11,10 @@ import { mockJsonResponse, renderWithProviders } from "./helpers/test-utils";
 describe("GoogleCalendarSettings", () => {
   afterEach(() => {
     vi.restoreAllMocks();
+    window.history.replaceState({}, "", "/");
   });
 
-  it("shows unavailable oauth state when google credentials are not configured", async () => {
+  it("shows unavailable state when no Google connection provider is configured", async () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
       const url = typeof input === "string" ? input : input.url;
       if (url.startsWith("/api/calendar/accounts"))
@@ -30,7 +32,7 @@ describe("GoogleCalendarSettings", () => {
     renderWithProviders(<GoogleCalendarSettings />, { route: "/settings" });
     expect(
       await screen.findByText(
-        "Google OAuth is not configured in environment variables yet.",
+        "Google connection is not available on this Daymark installation.",
       ),
     ).toBeInTheDocument();
     expect(
@@ -39,6 +41,82 @@ describe("GoogleCalendarSettings", () => {
     expect(
       screen.queryByRole("button", { name: "Choose calendars" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("decodes the broker return fragment without exposing it to the server", () => {
+    const payload = {
+      version: 1 as const,
+      completionState: "encrypted-local-state",
+      envelope: { version: 1, ciphertext: "encrypted-google-tokens" },
+    };
+    const encoded = Buffer.from(JSON.stringify(payload)).toString("base64url");
+    expect(
+      decodeGoogleBrokerReturn(`#daymark-google-oauth=${encoded}`),
+    ).toEqual(payload);
+    expect(decodeGoogleBrokerReturn("#unrelated=value")).toBeNull();
+  });
+
+  it("finishes an encrypted broker return on the local appliance", async () => {
+    const brokerReturn = {
+      version: 1,
+      completionState: "encrypted-local-state",
+      envelope: {
+        version: 1,
+        ephemeralPublicKey: {
+          kty: "EC",
+          crv: "P-256",
+          x: "x",
+          y: "y",
+        },
+        salt: "salt",
+        iv: "iv",
+        ciphertext: "ciphertext",
+        authTag: "tag",
+      },
+    };
+    window.history.replaceState(
+      {},
+      "",
+      `/settings#daymark-google-oauth=${Buffer.from(
+        JSON.stringify(brokerReturn),
+      ).toString("base64url")}`,
+    );
+    let completionBody: unknown;
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url = typeof input === "string" ? input : input.url;
+      if (url.startsWith("/api/integrations/google/broker/complete")) {
+        completionBody = JSON.parse(String(init?.body));
+        return mockJsonResponse({
+          connected: true,
+          connectionStatus: "connected",
+        });
+      }
+      if (url.startsWith("/api/calendar/accounts"))
+        return mockJsonResponse({ accounts: [] });
+      if (url.startsWith("/api/calendar/sources"))
+        return mockJsonResponse({ sources: [] });
+      if (url.startsWith("/api/household/current"))
+        return mockJsonResponse({ household: {}, people: [] });
+      if (url.startsWith("/api/integrations/google/status")) {
+        return mockJsonResponse({
+          available: true,
+          mode: "broker",
+          redirectUri: null,
+        });
+      }
+      return mockJsonResponse({}, 404);
+    });
+
+    renderWithProviders(<GoogleCalendarSettings />, { route: "/settings" });
+
+    expect(
+      await screen.findByText("Google Calendar connected."),
+    ).toBeInTheDocument();
+    expect(completionBody).toEqual({
+      completionState: brokerReturn.completionState,
+      envelope: brokerReturn.envelope,
+    });
+    expect(window.location.hash).toBe("");
   });
 
   it("prepares Google OAuth in the system browser", async () => {

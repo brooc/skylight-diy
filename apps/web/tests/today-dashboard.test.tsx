@@ -681,10 +681,17 @@ describe("TodayDashboard", () => {
     expect(within(dialog).getByText("Organizer")).toBeInTheDocument();
     await user.click(within(dialog).getByLabelText("Kiddo"));
     await user.selectOptions(within(dialog).getByLabelText("Repeat"), "weekly");
-    for (const day of ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]) {
-      const checkbox = within(dialog).getByRole("checkbox", { name: day }) as HTMLInputElement;
-      const shouldBeChecked = ["Monday", "Tuesday", "Wednesday"].includes(day);
-      if (checkbox.checked !== shouldBeChecked) await user.click(checkbox);
+    for (const day of ["Monday", "Tuesday", "Wednesday"]) {
+      const checkbox = within(dialog).getByRole("checkbox", {
+        name: day,
+      }) as HTMLInputElement;
+      if (!checkbox.checked) await user.click(checkbox);
+    }
+    for (const day of ["Sunday", "Thursday", "Friday", "Saturday"]) {
+      const checkbox = within(dialog).getByRole("checkbox", {
+        name: day,
+      }) as HTMLInputElement;
+      if (checkbox.checked) await user.click(checkbox);
     }
     await user.selectOptions(
       within(dialog).getByLabelText("Repeat ends"),

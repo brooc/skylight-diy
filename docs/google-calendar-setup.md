@@ -2,6 +2,16 @@
 
 This guide configures Google Calendar discovery and event reading/writing.
 
+## Recommended Appliance Setup
+
+Production appliances should use the shared Daymark OAuth broker. A household
+then selects **Connect Google Account** and completes Google's consent screen;
+it does not create a Cloud project or edit environment variables. See
+[Google OAuth Broker](google-oauth-broker.md).
+
+The remaining sections describe the bring-your-own-client path for local
+development and advanced self-hosting.
+
 ## Cost
 
 The Google Calendar API is available at no additional cost for normal API use, but it is subject to quotas. For local household use, we should be comfortably inside those quotas.
