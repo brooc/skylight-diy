@@ -218,6 +218,7 @@ exec chromium \
   --noerrdialogs \
   --disable-infobars \
   --no-first-run \
+  --password-store=basic \
   --enable-features=OverlayScrollbar \
   "http://127.0.0.1:\${DAYMARK_HTTP_PORT}/appliance?pair=\${DAYMARK_SETUP_TOKEN}"
 EOF
