@@ -118,8 +118,8 @@ its Builds/deployments settings to GitHub:
 Repository: brooc/skylight-diy
 Production branch: main
 Root directory: /
-Build command: pnpm install --frozen-lockfile
-Deploy command: pnpm --filter @daymark/oauth-broker deploy:cloudflare
+Build command: pnpm --filter @daymark/oauth-broker build
+Deploy command: npx wrangler deploy --config apps/oauth-broker/wrangler.jsonc
 ```
 
 Leave preview deployments disabled unless they are needed. Production secrets
