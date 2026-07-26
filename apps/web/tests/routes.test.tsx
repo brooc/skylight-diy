@@ -45,6 +45,7 @@ describe("router", () => {
     expect(childPaths).toEqual([
       "index",
       "settings/unlock",
+      "google-oauth/complete",
       "today",
       "week",
       "chores",

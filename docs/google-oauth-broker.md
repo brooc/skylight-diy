@@ -13,8 +13,9 @@ development and advanced self-hosting.
 3. Google redirects to the broker's single public HTTPS callback.
 4. The broker exchanges the authorization code, encrypts the token response for
    that appliance, and redirects the browser back to the appliance.
-5. The appliance decrypts the response and stores Google tokens with its local
-   `TOKEN_ENCRYPTION_KEY`.
+5. The appliance's public `/google-oauth/complete` route decrypts the response
+   and stores Google tokens with its local `TOKEN_ENCRYPTION_KEY`. This route
+   does not require the browser that started authorization or its admin cookie.
 6. Token refreshes pass through the broker, but refresh tokens are not persisted
    by the broker.
 

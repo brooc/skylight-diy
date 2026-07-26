@@ -365,7 +365,10 @@ export const googleOauthRoutes: FastifyPluginAsync = async (app) => {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            returnUrl: new URL("/settings", env.APP_BASE_URL).toString(),
+            returnUrl: new URL(
+              "/google-oauth/complete",
+              env.APP_BASE_URL,
+            ).toString(),
             completionState,
             publicKey: keyPair.publicKey,
             ...(reconnectAccount?.email

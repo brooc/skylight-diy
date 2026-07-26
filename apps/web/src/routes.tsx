@@ -8,6 +8,7 @@ import { ChoresPage } from "./features/chores/ChoresPage";
 import { TodayDashboard } from "./features/dashboard/TodayDashboard";
 import { ImportPlaceholder } from "./features/import/ImportPlaceholder";
 import { MealPlanWeek } from "./features/meals/MealPlanWeek";
+import { GoogleBrokerCompletion } from "./features/settings/GoogleBrokerCompletion";
 import { SettingsPage } from "./features/settings/SettingsPage";
 import { AdminPinUnlock } from "./features/setup/AdminPinUnlock";
 import { ApplianceSetup } from "./features/setup/ApplianceSetup";
@@ -39,6 +40,10 @@ export const router = createBrowserRouter([
     children: [
       { index: true, element: <RootRedirect /> },
       { path: "settings/unlock", element: <AdminPinUnlock /> },
+      {
+        path: "google-oauth/complete",
+        element: <GoogleBrokerCompletion />,
+      },
       { path: "today", element: <TodayDashboard /> },
       { path: "week", element: <CalendarWeekView /> },
       { path: "chores", element: <ChoresPage /> },

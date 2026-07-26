@@ -167,9 +167,11 @@ sudo docker compose --env-file .env.production \
 2. Confirm Google Calendar is shown as available.
 3. Select **Connect Google Calendar**.
 4. Sign in to a Google account and approve access.
-5. Add a calendar and confirm events appear.
-6. Create or edit an event in Daymark and confirm the change reaches Google.
-7. Restart the appliance and confirm the calendar reconnects without consent.
+5. Confirm the browser returns to Daymark and shows **Google Calendar connected
+   successfully**.
+6. Add a calendar and confirm events appear.
+7. Create or edit an event in Daymark and confirm the change reaches Google.
+8. Restart the appliance and confirm the calendar reconnects without consent.
 
 If Google reports `redirect_uri_mismatch`, compare the callback in the browser
 request with the authorized redirect URI character for character. If Daymark

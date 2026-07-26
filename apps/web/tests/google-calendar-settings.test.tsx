@@ -6,6 +6,7 @@ import {
   GoogleCalendarSettings,
   googleAuthLaunchTarget,
 } from "../src/features/settings/GoogleCalendarSettings";
+import { GoogleBrokerCompletion } from "../src/features/settings/GoogleBrokerCompletion";
 import { mockJsonResponse, renderWithProviders } from "./helpers/test-utils";
 
 describe("GoogleCalendarSettings", () => {
@@ -77,7 +78,7 @@ describe("GoogleCalendarSettings", () => {
     window.history.replaceState(
       {},
       "",
-      `/settings#daymark-google-oauth=${Buffer.from(
+      `/google-oauth/complete#daymark-google-oauth=${Buffer.from(
         JSON.stringify(brokerReturn),
       ).toString("base64url")}`,
     );
@@ -91,26 +92,15 @@ describe("GoogleCalendarSettings", () => {
           connectionStatus: "connected",
         });
       }
-      if (url.startsWith("/api/calendar/accounts"))
-        return mockJsonResponse({ accounts: [] });
-      if (url.startsWith("/api/calendar/sources"))
-        return mockJsonResponse({ sources: [] });
-      if (url.startsWith("/api/household/current"))
-        return mockJsonResponse({ household: {}, people: [] });
-      if (url.startsWith("/api/integrations/google/status")) {
-        return mockJsonResponse({
-          available: true,
-          mode: "broker",
-          redirectUri: null,
-        });
-      }
       return mockJsonResponse({}, 404);
     });
 
-    renderWithProviders(<GoogleCalendarSettings />, { route: "/settings" });
+    renderWithProviders(<GoogleBrokerCompletion />, {
+      route: "/google-oauth/complete",
+    });
 
     expect(
-      await screen.findByText("Google Calendar connected."),
+      await screen.findByText("Google Calendar connected successfully."),
     ).toBeInTheDocument();
     expect(completionBody).toEqual({
       completionState: brokerReturn.completionState,

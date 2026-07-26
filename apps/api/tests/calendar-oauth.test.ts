@@ -207,6 +207,7 @@ describe("calendar and google integration routes", () => {
       | {
           completionState: string;
           publicKey: Parameters<typeof encryptForAppliance>[0];
+          returnUrl: string;
         }
       | undefined;
 
@@ -259,6 +260,9 @@ describe("calendar and google integration routes", () => {
           "https://accounts.google.com/o/oauth2/v2/auth?state=broker-state",
       });
       expect(authorizationRequest).toBeDefined();
+      expect(authorizationRequest?.returnUrl).toBe(
+        "http://localhost:5173/google-oauth/complete",
+      );
 
       const completion = await app.inject({
         method: "POST",

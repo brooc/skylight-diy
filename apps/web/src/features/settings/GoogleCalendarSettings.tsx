@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { apiFetch } from "../../api/client";
 import { ErrorState } from "../../components/ErrorState";
 import { LoadingState } from "../../components/LoadingState";
+export { decodeGoogleBrokerReturn } from "./googleBrokerReturn";
 
 type AccountsResponse = {
   accounts: Array<{
@@ -70,38 +71,7 @@ type PendingGoogleAuth = {
   expired: boolean;
 };
 
-type GoogleBrokerReturn = {
-  version: 1;
-  completionState?: string;
-  envelope?: unknown;
-  error?: string;
-  message?: string;
-};
-
 const GOOGLE_AUTH_FALLBACK_TTL_MS = 10 * 60 * 1_000;
-
-export function decodeGoogleBrokerReturn(
-  hash: string,
-): GoogleBrokerReturn | null {
-  const parameters = new URLSearchParams(hash.replace(/^#/, ""));
-  const encoded = parameters.get("daymark-google-oauth");
-  if (!encoded) return null;
-  try {
-    const base64 = encoded
-      .replace(/-/g, "+")
-      .replace(/_/g, "/")
-      .padEnd(Math.ceil(encoded.length / 4) * 4, "=");
-    const bytes = Uint8Array.from(window.atob(base64), (character) =>
-      character.charCodeAt(0),
-    );
-    const parsed = JSON.parse(
-      new TextDecoder().decode(bytes),
-    ) as GoogleBrokerReturn;
-    return parsed.version === 1 ? parsed : null;
-  } catch {
-    return null;
-  }
-}
 
 function getErrorMessage(error: unknown, fallback: string): string {
   if (!(error instanceof Error)) {
@@ -440,54 +410,6 @@ export function GoogleCalendarSettings(): JSX.Element {
       "",
       `${url.pathname}${url.search}${url.hash}`,
     );
-  }, []);
-
-  useEffect(() => {
-    const brokerReturn = decodeGoogleBrokerReturn(window.location.hash);
-    if (!brokerReturn) return;
-
-    const url = new URL(window.location.href);
-    url.hash = "";
-    window.history.replaceState({}, "", `${url.pathname}${url.search}`);
-
-    if (brokerReturn.error) {
-      setStatus(
-        brokerReturn.message ??
-          "Google authorization was not completed. Please try again.",
-      );
-      return;
-    }
-    if (!brokerReturn.completionState || !brokerReturn.envelope) {
-      setStatus("Google returned an invalid authorization response.");
-      return;
-    }
-
-    void apiFetch<{
-      connected: true;
-      connectionStatus: "connected" | "calendar_access_required";
-    }>("/integrations/google/broker/complete", {
-      method: "POST",
-      body: JSON.stringify({
-        completionState: brokerReturn.completionState,
-        envelope: brokerReturn.envelope,
-      }),
-    })
-      .then(async (result) => {
-        setStatus(
-          result.connectionStatus === "connected"
-            ? "Google Calendar connected."
-            : "Google account identified, but Calendar access was not granted. Reconnect and allow calendar-list and event access.",
-        );
-        await Promise.all([accountsQuery.refetch(), sourcesQuery.refetch()]);
-      })
-      .catch((error) => {
-        setStatus(
-          getErrorMessage(
-            error,
-            "Google authorization could not be completed.",
-          ),
-        );
-      });
   }, []);
 
   useEffect(() => {
