@@ -81,6 +81,9 @@ boot and restarts directly into the full-screen Daymark display. If installation
 fails, the screen preserves the recovery instructions and the next reboot
 retries automatically.
 
+Image downloads retain completed layers and retry six times with increasing
+delays, so a brief Wi-Fi or DNS interruption does not require intervention.
+
 If provisioning fails, the completion marker is not created and the service
 remains enabled for the next reboot. Diagnose it over SSH:
 

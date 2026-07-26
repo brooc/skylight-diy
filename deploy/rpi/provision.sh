@@ -336,10 +336,30 @@ pull_and_start_daymark() {
     config --quiet
 
   log "Downloading prebuilt Daymark images"
-  docker compose \
-    --env-file "${DAYMARK_ENV_FILE}" \
-    -f "${DAYMARK_COMPOSE_FILE}" \
-    pull
+  local pull_attempt
+  local pull_succeeded=false
+  local retry_delay
+  for pull_attempt in $(seq 1 6); do
+    progress 75 "Downloading Daymark" \
+      "Fetching application images (attempt ${pull_attempt} of 6)."
+    if docker compose \
+      --env-file "${DAYMARK_ENV_FILE}" \
+      -f "${DAYMARK_COMPOSE_FILE}" \
+      pull; then
+      pull_succeeded=true
+      break
+    fi
+
+    if (( pull_attempt < 6 )); then
+      retry_delay=$((pull_attempt * 10))
+      log "Image download was interrupted; retrying in ${retry_delay} seconds"
+      progress 75 "Connection interrupted" \
+        "Keeping downloaded data and retrying in ${retry_delay} seconds."
+      sleep "${retry_delay}"
+    fi
+  done
+  [[ "${pull_succeeded}" == "true" ]] ||
+    fail "could not download Daymark images after six attempts"
 
   log "Starting Daymark"
   docker compose \

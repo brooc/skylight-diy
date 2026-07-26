@@ -27,7 +27,8 @@ network_ready=false
 progress 8 "Connecting to the network" \
   "Using the Wi-Fi or Ethernet settings from Raspberry Pi Imager."
 for attempt in $(seq 1 60); do
-  if getent hosts github.com >/dev/null 2>&1; then
+  if getent hosts github.com >/dev/null 2>&1 &&
+    getent hosts ghcr.io >/dev/null 2>&1; then
     network_ready=true
     break
   fi
