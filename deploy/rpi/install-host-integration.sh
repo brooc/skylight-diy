@@ -31,10 +31,28 @@ kiosk_user="$(resolve_kiosk_user)"
 kiosk_group="$(id -gn "${kiosk_user}")"
 kiosk_home="$(getent passwd "${kiosk_user}" | cut -d: -f6)"
 autostart_file="${kiosk_home}/.config/labwc/autostart"
+kiosk_launcher="/usr/local/bin/daymark-kiosk"
 
 if ! command -v squeekboard >/dev/null 2>&1; then
   apt-get update
   DEBIAN_FRONTEND=noninteractive apt-get install -y squeekboard
+fi
+
+# Chromium otherwise defaults to XWayland on Raspberry Pi OS. Native Wayland
+# plus its IME bridge is required for focused fields to summon Squeekboard.
+if [[ -f "${kiosk_launcher}" ]] &&
+  ! grep -Fq -- "--enable-wayland-ime" "${kiosk_launcher}"; then
+  kiosk_launcher_next="$(mktemp)"
+  awk '
+    {
+      if ($0 ~ /exec chromium/) {
+        sub(/exec chromium/, "exec chromium --ozone-platform=wayland --enable-wayland-ime")
+      }
+      print
+    }
+  ' "${kiosk_launcher}" > "${kiosk_launcher_next}"
+  install -m 0755 "${kiosk_launcher_next}" "${kiosk_launcher}"
+  rm -f "${kiosk_launcher_next}"
 fi
 
 install -d -o "${kiosk_user}" -g "${kiosk_group}" \
@@ -54,7 +72,7 @@ cat > "${kiosk_home}/Desktop/Daymark.desktop" <<EOF
 Type=Application
 Name=Daymark
 Comment=Open the Daymark family command center
-Exec=/usr/local/bin/daymark-kiosk
+Exec=${kiosk_launcher}
 Icon=chromium
 Terminal=false
 Categories=Utility;

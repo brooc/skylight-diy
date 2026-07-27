@@ -231,6 +231,8 @@ until curl -fsS "http://127.0.0.1:\${DAYMARK_HTTP_PORT}/api/health" >/dev/null; 
   sleep 2
 done
 exec chromium \
+  --ozone-platform=wayland \
+  --enable-wayland-ime \
   --kiosk \
   --noerrdialogs \
   --disable-infobars \
