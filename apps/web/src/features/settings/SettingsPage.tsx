@@ -6,6 +6,7 @@ import { ErrorState } from "../../components/ErrorState";
 import { LoadingState } from "../../components/LoadingState";
 import { GoogleCalendarSettings } from "./GoogleCalendarSettings";
 import { FamilySettings } from "./FamilySettings";
+import { DeviceSettings } from "./DeviceSettings";
 import { TailscaleSettings } from "./TailscaleSettings";
 import { UpdateSettings } from "./UpdateSettings";
 
@@ -15,7 +16,7 @@ export function SettingsPage(): JSX.Element {
   const [lockError, setLockError] = useState<string | null>(null);
   const sessionQuery = useQuery({
     queryKey: ["session-current"],
-    queryFn: () => apiFetch<{ unlocked: boolean }>("/session/current")
+    queryFn: () => apiFetch<{ unlocked: boolean }>("/session/current"),
   });
 
   if (sessionQuery.isLoading) {
@@ -30,8 +31,12 @@ export function SettingsPage(): JSX.Element {
     return (
       <section className="grid gap-4">
         <div className="grid gap-3 rounded-md border border-[#e0d6c7] bg-white p-4 md:max-w-md">
-          <h1 className="text-xl font-semibold text-slate-900">Settings locked</h1>
-          <p className="text-sm text-slate-600">Unlock with your local admin PIN to continue.</p>
+          <h1 className="text-xl font-semibold text-slate-900">
+            Settings locked
+          </h1>
+          <p className="text-sm text-slate-600">
+            Unlock with your local admin PIN to continue.
+          </p>
           <Link
             to="/settings/unlock"
             className="flex min-h-[44px] items-center justify-center rounded-md bg-[#0f766e] px-4 py-3 text-center text-sm font-semibold text-white"
@@ -55,11 +60,19 @@ export function SettingsPage(): JSX.Element {
             setLockError(null);
             try {
               await apiFetch("/session/lock", { method: "POST" });
-              queryClient.setQueryData(["session-current"], { unlocked: false });
-              await queryClient.invalidateQueries({ queryKey: ["session-current"] });
+              queryClient.setQueryData(["session-current"], {
+                unlocked: false,
+              });
+              await queryClient.invalidateQueries({
+                queryKey: ["session-current"],
+              });
               navigate("/today");
             } catch (error) {
-              setLockError(error instanceof Error ? error.message : "Failed to lock settings.");
+              setLockError(
+                error instanceof Error
+                  ? error.message
+                  : "Failed to lock settings.",
+              );
             }
           }}
         >
@@ -71,6 +84,7 @@ export function SettingsPage(): JSX.Element {
       <GoogleCalendarSettings />
       <TailscaleSettings canReset />
       <UpdateSettings />
+      <DeviceSettings />
     </section>
   );
 }

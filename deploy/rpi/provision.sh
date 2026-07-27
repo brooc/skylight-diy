@@ -63,6 +63,7 @@ install_base_packages() {
     git \
     gnupg \
     openssl \
+    squeekboard \
     util-linux
 }
 
@@ -414,6 +415,8 @@ main() {
     "Enabling Daymark and its safe update service."
   install_systemd_service
   install_update_service
+  DAYMARK_KIOSK_USER="$(resolve_kiosk_user)" \
+    "${DAYMARK_INSTALL_DIR}/deploy/rpi/install-host-integration.sh"
   progress 75 "Downloading Daymark" \
     "Fetching prebuilt application images. This is usually the longest step."
   pull_and_start_daymark

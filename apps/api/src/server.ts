@@ -5,6 +5,7 @@ import { dbPlugin } from "./plugins/db";
 import { sessionPlugin } from "./plugins/session";
 import { calendarRoutes } from "./routes/calendar";
 import { choresRoutes } from "./routes/chores";
+import { deviceRoutes } from "./routes/device";
 import { googleOauthRoutes } from "./routes/google-oauth";
 import { healthRoutes } from "./routes/health";
 import { householdRoutes } from "./routes/household";
@@ -20,13 +21,13 @@ import { updateRoutes } from "./routes/update";
 export function buildServer() {
   const app = Fastify({
     logger: {
-      level: env.NODE_ENV === "development" ? "info" : "warn"
-    }
+      level: env.NODE_ENV === "development" ? "info" : "warn",
+    },
   });
 
   app.register(cors, {
     origin: env.APP_BASE_URL,
-    credentials: true
+    credentials: true,
   });
   app.register(dbPlugin);
   app.register(sessionPlugin);
@@ -41,6 +42,7 @@ export function buildServer() {
     api.register(mealsRoutes, { prefix: "/api" });
     api.register(listsRoutes, { prefix: "/api" });
     api.register(calendarRoutes, { prefix: "/api" });
+    api.register(deviceRoutes, { prefix: "/api" });
     api.register(googleOauthRoutes, { prefix: "/api" });
     api.register(weatherRoutes, { prefix: "/api" });
     api.register(tailscaleRoutes, { prefix: "/api" });

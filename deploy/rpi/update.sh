@@ -255,6 +255,9 @@ main() {
   wait_for_health
   verify_running_images
 
+  DAYMARK_INSTALL_DIR="${DAYMARK_INSTALL_DIR}" \
+    DAYMARK_UPDATE_DIR="${DAYMARK_UPDATE_DIR}" \
+    "${DAYMARK_INSTALL_DIR}/deploy/rpi/install-host-integration.sh"
   install -m 0755 "${DAYMARK_INSTALL_DIR}/deploy/rpi/update.sh" "${DAYMARK_UPDATE_SCRIPT}"
   set_env_value DAYMARK_INSTALLED_VERSION "${target_version}"
   installed_version="${target_version}"

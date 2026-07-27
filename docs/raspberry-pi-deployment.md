@@ -112,6 +112,24 @@ http://daymark.local:8080
 
 Complete the first-run household setup in the browser.
 
+## Touch keyboard and device controls
+
+Provisioning installs and starts Squeekboard in the Raspberry Pi desktop
+session. Tapping a text or PIN field in Chromium opens the on-screen keyboard;
+it hides again when the field loses focus.
+
+After unlocking **Settings**, the **Raspberry Pi controls** card provides:
+
+- **Show Pi desktop**, which closes kiosk Chromium and reveals the normal
+  Raspberry Pi desktop and operating-system menu.
+- **Restart Raspberry Pi**.
+- **Shut down Raspberry Pi**.
+
+The desktop contains a **Daymark** launcher for returning to kiosk mode. Restart
+and shutdown require confirmation, and all three actions require an unlocked
+local admin session. The API only writes a validated action request; a
+root-owned systemd helper performs the selected host action.
+
 ## Provisioner options
 
 The automatic path uses the defaults. For development and recovery, the
@@ -141,7 +159,8 @@ software** card. The appliance:
 2. Resolves the configured update channel.
 3. Pulls immutable API and web images for that Git commit or release.
 4. Applies database migrations while the new API starts.
-5. Restarts the services and reports success or failure in Settings.
+5. Applies current keyboard, desktop-launcher, and device-control integration.
+6. Restarts the services and reports success or failure in Settings.
 
 The display may be unavailable while the containers restart. Update requests
 are passed to a narrow root-owned systemd service; the web API does not receive
@@ -201,6 +220,9 @@ so households can connect Calendar without their own Google Cloud project. Set
 - [ ] Chromium opens the appliance setup screen automatically
 - [ ] QR setup works from a phone on the same Wi-Fi
 - [ ] On-display setup works with touch and with keyboard/mouse
+- [ ] Tapping PIN and text fields opens the on-screen keyboard
+- [ ] Show Pi desktop exits kiosk and the Daymark desktop launcher reopens it
+- [ ] Admin restart and shutdown controls require confirmation and work
 - [ ] Google Calendar is available without appliance-side OAuth credentials
 - [ ] The display switches to Today after setup completes on another device
 - [ ] Provisioner completes from a clean desktop image
