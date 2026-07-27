@@ -48,7 +48,8 @@ install -d -o "${kiosk_user}" -g "${kiosk_group}" \
 touch "${autostart_file}"
 autostart_next="$(mktemp)"
 awk '
-  $0 !~ /\/usr\/bin\/squeekboard/ &&
+  $0 != "# Touch keyboard" &&
+    $0 !~ /\/usr\/bin\/squeekboard/ &&
     $0 !~ /\/usr\/bin\/wvkbd-mobintl/
 ' "${autostart_file}" > "${autostart_next}"
 install -o "${kiosk_user}" -g "${kiosk_group}" -m 0644 \
