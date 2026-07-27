@@ -114,10 +114,15 @@ Complete the first-run household setup in the browser.
 
 ## Touch keyboard and device controls
 
-Provisioning installs `wvkbd` in the Raspberry Pi desktop session and keeps it
-available along the bottom of the touch display. Chromium runs as a maximized,
-borderless Wayland app instead of a compositor-fullscreen surface so the
-keyboard and Raspberry Pi panel remain visible above Daymark.
+Provisioning installs Squeekboard in the Raspberry Pi desktop session. It opens
+when a text or PIN field receives focus and hides afterward. Chromium runs as a
+maximized, borderless Wayland app instead of a compositor-fullscreen surface so
+the keyboard can remain visible above Daymark. Chromium's touch event handling
+is explicitly enabled so dragging pans the page instead of selecting text.
+
+Daymark itself is maximized without window decorations and temporarily stops
+the Raspberry Pi panel and its respawn supervisor. Selecting **Show Pi
+desktop** closes Daymark and restores the panel automatically.
 
 After unlocking **Settings**, the **Raspberry Pi controls** card provides:
 

@@ -63,7 +63,7 @@ install_base_packages() {
     git \
     gnupg \
     openssl \
-    wvkbd \
+    squeekboard \
     util-linux
 }
 

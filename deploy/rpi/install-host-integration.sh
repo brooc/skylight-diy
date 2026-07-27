@@ -31,11 +31,12 @@ kiosk_user="$(resolve_kiosk_user)"
 kiosk_group="$(id -gn "${kiosk_user}")"
 kiosk_home="$(getent passwd "${kiosk_user}" | cut -d: -f6)"
 autostart_file="${kiosk_home}/.config/labwc/autostart"
+labwc_config_file="${kiosk_home}/.config/labwc/rc.xml"
 kiosk_launcher="/usr/local/bin/daymark-kiosk"
 
-if ! command -v wvkbd-mobintl >/dev/null 2>&1; then
+if ! command -v squeekboard >/dev/null 2>&1; then
   apt-get update
-  DEBIAN_FRONTEND=noninteractive apt-get install -y wvkbd
+  DEBIAN_FRONTEND=noninteractive apt-get install -y squeekboard
 fi
 
 install -m 0755 \
@@ -55,13 +56,30 @@ awk '
 install -o "${kiosk_user}" -g "${kiosk_group}" -m 0644 \
   "${autostart_next}" "${autostart_file}"
 rm -f "${autostart_next}"
-if ! grep -Fq "/usr/bin/wvkbd-mobintl" "${autostart_file}"; then
-  {
-    printf '\n# Touch keyboard\n'
-    printf '/usr/bin/wvkbd-mobintl -L 220 -H 220 &\n'
-  } >> "${autostart_file}"
-fi
 chown "${kiosk_user}:${kiosk_group}" "${autostart_file}"
+
+touch "${labwc_config_file}"
+if ! grep -Fq "Daymark appliance window" "${labwc_config_file}"; then
+  labwc_config_next="$(mktemp)"
+  awk '
+    /<\/(openbox_config|labwc_config)>/ {
+      print "  <!-- Daymark appliance window -->"
+      print "  <theme>"
+      print "    <maximizedDecoration>none</maximizedDecoration>"
+      print "    <keepBorder>no</keepBorder>"
+      print "  </theme>"
+      print "  <windowRules>"
+      print "    <windowRule identifier=\"*chromium*\" serverDecoration=\"no\">"
+      print "      <action name=\"Maximize\" />"
+      print "    </windowRule>"
+      print "  </windowRules>"
+    }
+    { print }
+  ' "${labwc_config_file}" > "${labwc_config_next}"
+  install -o "${kiosk_user}" -g "${kiosk_group}" -m 0644 \
+    "${labwc_config_next}" "${labwc_config_file}"
+  rm -f "${labwc_config_next}"
+fi
 
 cat > "${kiosk_home}/Desktop/Daymark.desktop" <<EOF
 [Desktop Entry]
