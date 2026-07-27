@@ -63,7 +63,7 @@ install_base_packages() {
     git \
     gnupg \
     openssl \
-    squeekboard \
+    wvkbd \
     util-linux
 }
 
@@ -221,27 +221,9 @@ configure_kiosk() {
   chown "${kiosk_user}:${kiosk_group}" /etc/daymark/kiosk.env
   chmod 0600 /etc/daymark/kiosk.env
 
-  cat > /usr/local/bin/daymark-kiosk <<EOF
-#!/usr/bin/env bash
-set -Eeuo pipefail
-set -a
-source /etc/daymark/kiosk.env
-set +a
-until curl -fsS "http://127.0.0.1:\${DAYMARK_HTTP_PORT}/api/health" >/dev/null; do
-  sleep 2
-done
-exec chromium \
-  --ozone-platform=wayland \
-  --enable-wayland-ime \
-  --kiosk \
-  --noerrdialogs \
-  --disable-infobars \
-  --no-first-run \
-  --password-store=basic \
-  --enable-features=OverlayScrollbar \
-  "http://127.0.0.1:\${DAYMARK_HTTP_PORT}/appliance?pair=\${DAYMARK_SETUP_TOKEN}"
-EOF
-  chmod 0755 /usr/local/bin/daymark-kiosk
+  install -m 0755 \
+    "${DAYMARK_INSTALL_DIR}/deploy/rpi/kiosk.sh" \
+    /usr/local/bin/daymark-kiosk
 
   install -d -o "${kiosk_user}" -g "${kiosk_group}" \
     "${kiosk_home}/.config/labwc"

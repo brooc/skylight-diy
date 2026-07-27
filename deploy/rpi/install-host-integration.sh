@@ -33,36 +33,31 @@ kiosk_home="$(getent passwd "${kiosk_user}" | cut -d: -f6)"
 autostart_file="${kiosk_home}/.config/labwc/autostart"
 kiosk_launcher="/usr/local/bin/daymark-kiosk"
 
-if ! command -v squeekboard >/dev/null 2>&1; then
+if ! command -v wvkbd-mobintl >/dev/null 2>&1; then
   apt-get update
-  DEBIAN_FRONTEND=noninteractive apt-get install -y squeekboard
+  DEBIAN_FRONTEND=noninteractive apt-get install -y wvkbd
 fi
 
-# Chromium otherwise defaults to XWayland on Raspberry Pi OS. Native Wayland
-# plus its IME bridge is required for focused fields to summon Squeekboard.
-if [[ -f "${kiosk_launcher}" ]] &&
-  ! grep -Fq -- "--enable-wayland-ime" "${kiosk_launcher}"; then
-  kiosk_launcher_next="$(mktemp)"
-  awk '
-    {
-      if ($0 ~ /exec chromium/) {
-        sub(/exec chromium/, "exec chromium --ozone-platform=wayland --enable-wayland-ime")
-      }
-      print
-    }
-  ' "${kiosk_launcher}" > "${kiosk_launcher_next}"
-  install -m 0755 "${kiosk_launcher_next}" "${kiosk_launcher}"
-  rm -f "${kiosk_launcher_next}"
-fi
+install -m 0755 \
+  "${DAYMARK_INSTALL_DIR}/deploy/rpi/kiosk.sh" \
+  "${kiosk_launcher}"
 
 install -d -o "${kiosk_user}" -g "${kiosk_group}" \
   "${kiosk_home}/.config/labwc" \
   "${kiosk_home}/Desktop"
 touch "${autostart_file}"
-if ! grep -Fq "/usr/bin/squeekboard" "${autostart_file}"; then
+autostart_next="$(mktemp)"
+awk '
+  $0 !~ /\/usr\/bin\/squeekboard/ &&
+    $0 !~ /\/usr\/bin\/wvkbd-mobintl/
+' "${autostart_file}" > "${autostart_next}"
+install -o "${kiosk_user}" -g "${kiosk_group}" -m 0644 \
+  "${autostart_next}" "${autostart_file}"
+rm -f "${autostart_next}"
+if ! grep -Fq "/usr/bin/wvkbd-mobintl" "${autostart_file}"; then
   {
     printf '\n# Touch keyboard\n'
-    printf '/usr/bin/squeekboard &\n'
+    printf '/usr/bin/wvkbd-mobintl -L 220 -H 220 &\n'
   } >> "${autostart_file}"
 fi
 chown "${kiosk_user}:${kiosk_group}" "${autostart_file}"

@@ -114,13 +114,14 @@ Complete the first-run household setup in the browser.
 
 ## Touch keyboard and device controls
 
-Provisioning installs and starts Squeekboard in the Raspberry Pi desktop
-session. Tapping a text or PIN field in Chromium opens the on-screen keyboard;
-it hides again when the field loses focus.
+Provisioning installs `wvkbd` in the Raspberry Pi desktop session and keeps it
+available along the bottom of the touch display. Chromium runs as a maximized,
+borderless Wayland app instead of a compositor-fullscreen surface so the
+keyboard and Raspberry Pi panel remain visible above Daymark.
 
 After unlocking **Settings**, the **Raspberry Pi controls** card provides:
 
-- **Show Pi desktop**, which closes kiosk Chromium and reveals the normal
+- **Show Pi desktop**, which closes Daymark and reveals the normal
   Raspberry Pi desktop and operating-system menu.
 - **Restart Raspberry Pi**.
 - **Shut down Raspberry Pi**.
