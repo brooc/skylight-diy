@@ -12,6 +12,7 @@ until curl -fsS \
 done
 
 panel_was_running=false
+desktop_was_running=false
 panel_supervisor_pattern="^/bin/sh /usr/bin/lwrespawn /usr/bin/wf-panel-pi$"
 if systemctl --user is-active --quiet daymark-panel.service; then
   systemctl --user stop daymark-panel.service
@@ -25,9 +26,13 @@ if pgrep -u "$(id -u)" -x wf-panel-pi >/dev/null 2>&1; then
   pkill -TERM -u "$(id -u)" -x wf-panel-pi
   panel_was_running=true
 fi
+if pgrep -u "$(id -u)" -x pcmanfm >/dev/null 2>&1; then
+  pkill -TERM -u "$(id -u)" -x pcmanfm
+  desktop_was_running=true
+fi
 sleep 1
 
-restore_panel() {
+restore_desktop() {
   if [[ "${panel_was_running}" == "true" ]] &&
     ! pgrep -u "$(id -u)" -f "${panel_supervisor_pattern}" >/dev/null 2>&1; then
     systemd-run --user \
@@ -35,8 +40,12 @@ restore_panel() {
       --collect \
       /usr/bin/lwrespawn /usr/bin/wf-panel-pi >/dev/null
   fi
+  if [[ "${desktop_was_running}" == "true" ]] &&
+    ! pgrep -u "$(id -u)" -x pcmanfm >/dev/null 2>&1; then
+    /usr/bin/pcmanfm --desktop >/dev/null 2>&1 &
+  fi
 }
-trap restore_panel EXIT
+trap restore_desktop EXIT
 
 # Raspberry Pi OS's wrapper forces renderer accessibility, which causes
 # Chromium to repaint Daymark's sticky calendar continuously on a Pi 3. Launch

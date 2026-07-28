@@ -18,8 +18,18 @@ export function TailscaleSettings({ canReset = false }: { canReset?: boolean }):
   const statusQuery = useQuery({
     queryKey: ["tailscale-status"],
     queryFn: () => apiFetch<TailscaleStatus>("/integrations/tailscale/status"),
-    refetchInterval: 3_000,
-    refetchIntervalInBackground: true,
+    refetchInterval: (query) => {
+      const status = query.state.data;
+      if (
+        status &&
+        (!status.available ||
+          (status.online && status.serveState === "ready"))
+      ) {
+        return false;
+      }
+      return 10_000;
+    },
+    refetchIntervalInBackground: false,
     refetchOnWindowFocus: "always",
     retry: false
   });
