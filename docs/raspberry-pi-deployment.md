@@ -124,6 +124,13 @@ Daymark itself is maximized without window decorations and temporarily stops
 the Raspberry Pi panel and its respawn supervisor. Selecting **Show Pi
 desktop** closes Daymark and restores the panel automatically.
 
+On Raspberry Pi 3 hardware, the display session renders at 1280×800 when that
+16:10 mode is supported. This reduces compositor and browser work while
+preserving the aspect ratio of common 1920×1200 touch panels. Newer Raspberry
+Pi models retain the display's preferred mode. Native touchscreen events are
+used without labwc mouse emulation so swipe gestures scroll instead of
+selecting text.
+
 After unlocking **Settings**, the **Raspberry Pi controls** card provides:
 
 - **Show Pi desktop**, which closes Daymark and reveals the normal
@@ -166,7 +173,8 @@ software** card. The appliance:
 3. Pulls immutable API and web images for that Git commit or release.
 4. Applies database migrations while the new API starts.
 5. Applies current keyboard, desktop-launcher, and device-control integration.
-6. Restarts the services and reports success or failure in Settings.
+6. Reports success and reboots the Raspberry Pi so containers, display
+   services, and host integration all start from the updated configuration.
 
 The display may be unavailable while the containers restart. Update requests
 are passed to a narrow root-owned systemd service; the web API does not receive

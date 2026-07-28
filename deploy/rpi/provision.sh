@@ -64,7 +64,8 @@ install_base_packages() {
     gnupg \
     openssl \
     squeekboard \
-    util-linux
+    util-linux \
+    wlr-randr
 }
 
 install_docker() {

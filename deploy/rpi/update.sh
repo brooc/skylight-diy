@@ -9,6 +9,7 @@ DAYMARK_UPDATE_DIR="${DAYMARK_UPDATE_DIR:-/var/lib/daymark/update}"
 DAYMARK_BACKUP_DIR="${DAYMARK_BACKUP_DIR:-/var/lib/daymark/backups}"
 DAYMARK_UPDATE_CHANNEL="${DAYMARK_UPDATE_CHANNEL:-main}"
 DAYMARK_UPDATE_KEEP_BACKUPS="${DAYMARK_UPDATE_KEEP_BACKUPS:-5}"
+DAYMARK_REBOOT_AFTER_UPDATE="${DAYMARK_REBOOT_AFTER_UPDATE:-true}"
 DAYMARK_UPDATE_SCRIPT="/usr/local/sbin/daymark-update"
 STATUS_FILE="${DAYMARK_UPDATE_DIR}/status.json"
 REQUEST_FILE="${DAYMARK_UPDATE_DIR}/request.json"
@@ -21,6 +22,14 @@ target_ref=""
 previous_commit=""
 previous_image_tag=""
 environment_changed=false
+
+schedule_reboot() {
+  [[ "${DAYMARK_REBOOT_AFTER_UPDATE}" == "true" ]] || return 0
+  systemd-run \
+    --unit=daymark-update-reboot \
+    --on-active=5s \
+    /usr/bin/systemctl reboot
+}
 
 json_string() {
   local value="$1"
@@ -262,7 +271,8 @@ main() {
   set_env_value DAYMARK_INSTALLED_VERSION "${target_version}"
   installed_version="${target_version}"
   rm -f "${REQUEST_FILE}"
-  write_status succeeded "Daymark update completed"
+  write_status succeeded "Daymark update completed; restarting"
+  schedule_reboot
 }
 
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then

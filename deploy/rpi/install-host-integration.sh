@@ -33,6 +33,7 @@ kiosk_home="$(getent passwd "${kiosk_user}" | cut -d: -f6)"
 autostart_file="${kiosk_home}/.config/labwc/autostart"
 labwc_config_file="${kiosk_home}/.config/labwc/rc.xml"
 kiosk_launcher="/usr/local/bin/daymark-kiosk"
+display_mode_helper="/usr/local/bin/daymark-display-mode"
 
 if ! command -v squeekboard >/dev/null 2>&1; then
   apt-get update
@@ -42,6 +43,9 @@ fi
 install -m 0755 \
   "${DAYMARK_INSTALL_DIR}/deploy/rpi/kiosk.sh" \
   "${kiosk_launcher}"
+install -m 0755 \
+  "${DAYMARK_INSTALL_DIR}/deploy/rpi/display-mode.sh" \
+  "${display_mode_helper}"
 
 install -d -o "${kiosk_user}" -g "${kiosk_group}" \
   "${kiosk_home}/.config/labwc" \
@@ -50,9 +54,17 @@ touch "${autostart_file}"
 autostart_next="$(mktemp)"
 awk '
   $0 != "# Touch keyboard" &&
+    $0 != "# Daymark appliance display" &&
     $0 !~ /\/usr\/bin\/squeekboard/ &&
-    $0 !~ /\/usr\/bin\/wvkbd-mobintl/
+    $0 !~ /\/usr\/bin\/wvkbd-mobintl/ &&
+    $0 !~ /\/usr\/local\/bin\/daymark-display-mode/ &&
+    $0 !~ /\/usr\/local\/bin\/daymark-kiosk/
 ' "${autostart_file}" > "${autostart_next}"
+{
+  printf '\n# Daymark appliance display\n'
+  printf '%s\n' "${display_mode_helper}"
+  printf '%s &\n' "${kiosk_launcher}"
+} >> "${autostart_next}"
 install -o "${kiosk_user}" -g "${kiosk_group}" -m 0644 \
   "${autostart_next}" "${autostart_file}"
 rm -f "${autostart_next}"
@@ -80,6 +92,12 @@ if ! grep -Fq "Daymark appliance window" "${labwc_config_file}"; then
     "${labwc_config_next}" "${labwc_config_file}"
   rm -f "${labwc_config_next}"
 fi
+labwc_config_next="$(mktemp)"
+sed 's/mouseEmulation="yes"/mouseEmulation="no"/g' \
+  "${labwc_config_file}" > "${labwc_config_next}"
+install -o "${kiosk_user}" -g "${kiosk_group}" -m 0644 \
+  "${labwc_config_next}" "${labwc_config_file}"
+rm -f "${labwc_config_next}"
 
 cat > "${kiosk_home}/Desktop/Daymark.desktop" <<EOF
 [Desktop Entry]

@@ -56,4 +56,24 @@ fi
 stub_running_image_id="sha256:new"
 verify_running_images
 
+REBOOT_CAPTURE="${TEST_DIR}/reboot-command"
+systemd-run() {
+  printf '%s\n' "$*" > "${REBOOT_CAPTURE}"
+}
+
+DAYMARK_REBOOT_AFTER_UPDATE=true
+schedule_reboot
+grep -Fq -- "--on-active=5s /usr/bin/systemctl reboot" "${REBOOT_CAPTURE}" || {
+  printf 'successful updates did not schedule a reboot\n' >&2
+  exit 1
+}
+
+rm -f "${REBOOT_CAPTURE}"
+DAYMARK_REBOOT_AFTER_UPDATE=false
+schedule_reboot
+[[ ! -e "${REBOOT_CAPTURE}" ]] || {
+  printf 'disabled update reboot still scheduled a reboot\n' >&2
+  exit 1
+}
+
 printf 'Raspberry Pi updater regression checks passed.\n'
