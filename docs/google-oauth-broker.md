@@ -82,8 +82,8 @@ omit the broker URL and set `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, and
 
 ## Security properties
 
-- The broker accepts return URLs only for loopback, `.local`, RFC 1918, or
-  Tailscale/CGNAT addresses.
+- The broker accepts return URLs only for loopback, `.local`, or RFC 1918
+  private-network addresses.
 - Google state expires after ten minutes and is authenticated with HMAC-SHA256.
 - Token responses use ephemeral P-256 ECDH, HKDF-SHA256, and AES-256-GCM.
 - The encrypted token package is returned in the URL fragment, so it is not sent

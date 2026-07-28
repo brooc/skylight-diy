@@ -41,12 +41,6 @@ function mockSettingsRequests(unlocked: boolean): ReturnType<typeof vi.spyOn> {
     if (url.startsWith("/api/integrations/google/status")) {
       return mockJsonResponse({ available: false, redirectUri: null });
     }
-    if (url.startsWith("/api/integrations/tailscale/status")) {
-      return mockJsonResponse({ available: false, state: "unavailable" });
-    }
-    if (url.startsWith("/api/integrations/tailscale/reset")) {
-      return mockJsonResponse({ reset: true });
-    }
     if (url.startsWith("/api/system/update")) {
       return mockJsonResponse({ available: false, state: "idle" });
     }
@@ -117,76 +111,6 @@ describe("shell and settings", () => {
     expect(
       screen.getByRole("link", { name: "Unlock settings" }),
     ).toHaveAttribute("href", "/settings/unlock");
-    expect(screen.queryByText("Tablet access")).not.toBeInTheDocument();
-  });
-
-  it("hides the optional Tailscale feature when it is disabled", async () => {
-    mockSettingsRequests(true);
-    renderWithRoute("/settings", <SettingsPage />);
-
-    expect(
-      await screen.findByRole("heading", { name: "Settings" }),
-    ).toBeInTheDocument();
-    expect(screen.queryByText("Tablet access")).not.toBeInTheDocument();
-    expect(screen.queryByText(/Tailscale/)).not.toBeInTheDocument();
-  });
-
-  it("shows Tailscale bootstrap sign-in without requiring settings unlock", async () => {
-    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
-      const url = typeof input === "string" ? input : input.url;
-      if (url.startsWith("/api/session/current"))
-        return mockJsonResponse({ unlocked: false });
-      if (url.startsWith("/api/integrations/tailscale/status")) {
-        return mockJsonResponse({
-          available: true,
-          state: "NeedsLogin",
-          authUrl: "https://login.tailscale.com/a/test",
-          hostname: "daymark",
-          dnsName: null,
-          httpsUrl: null,
-          online: false,
-          serveState: "pending",
-          serveEnableUrl: null,
-        });
-      }
-      return mockJsonResponse({}, 404);
-    });
-    renderWithRoute("/settings", <SettingsPage />);
-
-    expect(await screen.findByText("Tablet access")).toBeInTheDocument();
-    expect(
-      screen.getByRole("link", { name: "Sign in to Tailscale" }),
-    ).toHaveAttribute("href", "https://login.tailscale.com/a/test");
-  });
-
-  it("shows the one-time HTTPS approval on the same locked Settings page", async () => {
-    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
-      const url = typeof input === "string" ? input : input.url;
-      if (url.startsWith("/api/session/current"))
-        return mockJsonResponse({ unlocked: false });
-      if (url.startsWith("/api/integrations/tailscale/status")) {
-        return mockJsonResponse({
-          available: true,
-          state: "Running",
-          authUrl: null,
-          hostname: "daymark",
-          dnsName: "daymark.example.ts.net",
-          httpsUrl: "https://daymark.example.ts.net",
-          online: true,
-          serveState: "disabled",
-          serveEnableUrl: "https://login.tailscale.com/f/serve?node=test",
-        });
-      }
-      return mockJsonResponse({}, 404);
-    });
-    renderWithRoute("/settings", <SettingsPage />);
-
-    expect(
-      await screen.findByText(/One-time approval is needed/),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("link", { name: "Enable private HTTPS" }),
-    ).toHaveAttribute("href", "https://login.tailscale.com/f/serve?node=test");
   });
 
   it("locks settings and navigates back to Today", async () => {
@@ -200,67 +124,6 @@ describe("shell and settings", () => {
     expect(await screen.findByText("today route")).toBeInTheDocument();
     expect(fetchSpy).toHaveBeenCalledWith(
       "/api/session/lock",
-      expect.objectContaining({ method: "POST" }),
-    );
-  });
-
-  it("lets an unlocked admin reset only the Tailscale connection", async () => {
-    const fetchSpy = vi
-      .spyOn(globalThis, "fetch")
-      .mockImplementation(async (input) => {
-        const url = typeof input === "string" ? input : input.url;
-        if (url.startsWith("/api/session/current"))
-          return mockJsonResponse({ unlocked: true });
-        if (url.startsWith("/api/integrations/tailscale/status")) {
-          return mockJsonResponse({
-            available: true,
-            state: "Running",
-            authUrl: null,
-            hostname: "daymark",
-            dnsName: "daymark.example.ts.net",
-            httpsUrl: "https://daymark.example.ts.net",
-            online: true,
-            serveState: "ready",
-            serveEnableUrl: null,
-          });
-        }
-        if (url.startsWith("/api/integrations/tailscale/reset")) {
-          return mockJsonResponse({ reset: true });
-        }
-        if (url.startsWith("/api/calendar/accounts"))
-          return mockJsonResponse({ accounts: [] });
-        if (url.startsWith("/api/calendar/sources"))
-          return mockJsonResponse({ sources: [] });
-        if (url.startsWith("/api/household/current")) {
-          return mockJsonResponse({
-            household: {
-              name: "Test Household",
-              timezone: "America/Los_Angeles",
-            },
-            people: [],
-          });
-        }
-        if (url.startsWith("/api/integrations/google/status")) {
-          return mockJsonResponse({ available: false, redirectUri: null });
-        }
-        return mockJsonResponse({}, 404);
-      });
-    renderWithRoute("/settings", <SettingsPage />);
-
-    await userEvent
-      .setup()
-      .click(
-        await screen.findByRole("button", {
-          name: "Log out & reset Tailscale",
-        }),
-      );
-
-    expect(
-      screen.getByRole("link", { name: "Manage tailnet-wide HTTPS approval" }),
-    ).toHaveAttribute("href", "https://login.tailscale.com/admin/dns");
-
-    expect(fetchSpy).toHaveBeenCalledWith(
-      "/api/integrations/tailscale/reset",
       expect.objectContaining({ method: "POST" }),
     );
   });
@@ -298,9 +161,6 @@ describe("shell and settings", () => {
         }
         if (url.startsWith("/api/integrations/google/status")) {
           return mockJsonResponse({ available: false, redirectUri: null });
-        }
-        if (url.startsWith("/api/integrations/tailscale/status")) {
-          return mockJsonResponse({ available: false, state: "unavailable" });
         }
         return mockJsonResponse({}, 404);
       });
@@ -353,9 +213,6 @@ describe("shell and settings", () => {
         }
         if (url.startsWith("/api/integrations/google/status")) {
           return mockJsonResponse({ available: false, redirectUri: null });
-        }
-        if (url.startsWith("/api/integrations/tailscale/status")) {
-          return mockJsonResponse({ available: false, state: "unavailable" });
         }
         return mockJsonResponse({}, 404);
       });

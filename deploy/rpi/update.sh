@@ -78,6 +78,15 @@ set_env_value() {
   mv "${temporary_file}" "${DAYMARK_ENV_FILE}"
 }
 
+remove_env_value() {
+  local key="$1"
+  local temporary_file="${DAYMARK_ENV_FILE}.tmp"
+  awk -v key="${key}" 'index($0, key "=") != 1 { print }' \
+    "${DAYMARK_ENV_FILE}" > "${temporary_file}"
+  chmod 0600 "${temporary_file}"
+  mv "${temporary_file}" "${DAYMARK_ENV_FILE}"
+}
+
 compose() {
   local image_tag
   image_tag="$(read_env_value DAYMARK_IMAGE_TAG)"
@@ -170,7 +179,7 @@ rollback() {
   if [[ -n "${previous_commit}" ]]; then
     git -C "${DAYMARK_INSTALL_DIR}" checkout --detach "${previous_commit}" >/dev/null 2>&1 || true
   fi
-  compose up -d --no-build >/dev/null 2>&1 || true
+  compose up -d --no-build --remove-orphans >/dev/null 2>&1 || true
   rm -f "${REQUEST_FILE}"
   write_status failed "${message}"
   exit "${exit_code}"
@@ -259,8 +268,14 @@ main() {
   compose_with_image_tag "${target_image_tag}" pull api web
 
   set_env_value DAYMARK_IMAGE_TAG "${target_image_tag}"
+  remove_env_value TAILSCALE_ENABLED
+  remove_env_value TAILSCALE_SOCKET_PATH
+  remove_env_value TAILSCALE_SERVE_TARGET
   environment_changed=true
-  compose up -d --no-build
+  compose up -d --no-build --remove-orphans
+  docker volume rm \
+    daymark-production_tailscale_state \
+    daymark-production_tailscale_socket >/dev/null 2>&1 || true
   wait_for_health
   verify_running_images
 

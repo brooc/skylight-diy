@@ -1,53 +1,6 @@
 name: daymark-production
 
 services:
-  tailscale:
-    image: tailscale/tailscale:stable
-    hostname: daymark
-    restart: unless-stopped
-    entrypoint: /bin/sh
-    command:
-      - -c
-      - |
-        set -u
-        if [ "$${TAILSCALE_ENABLED:-false}" != "true" ]; then
-          echo "Tailscale integration is disabled."
-          exec tail -f /dev/null
-        fi
-        tailscaled \
-          --socket=/var/run/tailscale/tailscaled.sock \
-          --statedir=/var/lib/tailscale \
-          --tun=userspace-networking &
-        daemon_pid=$$!
-        cleanup() {
-          kill "$$daemon_pid" 2>/dev/null || true
-          wait "$$daemon_pid" 2>/dev/null || true
-        }
-        trap cleanup INT TERM EXIT
-        until tailscale --socket=/var/run/tailscale/tailscaled.sock status --json >/dev/null 2>&1; do
-          sleep 1
-        done
-        while kill -0 "$$daemon_pid" 2>/dev/null; do
-          state="$$(tailscale --socket=/var/run/tailscale/tailscaled.sock status --json 2>/dev/null | sed -n 's/.*"BackendState": *"\([^"]*\)".*/\1/p')"
-          if [ "$$state" = "NeedsLogin" ]; then
-            tailscale --socket=/var/run/tailscale/tailscaled.sock up --accept-dns=false --hostname=daymark || true
-          else
-            sleep 2
-          fi
-        done
-        wait "$$daemon_pid"
-    env_file:
-      - ${DAYMARK_ENV_FILE:-.env.production}
-    environment:
-      TS_AUTH_ONCE: "true"
-      TS_HOSTNAME: daymark
-      TS_STATE_DIR: /var/lib/tailscale
-      TS_SOCKET: /var/run/tailscale/tailscaled.sock
-      TS_USERSPACE: "true"
-    volumes:
-      - tailscale_state:/var/lib/tailscale
-      - tailscale_socket:/var/run/tailscale
-
   postgres:
     image: postgres:16
     restart: unless-stopped
@@ -73,16 +26,11 @@ services:
       NODE_ENV: production
       HOST: 0.0.0.0
       PORT: 3000
-      TAILSCALE_SOCKET_PATH: /var/run/tailscale/tailscaled.sock
-      TAILSCALE_SERVE_TARGET: http://web:8080
     volumes:
-      - tailscale_socket:/var/run/tailscale
       - ${DAYMARK_UPDATE_HOST_DIR:-./.daymark-update}:/var/lib/daymark/update
     depends_on:
       postgres:
         condition: service_healthy
-      tailscale:
-        condition: service_started
     healthcheck:
       test:
         [
@@ -101,44 +49,9 @@ services:
     depends_on:
       api:
         condition: service_healthy
-      tailscale:
-        condition: service_started
     ports:
       - "${DAYMARK_BIND_ADDRESS:-0.0.0.0}:${DAYMARK_HTTP_PORT:-8080}:8080"
-
-  tailscale-serve:
-    image: tailscale/tailscale:stable
-    restart: unless-stopped
-    network_mode: service:tailscale
-    env_file:
-      - ${DAYMARK_ENV_FILE:-.env.production}
-    entrypoint: /bin/sh
-    command:
-      - -c
-      - |
-        if [ "$${TAILSCALE_ENABLED:-false}" != "true" ]; then
-          echo "Tailscale Serve is disabled."
-          exec tail -f /dev/null
-        fi
-        while true; do
-          until tailscale --socket=/var/run/tailscale/tailscaled.sock ip -4 >/dev/null 2>&1; do
-            sleep 2
-          done
-          if tailscale --socket=/var/run/tailscale/tailscaled.sock serve --bg --yes http://web:8080; then
-            exec tail -f /dev/null
-          fi
-          sleep 10
-        done
-    volumes:
-      - tailscale_socket:/var/run/tailscale
-    depends_on:
-      tailscale:
-        condition: service_started
-      web:
-        condition: service_started
 
 volumes:
   daymark_postgres_data:
     name: ${DAYMARK_POSTGRES_VOLUME:-daymark-production-data}
-  tailscale_state:
-  tailscale_socket:

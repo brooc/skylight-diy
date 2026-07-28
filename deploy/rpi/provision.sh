@@ -142,7 +142,6 @@ create_environment() {
     printf 'DAYMARK_UPDATE_CHANNEL=%s\n' "${DAYMARK_UPDATE_CHANNEL}"
     printf 'DAYMARK_UPDATE_DIR=/var/lib/daymark/update\n'
     printf 'DAYMARK_UPDATE_HOST_DIR=%s\n' "${DAYMARK_UPDATE_DIR}"
-    printf 'TAILSCALE_ENABLED=false\n'
     printf 'POSTGRES_PASSWORD=%s\n' "${postgres_password}"
     printf 'DATABASE_URL=postgres://daymark:%s@postgres:5432/daymark\n' "${postgres_password}"
     printf 'SESSION_COOKIE_NAME=daymark_session\n'

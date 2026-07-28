@@ -51,7 +51,7 @@ describe("Daymark OAuth broker", () => {
       isAllowedApplianceReturnUrl("http://192.168.1.169:8080/settings"),
     ).toBe(true);
     expect(isAllowedApplianceReturnUrl("https://100.100.10.20/settings")).toBe(
-      true,
+      false,
     );
     expect(isAllowedApplianceReturnUrl("https://example.com/settings")).toBe(
       false,

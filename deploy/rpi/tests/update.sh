@@ -56,6 +56,17 @@ fi
 stub_running_image_id="sha256:new"
 verify_running_images
 
+LEGACY_ENV_FILE="${TEST_DIR}/legacy.env"
+printf 'KEEP=value\nTAILSCALE_ENABLED=false\n' > "${LEGACY_ENV_FILE}"
+DAYMARK_ENV_FILE="${LEGACY_ENV_FILE}"
+remove_env_value TAILSCALE_ENABLED
+grep -Fq 'KEEP=value' "${LEGACY_ENV_FILE}"
+if grep -Fq 'TAILSCALE_ENABLED=' "${LEGACY_ENV_FILE}"; then
+  printf 'obsolete environment value was not removed\n' >&2
+  exit 1
+fi
+DAYMARK_ENV_FILE="${TEST_DIR}/.env.production"
+
 REBOOT_CAPTURE="${TEST_DIR}/reboot-command"
 systemd-run() {
   printf '%s\n' "$*" > "${REBOOT_CAPTURE}"
