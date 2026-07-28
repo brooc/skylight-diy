@@ -1,3 +1,4 @@
+import { memo } from "react";
 import type {
   CalendarEventAccount,
   CalendarEventSource,
@@ -70,7 +71,7 @@ type Props = {
   onChange: (selectedIds: string[]) => void;
 };
 
-export function FamilyParticipantPicker({
+export const FamilyParticipantPicker = memo(function FamilyParticipantPicker({
   participants,
   organizerEmail,
   selectedIds,
@@ -98,11 +99,11 @@ export function FamilyParticipantPicker({
           return (
             <label
               key={participant.id}
-              className={`flex min-h-[40px] items-center gap-2 rounded-full border px-3 text-sm font-semibold transition-colors ${
+              className={`flex min-h-[40px] items-center gap-2 rounded-full border px-3 text-sm font-semibold ${
                 disabled
                   ? "cursor-not-allowed border-slate-200 bg-slate-50 text-slate-400"
                   : selected
-                    ? "cursor-pointer border-slate-500 text-slate-900 shadow-sm"
+                    ? "cursor-pointer border-slate-500 text-slate-900"
                     : "cursor-pointer border-slate-300 bg-white text-slate-700"
               }`}
               style={
@@ -135,4 +136,4 @@ export function FamilyParticipantPicker({
       </div>
     </fieldset>
   );
-}
+});

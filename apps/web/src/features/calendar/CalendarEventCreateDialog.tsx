@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { apiFetch } from "../../api/client";
 import { dateFromDateKeyInTimeZone, shiftDateKey } from "./dateKeys";
@@ -126,18 +126,25 @@ export function CalendarEventCreateDialog({
   onClose,
   onCreated,
 }: Props): JSX.Element {
-  const accountById = new Map(accounts.map((account) => [account.id, account]));
-  const destinations = sources.filter((source) => {
-    const account = accountById.get(source.connectedAccountId);
-    return (
-      source.enabled &&
-      source.allowEventWrites &&
-      (source.googleAccessRole === "owner" ||
-        source.googleAccessRole === "writer") &&
-      account?.calendarWriteAccessGranted &&
-      !account.reauthorizationRequired
-    );
-  });
+  const accountById = useMemo(
+    () => new Map(accounts.map((account) => [account.id, account])),
+    [accounts],
+  );
+  const destinations = useMemo(
+    () =>
+      sources.filter((source) => {
+        const account = accountById.get(source.connectedAccountId);
+        return (
+          source.enabled &&
+          source.allowEventWrites &&
+          (source.googleAccessRole === "owner" ||
+            source.googleAccessRole === "writer") &&
+          account?.calendarWriteAccessGranted &&
+          !account.reauthorizationRequired
+        );
+      }),
+    [accountById, sources],
+  );
   const [sourceId, setSourceId] = useState(destinations[0]?.id ?? "");
   const selectedDestination = destinations.find(
     (source) => source.id === sourceId,
@@ -253,7 +260,10 @@ export function CalendarEventCreateDialog({
     }
   };
 
-  const participants = resolveFamilyParticipants(members, sources, accounts);
+  const participants = useMemo(
+    () => resolveFamilyParticipants(members, sources, accounts),
+    [accounts, members, sources],
+  );
   const selectedAccount = selectedDestination
     ? accountById.get(selectedDestination.connectedAccountId)
     : undefined;
@@ -272,11 +282,11 @@ export function CalendarEventCreateDialog({
       role="dialog"
       aria-modal="true"
       aria-labelledby="add-calendar-event-title"
-      className="fixed inset-0 z-50 flex items-center justify-center overflow-hidden bg-slate-950/45 p-2 backdrop-blur-[2px] sm:p-3"
+      className="fixed inset-0 z-50 flex items-center justify-center overflow-hidden bg-[#f7f7f5] p-2 sm:p-3"
       onClick={onClose}
     >
       <div
-        className="flex max-h-[calc(100dvh-1rem)] w-full min-w-0 max-w-lg flex-col overflow-hidden rounded-3xl border border-white/70 bg-white shadow-[0_24px_80px_rgba(15,23,42,0.28)] sm:max-h-[calc(100dvh-1.5rem)]"
+        className="flex max-h-[calc(100dvh-1rem)] w-full min-w-0 max-w-lg flex-col overflow-hidden rounded-2xl border border-slate-300 bg-white sm:max-h-[calc(100dvh-1.5rem)]"
         onClick={(event) => event.stopPropagation()}
       >
         <div className="h-2 shrink-0 bg-gradient-to-r from-[#8ec5b8] via-[#dca1b4] to-[#b7abd8]" />
@@ -338,7 +348,6 @@ export function CalendarEventCreateDialog({
                   Event title
                 </span>
                 <input
-                  autoFocus
                   required
                   maxLength={200}
                   value={title}
@@ -515,7 +524,7 @@ export function CalendarEventCreateDialog({
                       return (
                         <label
                           key={weekday.code}
-                          className={`flex min-h-[40px] cursor-pointer items-center justify-center rounded-xl border text-sm font-semibold transition-colors ${
+                          className={`flex min-h-[40px] cursor-pointer items-center justify-center rounded-xl border text-sm font-semibold ${
                             selected
                               ? "border-[#0f766e] bg-[#dcefeb] text-[#0f5f59]"
                               : "border-slate-300 bg-white text-slate-600"
@@ -596,7 +605,7 @@ export function CalendarEventCreateDialog({
                   <span>More options</span>
                   <span
                     aria-hidden="true"
-                    className="text-lg leading-none text-slate-500 transition-transform group-open:rotate-180"
+                    className="text-lg leading-none text-slate-500 group-open:rotate-180"
                   >
                     ⌄
                   </span>

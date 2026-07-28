@@ -254,7 +254,7 @@ Wants=network-online.target
 Type=oneshot
 RemainAfterExit=yes
 WorkingDirectory=${DAYMARK_INSTALL_DIR}
-ExecStart=/usr/bin/docker compose --env-file ${DAYMARK_ENV_FILE} -f ${DAYMARK_COMPOSE_FILE} up -d --no-build
+ExecStart=/usr/bin/docker compose --env-file ${DAYMARK_ENV_FILE} -f ${DAYMARK_COMPOSE_FILE} up -d --no-build --remove-orphans
 ExecStop=/usr/bin/docker compose --env-file ${DAYMARK_ENV_FILE} -f ${DAYMARK_COMPOSE_FILE} down
 TimeoutStartSec=0
 
@@ -380,7 +380,7 @@ main() {
   require_root
   require_supported_host
   progress 20 "Installing system packages" \
-    "Downloading the browser and secure connection tools."
+    "Downloading the browser and touch-display tools."
   install_base_packages
   progress 35 "Preparing the container runtime" \
     "Installing or validating Docker Engine."

@@ -25,6 +25,25 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+button,
+a,
+summary,
+select,
+input[type="checkbox"],
+input[type="radio"] {
+  touch-action: manipulation;
+}
+
+[role="dialog"][aria-modal="true"] {
+  background-color: #f7f7f5 !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+[role="dialog"][aria-modal="true"] > * {
+  box-shadow: none !important;
+}
+
 .font-display {
   font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
   letter-spacing: 0;

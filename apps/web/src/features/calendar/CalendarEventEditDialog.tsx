@@ -379,11 +379,11 @@ export function CalendarEventEditDialog({
       role="dialog"
       aria-modal="true"
       aria-labelledby="edit-calendar-event-title"
-      className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/45 p-2 backdrop-blur-[2px] sm:p-3"
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-[#f7f7f5] p-2 sm:p-3"
       onClick={onClose}
     >
       <div
-        className="flex max-h-[calc(100dvh-1rem)] w-full max-w-lg flex-col overflow-hidden rounded-3xl border border-white/70 bg-white shadow-[0_24px_80px_rgba(15,23,42,0.28)] sm:max-h-[calc(100dvh-1.5rem)]"
+        className="flex max-h-[calc(100dvh-1rem)] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-slate-300 bg-white sm:max-h-[calc(100dvh-1.5rem)]"
         onClick={(click) => click.stopPropagation()}
       >
         <form
@@ -421,7 +421,6 @@ export function CalendarEventEditDialog({
                   Event title
                 </span>
                 <input
-                  autoFocus
                   required
                   value={title}
                   onChange={(change) => setTitle(change.target.value)}

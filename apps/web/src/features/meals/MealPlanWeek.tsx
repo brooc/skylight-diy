@@ -253,7 +253,7 @@ export function MealPlanWeek(): JSX.Element {
       <button
         type="button"
         aria-label="Add"
-        className="fixed bottom-6 right-6 z-30 flex h-14 w-14 items-center justify-center rounded-full bg-[#2b98db] text-white shadow-[0_6px_16px_rgba(30,64,175,0.22)] transition-colors hover:bg-[#2588c3]"
+        className="fixed bottom-6 right-6 z-30 flex h-14 w-14 items-center justify-center rounded-full border border-[#227fb8] bg-[#2b98db] text-white hover:bg-[#2588c3]"
         onClick={() => {
           setSubmitError(null);
           setSelectedDates([defaultDate]);

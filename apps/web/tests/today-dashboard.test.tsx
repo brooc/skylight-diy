@@ -640,6 +640,8 @@ describe("TodayDashboard", () => {
 
     const dialog = await screen.findByRole("dialog", { name: "Add event" });
     expect(dialog).toHaveClass("overflow-hidden");
+    expect(dialog.className).not.toContain("backdrop-blur");
+    expect(dialog.className).not.toContain("bg-slate-950/");
     expect(dialog.firstElementChild).toHaveClass(
       "max-h-[calc(100dvh-1rem)]",
       "min-w-0",
@@ -660,6 +662,9 @@ describe("TodayDashboard", () => {
       "min-w-0",
       "max-w-full",
       "truncate",
+    );
+    expect(within(dialog).getByLabelText("Event title")).not.toHaveAttribute(
+      "autofocus",
     );
     expect(
       within(dialog).getByRole("option", {

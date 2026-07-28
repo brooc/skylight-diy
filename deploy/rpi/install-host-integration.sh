@@ -45,6 +45,14 @@ fi
 systemctl disable --now packagekit.service >/dev/null 2>&1 || true
 systemctl mask packagekit.service >/dev/null 2>&1 || true
 
+model="$(
+  tr -d '\0' < /proc/device-tree/model 2>/dev/null || true
+)"
+if [[ "${model}" == *"Raspberry Pi 3"* ]]; then
+  printf 'vm.swappiness=10\n' > /etc/sysctl.d/90-daymark-kiosk.conf
+  sysctl -q -p /etc/sysctl.d/90-daymark-kiosk.conf
+fi
+
 install -m 0755 \
   "${DAYMARK_INSTALL_DIR}/deploy/rpi/kiosk.sh" \
   "${kiosk_launcher}"

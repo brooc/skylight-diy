@@ -748,7 +748,7 @@ export function TodayDashboard(): JSX.Element {
                     : ""}
                 </button>
                 {isFilterOpen ? (
-                  <div className="absolute right-0 top-12 z-40 grid min-w-[240px] gap-2 rounded-xl border border-[#d9d8d4] bg-white p-3 shadow-xl">
+                  <div className="absolute right-0 top-12 z-40 grid min-w-[240px] gap-2 rounded-xl border border-[#d9d8d4] bg-white p-3">
                     <div className="flex items-center justify-between gap-3">
                       <div className="text-sm font-semibold text-slate-900">
                         People & calendars
@@ -995,7 +995,7 @@ export function TodayDashboard(): JSX.Element {
                             data-event-shared={event.striped ? "true" : "false"}
                             aria-label={`${event.title}, ${event.timeLabel}, ${event.sourceName}`}
                             title={`${event.title} · ${event.timeLabel} · ${event.sourceName}`}
-                            className="absolute z-10 min-w-0 overflow-hidden rounded-xl px-2 py-1 text-left text-slate-800 transition-shadow hover:shadow-md focus:outline-none focus:ring-2 focus:ring-sky-500"
+                            className="absolute z-10 min-w-0 overflow-hidden rounded-xl px-2 py-1 text-left text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
                             onClick={() => {
                               setDeleteChoiceOpen(false);
                               setEventDeleteError(null);
@@ -1047,7 +1047,7 @@ export function TodayDashboard(): JSX.Element {
         <button
           type="button"
           aria-label="Add"
-          className="absolute bottom-5 right-5 z-30 flex h-14 w-14 items-center justify-center rounded-full bg-[#2b98db] text-white shadow-[0_6px_16px_rgba(30,64,175,0.22)] transition-colors hover:bg-[#2588c3]"
+          className="absolute bottom-5 right-5 z-30 flex h-14 w-14 items-center justify-center rounded-full border border-[#227fb8] bg-[#2b98db] text-white hover:bg-[#2588c3]"
           onClick={() => setIsAddMenuOpen((value) => !value)}
         >
           <span className="relative -top-px text-4xl font-normal leading-none">
@@ -1130,11 +1130,11 @@ export function TodayDashboard(): JSX.Element {
             role="dialog"
             aria-modal="true"
             aria-labelledby="calendar-event-detail-title"
-            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 p-4 backdrop-blur-[2px]"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-[#f7f7f5] p-4"
             onClick={() => setSelectedEvent(null)}
           >
             <div
-              className="relative max-h-[calc(100dvh-2rem)] w-full max-w-md overflow-y-auto rounded-3xl border border-white/70 bg-white shadow-[0_24px_80px_rgba(15,23,42,0.28)]"
+              className="relative max-h-[calc(100dvh-2rem)] w-full max-w-md overflow-y-auto rounded-2xl border border-slate-300 bg-white"
               onClick={(event) => event.stopPropagation()}
             >
               <div

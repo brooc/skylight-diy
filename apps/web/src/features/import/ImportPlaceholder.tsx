@@ -207,7 +207,7 @@ export function ImportPlaceholder(): JSX.Element {
                 Filter{filterIsActive ? " •" : ""}
               </button>
               {isFilterOpen ? (
-                <div className="absolute right-0 top-12 z-40 grid min-w-[240px] gap-2 rounded-xl border border-[#d9d8d4] bg-white p-3 shadow-xl">
+                <div className="absolute right-0 top-12 z-40 grid min-w-[240px] gap-2 rounded-xl border border-[#d9d8d4] bg-white p-3">
                   <div className="flex items-center justify-between gap-3">
                     <div className="text-sm font-semibold text-slate-900">Show lists</div>
                     <button
@@ -362,7 +362,7 @@ export function ImportPlaceholder(): JSX.Element {
       <button
         type="button"
         aria-label="Add"
-        className="fixed bottom-6 right-6 z-30 flex h-14 w-14 items-center justify-center rounded-full bg-[#2b98db] text-white shadow-[0_6px_16px_rgba(30,64,175,0.22)] transition-colors hover:bg-[#2588c3]"
+        className="fixed bottom-6 right-6 z-30 flex h-14 w-14 items-center justify-center rounded-full border border-[#227fb8] bg-[#2b98db] text-white hover:bg-[#2588c3]"
         onClick={() => {
           setSubmitError(null);
           setIsAdding(true);

@@ -14,6 +14,7 @@ done
 panel_was_running=false
 desktop_was_running=false
 panel_supervisor_pattern="^/bin/sh /usr/bin/lwrespawn /usr/bin/wf-panel-pi$"
+desktop_supervisor_pattern="^/bin/sh /usr/bin/lwrespawn /usr/bin/pcmanfm-pi$"
 if systemctl --user is-active --quiet daymark-panel.service; then
   systemctl --user stop daymark-panel.service
   panel_was_running=true
@@ -30,6 +31,10 @@ if pgrep -u "$(id -u)" -x pcmanfm >/dev/null 2>&1; then
   pkill -TERM -u "$(id -u)" -x pcmanfm
   desktop_was_running=true
 fi
+if pgrep -u "$(id -u)" -f "${desktop_supervisor_pattern}" >/dev/null 2>&1; then
+  pkill -TERM -u "$(id -u)" -f "${desktop_supervisor_pattern}"
+  desktop_was_running=true
+fi
 sleep 1
 
 restore_desktop() {
@@ -41,8 +46,11 @@ restore_desktop() {
       /usr/bin/lwrespawn /usr/bin/wf-panel-pi >/dev/null
   fi
   if [[ "${desktop_was_running}" == "true" ]] &&
-    ! pgrep -u "$(id -u)" -x pcmanfm >/dev/null 2>&1; then
-    /usr/bin/pcmanfm --desktop >/dev/null 2>&1 &
+    ! pgrep -u "$(id -u)" -f "${desktop_supervisor_pattern}" >/dev/null 2>&1; then
+    systemd-run --user \
+      --unit=daymark-desktop \
+      --collect \
+      /usr/bin/lwrespawn /usr/bin/pcmanfm-pi >/dev/null
   fi
 }
 trap restore_desktop EXIT
