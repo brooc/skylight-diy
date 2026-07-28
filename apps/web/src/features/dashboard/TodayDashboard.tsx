@@ -197,14 +197,13 @@ export function calendarHourRange(
   };
 }
 
-export function LiveClock({ timezone }: { timezone: string }): JSX.Element {
-  const [now, setNow] = useState(() => new Date());
-
-  useEffect(() => {
-    const interval = window.setInterval(() => setNow(new Date()), 1_000);
-    return () => window.clearInterval(interval);
-  }, []);
-
+export function LiveClock({
+  timezone,
+  now,
+}: {
+  timezone: string;
+  now: Date;
+}): JSX.Element {
   return (
     <time dateTime={now.toISOString()}>
       {now.toLocaleTimeString(undefined, {
@@ -246,14 +245,8 @@ export function TodayDashboard(): JSX.Element {
 
   useEffect(() => {
     const clockInterval = window.setInterval(() => {
-      const next = new Date();
-      setCalendarNow((current) =>
-        Math.floor(current.getTime() / 60_000) ===
-        Math.floor(next.getTime() / 60_000)
-          ? current
-          : next,
-      );
-    }, 1_000);
+      setCalendarNow(new Date());
+    }, 60_000);
     return () => window.clearInterval(clockInterval);
   }, []);
 
@@ -675,7 +668,7 @@ export function TodayDashboard(): JSX.Element {
                 {householdQuery.data?.household.name ?? "Family"}
               </h1>
               <div className="font-display text-3xl leading-none text-slate-900 md:text-[34px]">
-                <LiveClock timezone={timezone} />
+                <LiveClock timezone={timezone} now={calendarNow} />
               </div>
               {weatherQuery.data?.configured ? (
                 <div

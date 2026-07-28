@@ -189,14 +189,14 @@ describe("TodayDashboard", () => {
     }
   });
 
-  it("ticks the clock every second while scheduling conservative background refreshes", async () => {
+  it("ticks the clock every minute while scheduling conservative background refreshes", async () => {
     const intervalSpy = vi.spyOn(window, "setInterval").mockReturnValue(1);
     const fetchSpy = vi.spyOn(globalThis, "fetch");
 
     renderTodayDashboard();
 
     expect(await screen.findByText("Test Household")).toBeInTheDocument();
-    expect(intervalSpy).toHaveBeenCalledWith(expect.any(Function), 1_000);
+    expect(intervalSpy).toHaveBeenCalledWith(expect.any(Function), 60_000);
     expect(intervalSpy).toHaveBeenCalledWith(
       expect.any(Function),
       DASHBOARD_AUTO_REFRESH_MS,
