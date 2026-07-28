@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { weatherIconForCode } from "../src/features/weather/weatherIcons";
+import {
+  staticWeatherIconSource,
+  weatherIconForCode,
+} from "../src/features/weather/weatherIcons";
 
 describe("weather icons", () => {
   it("uses separate partly-cloudy artwork for day and night", () => {
@@ -9,8 +12,18 @@ describe("weather icons", () => {
     expect(day.label).toBe("Partly cloudy");
     expect(night.label).toBe("Partly cloudy");
     expect(day.src).not.toBe(night.src);
-    expect(day.src).toContain("partly-cloudy-day");
-    expect(night.src).toContain("partly-cloudy-night");
+    expect(day.src).toMatch(/^data:image\/svg\+xml,/);
+    expect(night.src).toMatch(/^data:image\/svg\+xml,/);
+  });
+
+  it("removes perpetual SVG animation from dashboard icons", () => {
+    const source = staticWeatherIconSource(
+      '<svg><circle /><animateTransform repeatCount="indefinite"/></svg>',
+    );
+
+    expect(decodeURIComponent(source)).toBe(
+      "data:image/svg+xml,<svg><circle /></svg>",
+    );
   });
 
   it.each([

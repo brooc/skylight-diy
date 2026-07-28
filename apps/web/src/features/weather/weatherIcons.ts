@@ -1,18 +1,37 @@
-import clearDay from "@meteocons/svg/flat/clear-day.svg";
-import clearNight from "@meteocons/svg/flat/clear-night.svg";
-import drizzle from "@meteocons/svg/flat/drizzle.svg";
-import fog from "@meteocons/svg/flat/fog.svg";
-import overcast from "@meteocons/svg/flat/overcast.svg";
-import partlyCloudyDay from "@meteocons/svg/flat/partly-cloudy-day.svg";
-import partlyCloudyNight from "@meteocons/svg/flat/partly-cloudy-night.svg";
-import rain from "@meteocons/svg/flat/rain.svg";
-import snow from "@meteocons/svg/flat/snow.svg";
-import thunderstorms from "@meteocons/svg/flat/thunderstorms.svg";
+import clearDaySvg from "@meteocons/svg/flat/clear-day.svg?raw";
+import clearNightSvg from "@meteocons/svg/flat/clear-night.svg?raw";
+import drizzleSvg from "@meteocons/svg/flat/drizzle.svg?raw";
+import fogSvg from "@meteocons/svg/flat/fog.svg?raw";
+import overcastSvg from "@meteocons/svg/flat/overcast.svg?raw";
+import partlyCloudyDaySvg from "@meteocons/svg/flat/partly-cloudy-day.svg?raw";
+import partlyCloudyNightSvg from "@meteocons/svg/flat/partly-cloudy-night.svg?raw";
+import rainSvg from "@meteocons/svg/flat/rain.svg?raw";
+import snowSvg from "@meteocons/svg/flat/snow.svg?raw";
+import thunderstormsSvg from "@meteocons/svg/flat/thunderstorms.svg?raw";
 
 export type WeatherIcon = {
   label: string;
   src: string;
 };
+
+export function staticWeatherIconSource(svg: string): string {
+  const staticSvg = svg.replace(
+    /<animate\w*\b[^>]*(?:\/>|>[\s\S]*?<\/animate\w*>)/g,
+    "",
+  );
+  return `data:image/svg+xml,${encodeURIComponent(staticSvg)}`;
+}
+
+const clearDay = staticWeatherIconSource(clearDaySvg);
+const clearNight = staticWeatherIconSource(clearNightSvg);
+const drizzle = staticWeatherIconSource(drizzleSvg);
+const fog = staticWeatherIconSource(fogSvg);
+const overcast = staticWeatherIconSource(overcastSvg);
+const partlyCloudyDay = staticWeatherIconSource(partlyCloudyDaySvg);
+const partlyCloudyNight = staticWeatherIconSource(partlyCloudyNightSvg);
+const rain = staticWeatherIconSource(rainSvg);
+const snow = staticWeatherIconSource(snowSvg);
+const thunderstorms = staticWeatherIconSource(thunderstormsSvg);
 
 export function weatherIconForCode(code: number, isDay: boolean): WeatherIcon {
   if (code === 0) {
