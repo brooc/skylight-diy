@@ -38,9 +38,20 @@ restore_panel() {
 }
 trap restore_panel EXIT
 
+# Raspberry Pi OS's wrapper forces renderer accessibility, which causes
+# Chromium to repaint Daymark's sticky calendar continuously on a Pi 3. Launch
+# the browser binary directly while preserving the appliance's GPU, touch, and
+# Wayland input-method settings.
+chromium_binary="/usr/lib/chromium/chromium"
+[[ -x "${chromium_binary}" ]] || chromium_binary="chromium"
+
 # Maximized app mode retains the appliance appearance while allowing labwc's
 # virtual-keyboard layer to remain above Chromium.
-chromium \
+"${chromium_binary}" \
+  --enable-gpu-rasterization \
+  --disable-background-networking \
+  --disable-dev-shm-usage \
+  --use-angle=gles \
   --ozone-platform=wayland \
   --enable-wayland-ime \
   --touch-events=enabled \
