@@ -32,7 +32,7 @@ ENV PORT=3000
 
 EXPOSE 3000
 
-CMD ["sh", "-c", "pnpm --filter @daymark/db db:migrate && exec pnpm --filter @daymark/api exec tsx src/index.ts"]
+CMD ["sh", "-c", "pnpm --filter @daymark/db db:migrate && cd /workspace/apps/api && exec node --import tsx src/index.ts"]
 
 FROM workspace AS oauth-broker
 
@@ -42,7 +42,9 @@ ENV PORT=3001
 
 EXPOSE 3001
 
-CMD ["pnpm", "--filter", "@daymark/oauth-broker", "exec", "tsx", "src/index.ts"]
+WORKDIR /workspace/apps/oauth-broker
+
+CMD ["node", "--import", "tsx", "src/index.ts"]
 
 FROM workspace AS web-build
 

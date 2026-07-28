@@ -40,6 +40,11 @@ if ! command -v squeekboard >/dev/null 2>&1; then
   DEBIAN_FRONTEND=noninteractive apt-get install -y squeekboard
 fi
 
+# PackageKit's background refresh competes with the kiosk for CPU and memory on
+# a 1 GB Raspberry Pi 3. Daymark updates and provisioning use apt directly.
+systemctl disable --now packagekit.service >/dev/null 2>&1 || true
+systemctl mask packagekit.service >/dev/null 2>&1 || true
+
 install -m 0755 \
   "${DAYMARK_INSTALL_DIR}/deploy/rpi/kiosk.sh" \
   "${kiosk_launcher}"
