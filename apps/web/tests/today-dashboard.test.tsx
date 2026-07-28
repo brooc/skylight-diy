@@ -125,6 +125,9 @@ describe("TodayDashboard", () => {
       "z-30",
       "col-span-full",
     );
+    expect(screen.getByTestId("sticky-all-day-band").className).not.toContain(
+      "shadow-",
+    );
     expect(
       document.querySelectorAll('[data-calendar-all-day-cell="true"]'),
     ).toHaveLength(7);

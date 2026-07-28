@@ -857,7 +857,7 @@ export function TodayDashboard(): JSX.Element {
           >
             <div
               data-testid="sticky-all-day-band"
-              className="sticky top-0 z-30 col-span-full grid bg-white shadow-[0_2px_6px_rgba(15,23,42,0.08)]"
+              className="sticky top-0 z-30 col-span-full grid bg-white"
               style={{ gridTemplateColumns: calendarGridTemplateColumns }}
             >
               <div className="border-b border-r border-[#ecebe8] bg-white" />
