@@ -207,6 +207,12 @@ immutable `sha-<commit>` images associated with the newest `main` commit.
 Production appliances should use `stable`, which selects the newest `v*` Git
 tag and its matching semantic-version image.
 
+Opening Settings also checks the configured update channel and compares it with
+the installed version. Results are cached for 15 minutes to stay within the
+public GitHub API limit. Daymark only displays **up to date** after a successful
+comparison; a network or registry failure is reported as an unknown update
+state instead.
+
 The five newest pre-update backups are retained under
 `/var/lib/daymark/backups`. Update logs are available with:
 

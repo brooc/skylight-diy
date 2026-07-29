@@ -8,6 +8,10 @@ interface UpdateStatus {
   targetVersion: string | null;
   message: string | null;
   updatedAt: string;
+  updateAvailable: boolean | null;
+  latestVersion: string | null;
+  checkedAt: string | null;
+  checkError: string | null;
 }
 
 export function UpdateSettings(): JSX.Element | null {
@@ -58,11 +62,25 @@ export function UpdateSettings(): JSX.Element | null {
         unavailable for a few minutes; do not remove power.
       </p>
 
-      {status.state === "succeeded" ? (
+      {status.updateAvailable === true ? (
+        <p className="text-sm font-medium text-amber-800">
+          Update available
+          {status.latestVersion ? ` (${status.latestVersion})` : ""}.
+        </p>
+      ) : null}
+      {status.updateAvailable === false ? (
         <p className="text-sm font-medium text-emerald-800">
           Daymark is up to date
-          {status.targetVersion ? ` (${status.targetVersion})` : ""}.
+          {status.latestVersion ? ` (${status.latestVersion})` : ""}.
         </p>
+      ) : null}
+      {status.updateAvailable === null && status.checkError ? (
+        <p className="text-sm text-amber-800">
+          Could not check for updates: {status.checkError}
+        </p>
+      ) : null}
+      {status.state === "succeeded" && status.message ? (
+        <p className="text-sm text-slate-600">Last update: {status.message}.</p>
       ) : null}
       {status.state === "failed" ? (
         <p role="alert" className="text-sm text-red-700">

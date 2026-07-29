@@ -144,6 +144,10 @@ describe("shell and settings", () => {
             targetVersion: null,
             message: null,
             updatedAt: "2026-07-25T12:00:00.000Z",
+            updateAvailable: true,
+            latestVersion: "main@2957f37",
+            checkedAt: "2026-07-28T20:00:00.000Z",
+            checkError: null,
           });
         }
         if (url.startsWith("/api/calendar/accounts"))
@@ -167,6 +171,7 @@ describe("shell and settings", () => {
     renderWithRoute("/settings", <SettingsPage />);
 
     expect(await screen.findByText("main@1234567")).toBeInTheDocument();
+    expect(screen.getByText(/Update available.*main@2957f37/)).toBeInTheDocument();
     await userEvent
       .setup()
       .click(screen.getByRole("button", { name: "Install latest update" }));

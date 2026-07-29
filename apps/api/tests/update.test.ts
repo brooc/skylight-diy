@@ -2,7 +2,7 @@ import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { FastifyInstance } from "fastify";
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { env } from "../src/env";
 import { createTestApp, resetTestDb, setupHousehold, unlockAdmin } from "./helpers/test-app";
 
@@ -18,11 +18,23 @@ describe("appliance update routes", () => {
   });
 
   beforeEach(async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            sha: "2957f378ca7f6566cdb3f977208efb0191841685"
+          }),
+          { status: 200 }
+        )
+      )
+    );
     await resetTestDb(app);
   });
 
   afterAll(async () => {
     env.DAYMARK_UPDATE_DIR = originalUpdateDirectory;
+    vi.unstubAllGlobals();
     await app.close();
   });
 

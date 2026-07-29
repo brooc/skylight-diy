@@ -16,6 +16,8 @@ const baseEnvSchema = z.object({
   TOKEN_ENCRYPTION_KEY: z.string().min(1),
   DAYMARK_SETUP_TOKEN: z.string().min(32).optional(),
   DAYMARK_UPDATE_DIR: z.string().min(1).optional(),
+  DAYMARK_UPDATE_CHANNEL: z.enum(["main", "stable"]).default("main"),
+  DAYMARK_UPDATE_REPOSITORY: z.string().min(1).default("brooc/skylight-diy"),
   GOOGLE_CLIENT_ID: z.string().optional(),
   GOOGLE_CLIENT_SECRET: z.string().optional(),
   GOOGLE_REDIRECT_URI: z.string().url().optional(),
