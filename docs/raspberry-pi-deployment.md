@@ -143,6 +143,28 @@ and shutdown require confirmation, and all three actions require an unlocked
 local admin session. The API only writes a validated action request; a
 root-owned systemd helper performs the selected host action.
 
+## Performance diagnostics
+
+After unlocking **Settings**, use the **Performance diagnostics** card to start
+a short investigation on that browser. While enabled, Daymark records:
+
+- the route and a stable, non-content action name for UI interactions;
+- the time from a click until the browser has rendered two animation frames;
+- browser long tasks; and
+- API route, status, and response time.
+
+Diagnostics never record entered values, PINs, event titles, calendar names, or
+calendar contents. Collection is off by default and is enabled separately for
+each browser. The active and previous logs are each capped at 512 KB under
+`/var/lib/daymark/update`:
+
+```bash
+sudo tail -f /var/lib/daymark/update/ui-performance.jsonl
+```
+
+Select **Stop diagnostics** when the investigation is finished and **Clear
+diagnostic log** to remove both bounded log files.
+
 ## Provisioner options
 
 The automatic path uses the defaults. For development and recovery, the

@@ -280,6 +280,7 @@ export function CalendarEventCreateDialog({
   return (
     <div
       role="dialog"
+      data-diagnostic-action="calendar:add-event-dialog"
       aria-modal="true"
       aria-labelledby="add-calendar-event-title"
       className="fixed inset-0 z-50 flex items-center justify-center overflow-hidden bg-[#f7f7f5] p-2 sm:p-3"
@@ -315,6 +316,7 @@ export function CalendarEventCreateDialog({
             </div>
             <button
               type="button"
+              data-diagnostic-action="calendar:add-event-close"
               aria-label="Close add event"
               className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-100 text-xl text-slate-600 hover:bg-slate-200"
               onClick={onClose}

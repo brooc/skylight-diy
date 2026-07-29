@@ -377,6 +377,7 @@ export function CalendarEventEditDialog({
   return (
     <div
       role="dialog"
+      data-diagnostic-action="calendar:edit-event-dialog"
       aria-modal="true"
       aria-labelledby="edit-calendar-event-title"
       className="fixed inset-0 z-[60] flex items-center justify-center bg-[#f7f7f5] p-2 sm:p-3"
@@ -408,6 +409,7 @@ export function CalendarEventEditDialog({
               </div>
               <button
                 type="button"
+                data-diagnostic-action="calendar:edit-event-close"
                 aria-label="Close edit event"
                 className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-xl text-slate-600"
                 onClick={onClose}

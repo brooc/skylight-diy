@@ -6,6 +6,7 @@ import { sessionPlugin } from "./plugins/session";
 import { calendarRoutes } from "./routes/calendar";
 import { choresRoutes } from "./routes/chores";
 import { deviceRoutes } from "./routes/device";
+import { diagnosticsRoutes } from "./routes/diagnostics";
 import { googleOauthRoutes } from "./routes/google-oauth";
 import { healthRoutes } from "./routes/health";
 import { householdRoutes } from "./routes/household";
@@ -42,6 +43,7 @@ export function buildServer() {
     api.register(listsRoutes, { prefix: "/api" });
     api.register(calendarRoutes, { prefix: "/api" });
     api.register(deviceRoutes, { prefix: "/api" });
+    api.register(diagnosticsRoutes, { prefix: "/api" });
     api.register(googleOauthRoutes, { prefix: "/api" });
     api.register(weatherRoutes, { prefix: "/api" });
     api.register(updateRoutes, { prefix: "/api" });

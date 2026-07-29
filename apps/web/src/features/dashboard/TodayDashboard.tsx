@@ -755,6 +755,7 @@ export function TodayDashboard(): JSX.Element {
                       </div>
                       <button
                         type="button"
+                        data-diagnostic-action="calendar:filter-clear"
                         className="text-xs font-semibold text-teal-700"
                         onClick={() => setSelectedCalendarFilters([])}
                       >
@@ -895,6 +896,7 @@ export function TodayDashboard(): JSX.Element {
                     {event ? (
                       <button
                         type="button"
+                        data-diagnostic-action="calendar:event-details"
                         aria-label={`${event.title}, All day, ${event.sourceName}`}
                         className="block w-full min-w-0 max-w-full truncate rounded-full px-1.5 py-1 text-[11px] font-semibold text-slate-700 md:px-2 md:text-[12px] xl:px-3 xl:text-[14px]"
                         onClick={() => {
@@ -986,6 +988,7 @@ export function TodayDashboard(): JSX.Element {
                           <button
                             type="button"
                             key={event.id}
+                            data-diagnostic-action="calendar:event-details"
                             data-event-id={event.id}
                             data-layout-column={layout.column}
                             data-layout-columns={layout.columnCount}
@@ -1047,6 +1050,7 @@ export function TodayDashboard(): JSX.Element {
         <button
           type="button"
           aria-label="Add"
+          data-diagnostic-action="calendar:add-menu"
           className="absolute bottom-5 right-5 z-30 flex h-14 w-14 items-center justify-center rounded-full border border-[#227fb8] bg-[#2b98db] text-white hover:bg-[#2588c3]"
           onClick={() => setIsAddMenuOpen((value) => !value)}
         >
@@ -1058,6 +1062,7 @@ export function TodayDashboard(): JSX.Element {
           <div className="absolute bottom-20 right-5 z-30 grid min-w-[220px] gap-2 rounded-md border border-[#d9d8d4] bg-white p-2 shadow-lg">
             <button
               type="button"
+              data-diagnostic-action="calendar:add-event"
               className="min-h-[40px] rounded-md bg-[#f6f7f9] px-3 text-left text-sm font-semibold text-slate-800 hover:bg-[#ebedf0]"
               onClick={() => {
                 setIsAddMenuOpen(false);
@@ -1069,6 +1074,7 @@ export function TodayDashboard(): JSX.Element {
             </button>
             <button
               type="button"
+              data-diagnostic-action="calendar:add-task"
               className="min-h-[40px] rounded-md bg-[#f6f7f9] px-3 text-left text-sm font-semibold text-slate-800 hover:bg-[#ebedf0]"
               onClick={() => navigate("/chores?add=1")}
             >
@@ -1076,6 +1082,7 @@ export function TodayDashboard(): JSX.Element {
             </button>
             <button
               type="button"
+              data-diagnostic-action="calendar:add-list-item"
               className="min-h-[40px] rounded-md bg-[#f6f7f9] px-3 text-left text-sm font-semibold text-slate-800 hover:bg-[#ebedf0]"
               onClick={() => navigate("/import?add=1")}
             >
@@ -1083,6 +1090,7 @@ export function TodayDashboard(): JSX.Element {
             </button>
             <button
               type="button"
+              data-diagnostic-action="calendar:add-meal"
               className="min-h-[40px] rounded-md bg-[#f6f7f9] px-3 text-left text-sm font-semibold text-slate-800 hover:bg-[#ebedf0]"
               onClick={() => navigate("/meals?add=1")}
             >

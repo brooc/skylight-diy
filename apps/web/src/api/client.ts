@@ -1,3 +1,5 @@
+import { recordApiPerformance } from "../diagnostics/ui-performance";
+
 const API_BASE = "/api";
 
 export async function apiFetch<T>(
@@ -13,12 +15,29 @@ export async function apiFetch<T>(
     headers["Content-Type"] = "application/json";
   }
 
-  const response = await fetch(`${API_BASE}${path}`, {
-    cache: "no-store",
-    credentials: "include",
-    ...init,
-    headers,
-  });
+  const startedAt = performance.now();
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE}${path}`, {
+      cache: "no-store",
+      credentials: "include",
+      ...init,
+      headers,
+    });
+  } catch (error) {
+    recordApiPerformance(
+      path,
+      init?.method ?? "GET",
+      performance.now() - startedAt,
+    );
+    throw error;
+  }
+  recordApiPerformance(
+    path,
+    init?.method ?? "GET",
+    performance.now() - startedAt,
+    response.status,
+  );
 
   if (!response.ok) {
     const errorBody = await response.text();

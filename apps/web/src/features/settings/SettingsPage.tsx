@@ -7,6 +7,7 @@ import { LoadingState } from "../../components/LoadingState";
 import { GoogleCalendarSettings } from "./GoogleCalendarSettings";
 import { FamilySettings } from "./FamilySettings";
 import { DeviceSettings } from "./DeviceSettings";
+import { DiagnosticsSettings } from "./DiagnosticsSettings";
 import { UpdateSettings } from "./UpdateSettings";
 
 export function SettingsPage(): JSX.Element {
@@ -79,6 +80,7 @@ export function SettingsPage(): JSX.Element {
       <FamilySettings />
       <GoogleCalendarSettings />
       <UpdateSettings />
+      <DiagnosticsSettings />
       <DeviceSettings />
     </section>
   );

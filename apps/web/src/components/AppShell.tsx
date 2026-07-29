@@ -24,6 +24,7 @@ export function AppShell({ children }: PropsWithChildren): JSX.Element {
                 <NavLink
                   key={link.to}
                   to={link.to}
+                  data-diagnostic-action={`navigate:${link.to}`}
                   className={({ isActive }) =>
                     `flex min-h-[48px] flex-1 flex-col items-center justify-center rounded-md px-1 text-center ${
                       isActive
@@ -47,6 +48,7 @@ export function AppShell({ children }: PropsWithChildren): JSX.Element {
                 <NavLink
                   key={link.to}
                   to={link.to}
+                  data-diagnostic-action={`navigate:${link.to}`}
                   className={({ isActive }) =>
                     `flex min-h-[50px] items-center justify-center gap-1 rounded-md border text-xs font-semibold ${
                       isActive
