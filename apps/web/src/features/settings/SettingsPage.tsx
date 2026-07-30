@@ -9,6 +9,7 @@ import { FamilySettings } from "./FamilySettings";
 import { DeviceSettings } from "./DeviceSettings";
 import { DiagnosticsSettings } from "./DiagnosticsSettings";
 import { UpdateSettings } from "./UpdateSettings";
+import { BackupSettings } from "./BackupSettings";
 
 export function SettingsPage(): JSX.Element {
   const navigate = useNavigate();
@@ -79,6 +80,7 @@ export function SettingsPage(): JSX.Element {
       {lockError ? <ErrorState message={lockError} /> : null}
       <FamilySettings />
       <GoogleCalendarSettings />
+      <BackupSettings />
       <UpdateSettings />
       <DiagnosticsSettings />
       <DeviceSettings />

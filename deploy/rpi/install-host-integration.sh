@@ -4,6 +4,7 @@ set -Eeuo pipefail
 
 DAYMARK_INSTALL_DIR="${DAYMARK_INSTALL_DIR:-/opt/daymark}"
 DAYMARK_UPDATE_DIR="${DAYMARK_UPDATE_DIR:-/var/lib/daymark/update}"
+DAYMARK_BACKUP_DIR="${DAYMARK_BACKUP_DIR:-/var/lib/daymark/backups}"
 DAYMARK_KIOSK_USER="${DAYMARK_KIOSK_USER:-}"
 
 [[ "${EUID}" -eq 0 ]] || {
@@ -129,6 +130,12 @@ chmod 0755 "${kiosk_home}/Desktop/Daymark.desktop"
 install -m 0755 \
   "${DAYMARK_INSTALL_DIR}/deploy/rpi/device-control.sh" \
   /usr/local/sbin/daymark-device-control
+install -m 0755 \
+  "${DAYMARK_INSTALL_DIR}/deploy/rpi/backup.sh" \
+  /usr/local/sbin/daymark-backup
+install -m 0755 \
+  "${DAYMARK_INSTALL_DIR}/deploy/rpi/configure-google-drive-backup.sh" \
+  /usr/local/sbin/daymark-backup-setup
 
 cat > /etc/systemd/system/daymark-device-control.service <<EOF
 [Unit]
@@ -155,3 +162,62 @@ EOF
 
 systemctl daemon-reload
 systemctl enable --now daymark-device-control.path
+
+install -m 0700 -d "${DAYMARK_BACKUP_DIR}" "${DAYMARK_UPDATE_DIR}"
+if ! command -v age >/dev/null 2>&1 || ! command -v rclone >/dev/null 2>&1; then
+  apt-get update
+  DEBIAN_FRONTEND=noninteractive apt-get install -y age rclone
+fi
+
+cat > /etc/systemd/system/daymark-backup.service <<EOF
+[Unit]
+Description=Create an encrypted Daymark backup in Google Drive
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+Environment=DAYMARK_INSTALL_DIR=${DAYMARK_INSTALL_DIR}
+Environment=DAYMARK_UPDATE_DIR=${DAYMARK_UPDATE_DIR}
+Environment=DAYMARK_BACKUP_DIR=${DAYMARK_BACKUP_DIR}
+EnvironmentFile=-${DAYMARK_INSTALL_DIR}/.env.production
+ExecStart=/usr/local/sbin/daymark-backup
+TimeoutStartSec=0
+EOF
+
+cat > /etc/systemd/system/daymark-backup.path <<EOF
+[Unit]
+Description=Watch for requested Daymark backups
+
+[Path]
+PathExists=${DAYMARK_UPDATE_DIR}/backup-request.json
+Unit=daymark-backup.service
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+cat > /etc/systemd/system/daymark-backup.timer <<EOF
+[Unit]
+Description=Create a daily Daymark backup
+
+[Timer]
+OnCalendar=*-*-* 03:15:00
+Persistent=true
+RandomizedDelaySec=30m
+Unit=daymark-backup.service
+
+[Install]
+WantedBy=timers.target
+EOF
+
+if [[ ! -f "${DAYMARK_UPDATE_DIR}/backup-status.json" ]]; then
+  printf '{"available":true,"configured":false,"state":"not_configured","lastSuccessAt":null,"lastAttemptAt":null,"lastBackupName":null,"lastBackupBytes":null,"message":"Connect a Google Drive account once to start automatic backups.","recoveryKeyAvailable":false,"updatedAt":"%s"}\n' \
+    "$(date --iso-8601=seconds)" \
+    > "${DAYMARK_UPDATE_DIR}/backup-status.json"
+  chmod 0600 "${DAYMARK_UPDATE_DIR}/backup-status.json"
+fi
+
+systemctl daemon-reload
+systemctl enable --now daymark-backup.path daymark-backup.timer

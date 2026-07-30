@@ -11,6 +11,7 @@
     "format": "turbo run format",
     "test": "turbo run test --concurrency=1",
     "test:rpi-update": "bash deploy/rpi/tests/update.sh",
+    "test:rpi-backup": "bash deploy/rpi/tests/backup.sh",
     "test:coverage": "turbo run test:coverage --concurrency=1",
     "db:up": "docker compose up -d postgres",
     "db:down": "docker compose down",

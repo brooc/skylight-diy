@@ -246,6 +246,80 @@ sudo systemctl restart daymark
 The generated `/opt/daymark/.env.production` contains the key used to encrypt
 Google OAuth tokens. Back it up with the PostgreSQL data.
 
+## Encrypted Google Drive backups
+
+Daymark can create a nightly encrypted recovery archive on Google Drive. The
+archive includes:
+
+- household settings and family members;
+- Google account tokens and calendar source configuration;
+- tasks and lists; and
+- `.env.production`, including the token-encryption key needed to use the
+  restored Google connection tokens.
+
+Meals, calendar event cache, calendar fetch logs, calendar write logs, and other
+operational data are excluded. Google remains the source of truth for calendar
+events, and Daymark rebuilds its cache after a restore. Backup table selection
+is an explicit allowlist, so future database tables are not uploaded until they
+are deliberately classified as recovery data.
+
+The archive is encrypted on the Raspberry Pi with an `age` public key before it
+leaves the device. Google Drive access uses rclone's `drive.file` scope, which
+only permits access to files created by this Daymark backup connection. Thirty
+days are retained in Drive and the two newest encrypted archives are retained
+locally by default.
+
+After installing the Daymark version that contains backup support, connect the
+Drive account once over SSH:
+
+```bash
+ssh <admin-user>@daymark.local
+sudo daymark-backup-setup
+```
+
+The setup program fixes the remote name and limited Drive scope automatically.
+For a headless Pi, it displays the official rclone remote-authorization command
+to run on a computer with a browser and then asks for the resulting token.
+After that one-time authorization, the systemd timer runs every night around
+3:15 AM and catches up after downtime.
+
+Unlock Daymark **Settings** and open **Google Drive backup** to:
+
+- confirm the time and size of the latest successful backup;
+- create a backup immediately; and
+- download the recovery key.
+
+Store the recovery key somewhere other than the Pi or its SD card. Google Drive
+contains only encrypted archives, so a failed Pi cannot be recovered without
+that key.
+
+Backup service status and logs are also available locally:
+
+```bash
+sudo systemctl status daymark-backup.timer
+sudo journalctl -u daymark-backup.service
+```
+
+### Restore validation and recovery
+
+On a replacement Linux system with `rclone` and `age` installed, reconnect the
+same Drive account, download an archive, and decrypt it:
+
+```bash
+rclone copy daymark-drive:Daymark/backups/daymark-YYYYMMDDTHHMMSSZ.tar.gz.age .
+age --decrypt \
+  --identity daymark-backup-recovery-key.txt \
+  daymark-YYYYMMDDTHHMMSSZ.tar.gz.age |
+  tar -xz
+sha256sum --check manifest.txt
+pg_restore --list daymark.dump
+```
+
+The extracted `daymark.env.production` and data-only `daymark.dump` are the two
+inputs needed to restore a newly provisioned and migrated appliance. Do not
+import a dump over a running household. Stop Daymark first and keep the old
+database volume until the restored appliance has passed its health check.
+
 The provisioner includes Daymark's shared Google connection service by default,
 so households can connect Calendar without their own Google Cloud project. Set
 `DAYMARK_GOOGLE_OAUTH_BROKER_URL` only to override or disable that default. See

@@ -62,7 +62,9 @@ install_base_packages() {
     curl \
     git \
     gnupg \
+    age \
     openssl \
+    rclone \
     squeekboard \
     util-linux \
     wlr-randr
