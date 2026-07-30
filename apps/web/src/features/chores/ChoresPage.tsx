@@ -75,6 +75,8 @@ export function ChoresPage(): JSX.Element {
   const [pointPerson, setPointPerson] = useState<Balance | null>(null);
   const [pointAmount, setPointAmount] = useState(1);
   const [pointReason, setPointReason] = useState("");
+  const [showCompleted, setShowCompleted] = useState(true);
+  const [celebration, setCelebration] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -106,6 +108,11 @@ export function ChoresPage(): JSX.Element {
     const timeout = window.setTimeout(() => setStatus(null), 3_500);
     return () => window.clearTimeout(timeout);
   }, [status]);
+  useEffect(() => {
+    if (!celebration) return undefined;
+    const timeout = window.setTimeout(() => setCelebration(null), 2_800);
+    return () => window.clearTimeout(timeout);
+  }, [celebration]);
 
   const resetForm = (): void => {
     setEditingTask(null);
@@ -148,13 +155,61 @@ export function ChoresPage(): JSX.Element {
   const canSubmit = title.trim().length > 0 && points >= 1 && points <= 100 &&
     (frequency !== "once" || Boolean(dueDate)) &&
     (frequency !== "weekly" || selectedWeekdays.length > 0) && !isSubmitting;
+  const completeTask = async (task: Task, personId?: string): Promise<void> => {
+    const date = choresQuery.data?.date;
+    await apiFetch(`/chores/${task.id}/complete${date ? `?date=${date}` : ""}`, {
+      method: "POST",
+      body: JSON.stringify(personId ? { personId } : {})
+    });
+    const groupTasks = tasks.filter((candidate) =>
+      task.assignedPersonId
+        ? candidate.assignedPersonId === task.assignedPersonId
+        : !candidate.assignedPersonId
+    );
+    if (
+      groupTasks.length > 0 &&
+      groupTasks.every(
+        (candidate) => candidate.id === task.id || candidate.completed
+      )
+    ) {
+      setCelebration(
+        task.assignedPersonName
+          ? `${task.assignedPersonName}’s tasks are complete!`
+          : "Family tasks are complete!"
+      );
+    }
+    await refreshTasks();
+  };
 
   return (
     <div className="grid gap-4 pb-20">
       <header className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-[#e0d6c7] bg-white p-4">
         <div><h1 className="font-display text-2xl text-slate-900">Tasks</h1><p className="text-sm text-slate-600">Complete today’s jobs and earn family points.</p></div>
-        <button type="button" className={toolbarPillButtonClass} onClick={() => setIsManaging((value) => !value)}>{isManaging ? "Done managing" : "Manage tasks"}</button>
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <button
+            type="button"
+            aria-pressed={!showCompleted}
+            className={toolbarPillButtonClass}
+            onClick={() => setShowCompleted((value) => !value)}
+          >
+            {showCompleted ? "Hide completed" : "Show completed"}
+          </button>
+          <button type="button" className={toolbarPillButtonClass} onClick={() => setIsManaging((value) => !value)}>{isManaging ? "Done managing" : "Manage tasks"}</button>
+        </div>
       </header>
+      {celebration ? (
+        <div
+          role="status"
+          className="fixed left-1/2 top-5 z-[70] w-[min(92vw,28rem)] -translate-x-1/2 rounded-2xl border border-amber-200 bg-[#fff8df] px-5 py-4 text-center shadow-xl"
+        >
+          <div aria-hidden="true" className="text-xl tracking-[0.35em] text-amber-500">
+            ✦ ✦ ✦
+          </div>
+          <p className="mt-1 font-display text-xl text-slate-900">
+            {celebration}
+          </p>
+        </div>
+      ) : null}
       {status ? <div role="status" className="rounded-md bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800">{status}</div> : null}
       {submitError ? <div role="alert" className="rounded-md bg-rose-50 px-4 py-3 text-sm text-rose-800">{submitError}</div> : null}
       {isAdding ? (
@@ -179,20 +234,20 @@ export function ChoresPage(): JSX.Element {
           }}>{isSubmitting ? "Saving…" : editingTask ? "Save changes" : "Add task"}</button></div>
         </section>
       ) : null}
-      {tasks.length === 0 ? <EmptyState title="No tasks due" description="There are no tasks scheduled for today." /> : <ChoreList chores={tasks} onEdit={isManaging ? beginEdit : undefined} onRemove={isManaging ? async (task) => { await apiFetch(`/chores/${task.id}`, { method: "DELETE" }); setStatus("Task removed. You can restore it from archived tasks."); await refreshTasks(); } : undefined} onToggle={async (task, nextCompleted) => {
+      {tasks.length === 0 ? <EmptyState title="No tasks due" description="There are no tasks scheduled for today." /> : <ChoreList chores={tasks} people={balances} showCompleted={showCompleted} onEdit={isManaging ? beginEdit : undefined} onRemove={isManaging ? async (task) => { await apiFetch(`/chores/${task.id}`, { method: "DELETE" }); setStatus("Task removed. You can restore it from archived tasks."); await refreshTasks(); } : undefined} onToggle={async (task, nextCompleted) => {
         setSubmitError(null);
         try {
           if (nextCompleted && !task.assignedPersonId) { setCompletionTask(task); return; }
           const date = choresQuery.data?.date;
-          if (nextCompleted) await apiFetch(`/chores/${task.id}/complete${date ? `?date=${date}` : ""}`, { method: "POST", body: JSON.stringify({}) });
+          if (nextCompleted) await completeTask(task);
           else await apiFetch(`/chores/${task.id}/complete?date=${date}`, { method: "DELETE" });
-          await refreshTasks();
+          if (!nextCompleted) await refreshTasks();
         } catch (error) { setSubmitError(errorMessage(error, "The task could not be updated.")); }
       }} />}
       {isManaging && manageQuery.data?.chores.some((task) => !task.active) ? <section className="grid gap-2 rounded-md border border-[#e0d6c7] bg-white p-4"><h2 className="font-semibold text-slate-900">Archived tasks</h2>{manageQuery.data.chores.filter((task) => !task.active).map((task) => <div key={task.id} className="flex min-h-[44px] items-center justify-between gap-3 border-t border-slate-100 py-2"><span>{task.title}</span><button type="button" className="rounded-md bg-slate-100 px-3 py-2 text-sm font-semibold" onClick={async () => { await apiFetch(`/chores/${task.id}/restore`, { method: "POST" }); setStatus("Task restored."); await refreshTasks(); }}>Restore</button></div>)}</section> : null}
       <RewardBalance balances={balances} canManage={isManaging} onUsePoints={(person) => { setPointPerson(person); setPointAmount(1); setPointReason(""); }} onReset={async (person) => { await apiFetch(`/rewards/${person.personId}/reset`, { method: "POST" }); setStatus(`${person.displayName}'s balance was reset.`); await refreshTasks(); }} />
       {(historyQuery.data?.history.length ?? 0) > 0 ? <section className="grid gap-2 rounded-md border border-[#e0d6c7] bg-white p-4"><h2 className="font-semibold text-slate-900">Recent point activity</h2>{historyQuery.data!.history.slice(0, 10).map((item) => <div key={item.id} className="flex items-center justify-between gap-3 border-t border-slate-100 py-2 text-sm"><div><span className="font-medium text-slate-800">{item.personName}</span><span className="text-slate-500"> · {item.title}</span></div><span className={item.amount >= 0 ? "font-semibold text-emerald-700" : "font-semibold text-rose-700"}>{item.amount > 0 ? "+" : ""}{item.amount}</span></div>)}</section> : null}
-      {completionTask ? <div role="dialog" aria-modal="true" aria-label="Who completed this task?" className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4"><div className="grid w-full max-w-sm gap-3 rounded-2xl bg-white p-5 shadow-xl"><h2 className="font-display text-2xl">Who completed it?</h2><p className="text-sm text-slate-600">{completionTask.title}</p>{balances.map((person) => <button key={person.personId} type="button" className="min-h-[44px] rounded-md px-4 text-left font-semibold" style={{ backgroundColor: `${person.color}22` }} onClick={async () => { await apiFetch(`/chores/${completionTask.id}/complete?date=${choresQuery.data?.date}`, { method: "POST", body: JSON.stringify({ personId: person.personId }) }); setCompletionTask(null); await refreshTasks(); }}>{person.displayName}</button>)}<button type="button" className="min-h-[44px] text-slate-600" onClick={() => setCompletionTask(null)}>Cancel</button></div></div> : null}
+      {completionTask ? <div role="dialog" aria-modal="true" aria-label="Who completed this task?" className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4"><div className="grid w-full max-w-sm gap-3 rounded-2xl bg-white p-5 shadow-xl"><h2 className="font-display text-2xl">Who completed it?</h2><p className="text-sm text-slate-600">{completionTask.title}</p>{balances.map((person) => <button key={person.personId} type="button" className="min-h-[44px] rounded-md px-4 text-left font-semibold" style={{ backgroundColor: `${person.color}22` }} onClick={async () => { try { await completeTask(completionTask, person.personId); setCompletionTask(null); } catch (error) { setCompletionTask(null); setSubmitError(errorMessage(error, "The task could not be updated.")); } }}>{person.displayName}</button>)}<button type="button" className="min-h-[44px] text-slate-600" onClick={() => setCompletionTask(null)}>Cancel</button></div></div> : null}
       {pointPerson ? <div role="dialog" aria-modal="true" aria-label="Use points" className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4"><form className="grid w-full max-w-sm gap-3 rounded-2xl bg-white p-5 shadow-xl" onSubmit={async (event) => { event.preventDefault(); try { await apiFetch(`/rewards/${pointPerson.personId}/reduce`, { method: "POST", body: JSON.stringify({ amount: pointAmount, reason: pointReason.trim() }) }); setStatus(`${pointAmount} points used for ${pointPerson.displayName}.`); setPointPerson(null); await refreshTasks(); } catch (error) { setSubmitError(errorMessage(error, "Points could not be reduced.")); } }}><h2 className="font-display text-2xl">Use {pointPerson.displayName}'s points</h2><p className="text-sm text-slate-600">Available: {pointPerson.balance}</p><label className="grid gap-1"><span>Amount</span><input type="number" min={1} max={pointPerson.balance} value={pointAmount} onChange={(event) => setPointAmount(Number(event.target.value))} className="min-h-[44px] rounded-md border px-3" /></label><label className="grid gap-1"><span>Reason</span><input required value={pointReason} onChange={(event) => setPointReason(event.target.value)} placeholder="Movie night" className="min-h-[44px] rounded-md border px-3" /></label><div className="flex justify-end gap-2"><button type="button" className="min-h-[44px] px-4" onClick={() => setPointPerson(null)}>Cancel</button><button type="submit" disabled={!pointReason.trim() || pointAmount < 1 || pointAmount > pointPerson.balance} className="min-h-[44px] rounded-md bg-[#0f766e] px-4 font-semibold text-white disabled:opacity-50">Use points</button></div></form></div> : null}
       <button type="button" aria-label="Add" className="fixed bottom-6 right-6 z-30 flex h-14 w-14 items-center justify-center rounded-full border border-[#227fb8] bg-[#2b98db] text-4xl text-white" onClick={() => { setSubmitError(null); setIsAdding(true); }}>+</button>
     </div>

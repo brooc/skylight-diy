@@ -12,6 +12,7 @@ type ChoreCardProps = {
   weekdays?: string[] | null;
   completedByPersonName?: string | null;
   completed: boolean;
+  showAssignee?: boolean;
   onToggle: (nextCompleted: boolean) => void;
   onEdit?: () => void;
   onRemove?: () => void;
@@ -27,6 +28,7 @@ export function ChoreCard({
   weekdays,
   completedByPersonName,
   completed,
+  showAssignee = true,
   onToggle,
   onEdit,
   onRemove
@@ -60,7 +62,11 @@ export function ChoreCard({
       <div className="flex items-start justify-between gap-3">
         <div>
           <h3 className="text-base font-semibold text-slate-900">{title}</h3>
-          <p className="text-sm text-slate-600">{assignedPersonName ?? "Anyone"} · {scheduleLabel}</p>
+          <p className="text-sm text-slate-600">
+            {showAssignee
+              ? `${assignedPersonName ?? "Anyone"} · ${scheduleLabel}`
+              : scheduleLabel}
+          </p>
           {completed && completedByPersonName ? <p className="text-xs text-slate-500">Completed by {completedByPersonName}</p> : null}
         </div>
         <span

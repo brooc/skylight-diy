@@ -56,6 +56,9 @@ describe("quick add page states", () => {
     renderWithProviders(<ChoresPage />, { route: "/chores" });
     const user = userEvent.setup();
 
+    expect(await screen.findByRole("article", { name: "Kiddo tasks" })).toHaveTextContent(
+      "0 of 1"
+    );
     const manageButton = await screen.findByRole("button", { name: "Manage tasks" });
     expect(manageButton).toHaveClass("rounded-full", "bg-[#fff7ea]");
     await user.click(manageButton);
@@ -68,6 +71,14 @@ describe("quick add page states", () => {
 
     await user.click(screen.getByRole("button", { name: "Mark complete" }));
     await waitFor(() => expect(screen.getByRole("button", { name: "Completed" })).toBeInTheDocument());
+    expect(screen.getByText("Kiddo’s tasks are complete!")).toBeInTheDocument();
+    expect(screen.getByRole("article", { name: "Kiddo tasks" })).toHaveTextContent(
+      "1 of 1"
+    );
+    await user.click(screen.getByRole("button", { name: "Hide completed" }));
+    expect(screen.queryByText("Pack school lunches")).not.toBeInTheDocument();
+    expect(screen.getByText("All done for today")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Show completed" }));
     let useButton: HTMLElement | undefined;
     await waitFor(() => {
       useButton = screen.getAllByRole("button", { name: "Use" }).find((button) => !button.hasAttribute("disabled"));
