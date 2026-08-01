@@ -18,6 +18,7 @@ This folder is the working plan for Daymark.
 - [Open Source Strategy](open-source-strategy.md)
 - [Fire Tablet Setup](fire-tablet-setup.md)
 - [Android Tablet Setup](android-tablet-setup.md)
+- [Android Release Publishing](android-release-publishing.md)
 - [Home Deployment](deployment.md)
 - [Architecture Decision Records](adr/README.md)
 

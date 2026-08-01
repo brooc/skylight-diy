@@ -63,6 +63,10 @@ GitHub Actions secrets:
 - `DAYMARK_ANDROID_KEY_ALIAS`
 - `DAYMARK_ANDROID_KEY_PASSWORD`
 
+See [Android Release Publishing](../../docs/android-release-publishing.md) for
+the configured key-custody locations, secret recovery procedure, CI release
+flow, Pi update steps, and verification checklist.
+
 CI uses the GitHub run number as the monotonically increasing Android version
 code. It signs and verifies the APK, uploads it as a workflow artifact, then
 copies it into `apps/web/public/downloads` before building the Daymark web
