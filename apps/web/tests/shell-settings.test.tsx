@@ -176,6 +176,10 @@ describe("shell and settings", () => {
       .setup()
       .click(screen.getByRole("button", { name: "Install latest update" }));
 
+    expect(
+      await screen.findByRole("dialog", { name: "Updating Daymark" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/Keep this screen open/i)).toBeInTheDocument();
     expect(fetchSpy).toHaveBeenCalledWith(
       "/api/system/update",
       expect.objectContaining({ method: "POST" }),

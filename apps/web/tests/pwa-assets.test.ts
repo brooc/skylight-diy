@@ -37,6 +37,7 @@ describe("PWA assets", () => {
       resolve(process.cwd(), "public/sw.js"),
       "utf8",
     );
+    expect(serviceWorker).toContain('CACHE_NAME = "daymark-shell-v2"');
     expect(serviceWorker).toContain('url.pathname.startsWith("/api/")');
     expect(serviceWorker).toContain('request.mode === "navigate"');
   });
