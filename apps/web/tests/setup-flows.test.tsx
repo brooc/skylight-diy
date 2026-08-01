@@ -184,25 +184,17 @@ describe("setup and unlock flows", () => {
     );
   });
 
-  it("offers a touch keypad without opening the system keyboard", async () => {
+  it("uses the device numeric keyboard without rendering a PIN keypad", () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async () =>
       mockJsonResponse({ unlocked: true }),
     );
     renderSetupRoutes("/settings/unlock", <AdminPinUnlock />);
-    const user = userEvent.setup();
 
     expect(screen.getByLabelText("Admin PIN")).toHaveAttribute(
       "inputmode",
-      "none",
+      "numeric",
     );
-    await user.click(screen.getByRole("button", { name: "2" }));
-    await user.click(screen.getByRole("button", { name: "4" }));
-    await user.click(screen.getByRole("button", { name: "6" }));
-    await user.click(screen.getByRole("button", { name: "8" }));
-    expect(screen.getByLabelText("Admin PIN")).toHaveValue("2468");
-
-    await user.click(screen.getByRole("button", { name: "Delete" }));
-    expect(screen.getByLabelText("Admin PIN")).toHaveValue("246");
+    expect(screen.queryByLabelText("PIN keypad")).not.toBeInTheDocument();
   });
 
   it("stays on unlock with a clear error when the browser rejects the session", async () => {
