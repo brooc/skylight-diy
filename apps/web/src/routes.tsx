@@ -6,6 +6,7 @@ import { LoadingState } from "./components/LoadingState";
 import { CalendarWeekView } from "./features/calendar/CalendarWeekView";
 import { ChoresPage } from "./features/chores/ChoresPage";
 import { TodayDashboard } from "./features/dashboard/TodayDashboard";
+import { AndroidDownloadPage } from "./features/download/AndroidDownloadPage";
 import { ImportPlaceholder } from "./features/import/ImportPlaceholder";
 import { MealPlanWeek } from "./features/meals/MealPlanWeek";
 import { GoogleBrokerCompletion } from "./features/settings/GoogleBrokerCompletion";
@@ -33,6 +34,7 @@ export function RootRedirect(): JSX.Element {
 
 export const router = createBrowserRouter([
   { path: "/appliance", element: <ApplianceSetup /> },
+  { path: "/download/android", element: <AndroidDownloadPage /> },
   { path: "/setup", element: <SetupWizard /> },
   {
     path: "/",

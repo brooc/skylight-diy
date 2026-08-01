@@ -80,6 +80,22 @@ export function SettingsPage(): JSX.Element {
       {lockError ? <ErrorState message={lockError} /> : null}
       <FamilySettings />
       <GoogleCalendarSettings />
+      <section className="grid gap-2 rounded-md border border-[#e0d6c7] bg-white p-4">
+        <h2 className="text-lg font-semibold text-slate-900">
+          Android display app
+        </h2>
+        <p className="text-sm text-slate-600">
+          Install Daymark&apos;s fullscreen display app directly from this Raspberry
+          Pi. The app reconnects automatically and can become the tablet&apos;s Home
+          screen.
+        </p>
+        <Link
+          to="/download/android"
+          className="justify-self-start rounded-md bg-[#0f766e] px-3 py-2 text-sm font-semibold text-white"
+        >
+          Android installation page
+        </Link>
+      </section>
       <BackupSettings />
       <UpdateSettings />
       <DiagnosticsSettings />

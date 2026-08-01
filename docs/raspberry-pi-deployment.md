@@ -112,6 +112,21 @@ http://daymark.local:8080
 
 Complete the first-run household setup in the browser.
 
+## Android display app
+
+Each published Daymark web image includes the Android display app built and
+signed from the same commit. On an Android tablet connected to the home network,
+open:
+
+```text
+http://daymark.local:8080/download/android
+```
+
+Download and install the APK, then keep the suggested Daymark address or enter
+the Pi's reserved LAN address. The app can become Android's Home app so Daymark
+returns after startup without a separate kiosk subscription. See
+[Android Tablet Setup](android-tablet-setup.md) for the complete flow.
+
 ## Touch keyboard and device controls
 
 Provisioning installs Squeekboard in the Raspberry Pi desktop session. It opens

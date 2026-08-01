@@ -11,6 +11,11 @@ build/
 .turbo/
 .wrangler/
 coverage/
+.gradle/
+local.properties
+*.jks
+*.keystore
+*.p12
 
 # Local env
 .env

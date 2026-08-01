@@ -39,6 +39,7 @@ describe("router", () => {
 
     expect(router.routes.map((route) => route.path)).toEqual([
       "/appliance",
+      "/download/android",
       "/setup",
       "/",
     ]);

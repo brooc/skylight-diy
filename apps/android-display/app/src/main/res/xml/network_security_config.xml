@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config xmlns:tools="http://schemas.android.com/tools">
+    <!-- Daymark is intentionally served over the trusted home LAN. -->
+    <base-config
+        cleartextTrafficPermitted="true"
+        tools:ignore="InsecureBaseConfiguration" />
+</network-security-config>

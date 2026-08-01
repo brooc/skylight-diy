@@ -200,7 +200,11 @@ This document tracks progress against the [v0.1 Implementation Plan](docs/v0.1-i
 - [x] Apply saved family-member colors across calendars, tasks, and rewards using pastel surfaces
 - [x] Support multiple Google accounts with account-scoped reconnect, calendar discovery, and import
 - [x] Launch Google OAuth from Fully Kiosk in Silk through an Android app intent
+- [x] Launch Google OAuth in Chrome from standard Android kiosk environments
 - [x] Add an installable fullscreen landscape PWA shell with resilient screen wake lock handling
+- [x] Add a first-party Android display APK with Pi connection setup, immersive
+      mode, network recovery, and optional Home-app behavior
+- [x] Build, sign, and ship the matching Android APK inside each Pi web image
 - [x] Rename the responsive Week view to Agenda
 - [ ] Complete responsive 10-inch tablet landscape pass across all primary routes
 

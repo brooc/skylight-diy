@@ -14,6 +14,13 @@
 
   @pwa path /sw.js /manifest.webmanifest
   header @pwa Cache-Control "no-cache"
+
+  @android_apk path /downloads/*.apk
+  header @android_apk {
+    Cache-Control "no-cache"
+    Content-Disposition "attachment; filename=Daymark-Display.apk"
+    Content-Type "application/vnd.android.package-archive"
+  }
   header X-Content-Type-Options "nosniff"
   header Referrer-Policy "same-origin"
 }

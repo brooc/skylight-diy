@@ -161,9 +161,36 @@ describe("GoogleCalendarSettings", () => {
     expect(screen.getByRole("button", { name: "Start over" })).toBeEnabled();
   });
 
-  it("uses a Silk app intent from Fully but a browser tab from an installed PWA", () => {
+  it("uses the device browser from Fully but a browser tab from an installed PWA", () => {
     const authUrl =
       "https://accounts.google.com/o/oauth2/v2/auth?state=fallback";
+    expect(
+      googleAuthLaunchTarget(authUrl, {
+        userAgent: "Mozilla/5.0 (Linux; Android 15) FullyKiosk/1.61",
+        standalone: false,
+        fullyKiosk: true,
+      }),
+    ).toEqual({
+      href: "intent://accounts.google.com/o/oauth2/v2/auth?state=fallback#Intent;scheme=https;package=com.android.chrome;end",
+      label: "Open Google in Chrome",
+      instructions:
+        "Complete Google access in Chrome, then return to Daymark. Fully must allow other URL schemes.",
+      opensExternalTab: false,
+    });
+    expect(
+      googleAuthLaunchTarget(authUrl, {
+        userAgent: "Mozilla/5.0 Version/4.0 DaymarkDisplay/1.0",
+        standalone: false,
+        fullyKiosk: false,
+        daymarkDisplay: true,
+      }),
+    ).toEqual({
+      href: "intent://accounts.google.com/o/oauth2/v2/auth?state=fallback#Intent;scheme=https;package=com.android.chrome;end",
+      label: "Open Google in Chrome",
+      instructions:
+        "Complete Google access in Chrome, then return to Daymark Display.",
+      opensExternalTab: false,
+    });
     expect(
       googleAuthLaunchTarget(authUrl, {
         userAgent: "Mozilla/5.0 Silk/126.1",

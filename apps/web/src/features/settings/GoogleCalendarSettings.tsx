@@ -88,15 +88,23 @@ function getErrorMessage(error: unknown, fallback: string): string {
   }
 }
 
-export function toSilkIntentUrl(authUrl: string): string {
+export function toAndroidBrowserIntentUrl(
+  authUrl: string,
+  packageName: string,
+): string {
   const url = new URL(authUrl);
   const scheme = url.protocol.replace(":", "");
-  return `intent://${url.host}${url.pathname}${url.search}#Intent;scheme=${scheme};package=com.amazon.cloud9;end`;
+  return `intent://${url.host}${url.pathname}${url.search}#Intent;scheme=${scheme};package=${packageName};end`;
 }
 
 export function googleAuthLaunchTarget(
   authUrl: string,
-  environment: { userAgent: string; standalone: boolean; fullyKiosk: boolean },
+  environment: {
+    userAgent: string;
+    standalone: boolean;
+    fullyKiosk: boolean;
+    daymarkDisplay?: boolean;
+  },
 ): {
   href: string;
   label: string;
@@ -104,12 +112,30 @@ export function googleAuthLaunchTarget(
   opensExternalTab: boolean;
 } {
   const fireTablet = /Silk\//i.test(environment.userAgent);
-  if (environment.fullyKiosk || (fireTablet && !environment.standalone)) {
+  if (fireTablet && (environment.fullyKiosk || !environment.standalone)) {
     return {
-      href: toSilkIntentUrl(authUrl),
+      href: toAndroidBrowserIntentUrl(authUrl, "com.amazon.cloud9"),
       label: "Open Google in Silk",
       instructions:
         "Complete Google access in Silk, then return to Daymark. Fully users must allow other URL schemes.",
+      opensExternalTab: false,
+    };
+  }
+  if (environment.fullyKiosk) {
+    return {
+      href: toAndroidBrowserIntentUrl(authUrl, "com.android.chrome"),
+      label: "Open Google in Chrome",
+      instructions:
+        "Complete Google access in Chrome, then return to Daymark. Fully must allow other URL schemes.",
+      opensExternalTab: false,
+    };
+  }
+  if (environment.daymarkDisplay) {
+    return {
+      href: toAndroidBrowserIntentUrl(authUrl, "com.android.chrome"),
+      label: "Open Google in Chrome",
+      instructions:
+        "Complete Google access in Chrome, then return to Daymark Display.",
       opensExternalTab: false,
     };
   }
@@ -539,6 +565,7 @@ export function GoogleCalendarSettings(): JSX.Element {
               true ||
             window.matchMedia?.("(display-mode: standalone)").matches === true,
           fullyKiosk: "FullyKiosk" in window || "fully" in window,
+          daymarkDisplay: /DaymarkDisplay\//i.test(navigator.userAgent),
         })
       : null;
   const startGoogleConnection = async (accountId?: string): Promise<void> => {
