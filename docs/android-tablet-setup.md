@@ -53,6 +53,11 @@ installs a Daymark update, revisit `/download/android` on the tablet and install
 the APK again. Android recognizes the persistent signature and upgrades the
 existing app while preserving its saved server address.
 
+If a previously crashing build is replaced and the updated app remains on
+**Connecting to Daymark** even though Chrome can open the same address, reboot
+the tablet once. Android can temporarily mark WebView's renderer process as bad
+after repeated startup crashes; a reboot clears that operating-system state.
+
 ## PWA alternative
 
 Chrome's **Add to Home screen** is useful for a portable or occasionally used

@@ -24,6 +24,7 @@ import android.view.WindowInsets;
 import android.view.WindowInsetsController;
 import android.view.WindowManager;
 import android.webkit.CookieManager;
+import android.webkit.WebChromeClient;
 import android.webkit.WebResourceError;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
@@ -221,6 +222,12 @@ public final class MainActivity extends Activity {
         CookieManager.getInstance().setAcceptCookie(true);
         CookieManager.getInstance().setAcceptThirdPartyCookies(webView, true);
         webView.setBackgroundColor(Color.rgb(247, 247, 245));
+        webView.setWebChromeClient(new WebChromeClient() {
+            @Override
+            public void onProgressChanged(WebView view, int progress) {
+                if (progress >= 80) showBrowserIfDaymark(view.getUrl());
+            }
+        });
         webView.setWebViewClient(new DaymarkWebViewClient());
         browserFrame.addView(webView, new FrameLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
@@ -253,6 +260,12 @@ public final class MainActivity extends Activity {
         setContentView(browserFrame);
         showConnecting("Connecting to Daymark…");
         webView.loadUrl(url);
+        WebView loadingWebView = webView;
+        handler.postDelayed(() -> {
+            if (webView == loadingWebView && !mainFrameFailed) {
+                showBrowserIfDaymark(loadingWebView.getUrl());
+            }
+        }, 2_500L);
     }
 
     private void reloadDaymark() {
@@ -275,6 +288,12 @@ public final class MainActivity extends Activity {
     private void showBrowser() {
         mainFrameFailed = false;
         if (connectionNotice != null) connectionNotice.setVisibility(View.GONE);
+    }
+
+    private void showBrowserIfDaymark(String url) {
+        if (!mainFrameFailed && DaymarkAddress.isSameOrigin(serverUrl, url)) {
+            showBrowser();
+        }
     }
 
     private void watchNetwork() {
@@ -325,8 +344,13 @@ public final class MainActivity extends Activity {
     }
 
     private void enterImmersiveMode() {
+        View decorView = getWindow().getDecorView();
+        decorView.post(() -> applyImmersiveMode(decorView));
+    }
+
+    private void applyImmersiveMode(View decorView) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            WindowInsetsController controller = getWindow().getInsetsController();
+            WindowInsetsController controller = decorView.getWindowInsetsController();
             if (controller != null) {
                 controller.hide(WindowInsets.Type.statusBars() | WindowInsets.Type.navigationBars());
                 controller.setSystemBarsBehavior(
@@ -334,7 +358,7 @@ public final class MainActivity extends Activity {
                 );
             }
         } else {
-            getWindow().getDecorView().setSystemUiVisibility(
+            decorView.setSystemUiVisibility(
                 View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
                     | View.SYSTEM_UI_FLAG_FULLSCREEN
                     | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
@@ -392,9 +416,12 @@ public final class MainActivity extends Activity {
 
         @Override
         public void onPageFinished(WebView view, String url) {
-            if (!mainFrameFailed && DaymarkAddress.isSameOrigin(serverUrl, url)) {
-                showBrowser();
-            }
+            showBrowserIfDaymark(url);
+        }
+
+        @Override
+        public void onPageCommitVisible(WebView view, String url) {
+            showBrowserIfDaymark(url);
         }
 
         @Override
