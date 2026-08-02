@@ -38,6 +38,9 @@ describe("appliance backup routes", () => {
   beforeEach(async () => {
     await resetTestDb(app);
     await rm(join(controlDirectory, "backup-request.json"), { force: true });
+    await rm(join(controlDirectory, "backup-connect-request.json"), {
+      force: true,
+    });
     await rm(join(controlDirectory, "backup-recovery-key.txt"), {
       force: true,
     });
@@ -128,6 +131,42 @@ describe("appliance backup routes", () => {
     });
     expect(response.statusCode).toBe(409);
     expect(response.json()).toEqual({ error: "backup_not_configured" });
+  });
+
+  it("queues a browser-based Google Drive connection", async () => {
+    await setupHousehold(app);
+    const { cookie } = await unlockAdmin(app);
+    await writeFile(
+      join(controlDirectory, "backup-status.json"),
+      `${JSON.stringify({
+        ...configuredStatus,
+        configured: false,
+        state: "not_configured",
+        recoveryKeyAvailable: false,
+      })}\n`,
+      "utf8",
+    );
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/system/backup/connect",
+      headers: { cookie },
+    });
+
+    expect(response.statusCode).toBe(202);
+    expect(response.json()).toMatchObject({
+      configured: false,
+      state: "connecting",
+      authorizationUrl: null,
+    });
+    expect(
+      JSON.parse(
+        await readFile(
+          join(controlDirectory, "backup-connect-request.json"),
+          "utf8",
+        ),
+      ),
+    ).toMatchObject({ id: expect.any(String), requestedAt: expect.any(String) });
   });
 
   it("downloads the recovery key only after admin unlock", async () => {

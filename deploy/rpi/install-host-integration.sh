@@ -186,6 +186,31 @@ ExecStart=/usr/local/sbin/daymark-backup
 TimeoutStartSec=0
 EOF
 
+cat > /etc/systemd/system/daymark-backup-connect.service <<EOF
+[Unit]
+Description=Connect Daymark backups to Google Drive
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+Environment=DAYMARK_UPDATE_DIR=${DAYMARK_UPDATE_DIR}
+ExecStart=/usr/local/sbin/daymark-backup-setup --web
+TimeoutStartSec=15min
+EOF
+
+cat > /etc/systemd/system/daymark-backup-connect.path <<EOF
+[Unit]
+Description=Watch for Google Drive connection requests
+
+[Path]
+PathExists=${DAYMARK_UPDATE_DIR}/backup-connect-request.json
+Unit=daymark-backup-connect.service
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
 cat > /etc/systemd/system/daymark-backup.path <<EOF
 [Unit]
 Description=Watch for requested Daymark backups
@@ -220,4 +245,7 @@ if [[ ! -f "${DAYMARK_UPDATE_DIR}/backup-status.json" ]]; then
 fi
 
 systemctl daemon-reload
-systemctl enable --now daymark-backup.path daymark-backup.timer
+systemctl enable --now \
+  daymark-backup-connect.path \
+  daymark-backup.path \
+  daymark-backup.timer

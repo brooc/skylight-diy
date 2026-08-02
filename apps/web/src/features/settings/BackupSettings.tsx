@@ -7,6 +7,7 @@ interface BackupStatus {
   configured: boolean;
   state:
     | "not_configured"
+    | "connecting"
     | "idle"
     | "queued"
     | "running"
@@ -18,6 +19,7 @@ interface BackupStatus {
   lastBackupBytes: number | null;
   message: string | null;
   recoveryKeyAvailable: boolean;
+  authorizationUrl: string | null;
   updatedAt: string;
 }
 
@@ -43,7 +45,11 @@ export function BackupSettings(): JSX.Element | null {
     queryFn: () => apiFetch<BackupStatus>("/system/backup"),
     refetchInterval: (query) => {
       const state = query.state.data?.state;
-      return state === "queued" || state === "running" ? 2_000 : 60_000;
+      return state === "queued" ||
+        state === "running" ||
+        state === "connecting"
+        ? 1_000
+        : 60_000;
     },
     refetchIntervalInBackground: true,
     retry: false,
@@ -53,6 +59,13 @@ export function BackupSettings(): JSX.Element | null {
       apiFetch<BackupStatus>("/system/backup", { method: "POST" }),
     onSuccess: (status) => {
       queryClient.setQueryData(["system-backup"], status);
+    },
+  });
+  const connectMutation = useMutation({
+    mutationFn: () =>
+      apiFetch<BackupStatus>("/system/backup/connect", { method: "POST" }),
+    onSuccess: (nextStatus) => {
+      queryClient.setQueryData(["system-backup"], nextStatus);
     },
   });
 
@@ -144,9 +157,35 @@ export function BackupSettings(): JSX.Element | null {
             Google Drive is not connected for backups.
           </p>
           <p className="mt-1 text-sm text-amber-900">
-            This is a one-time Raspberry Pi setup. After connection, backups run
-            automatically and their status appears here.
+            Connect once on the Raspberry Pi screen. After connection, backups
+            run automatically and their status appears here.
           </p>
+          {status.authorizationUrl ? (
+            <a
+              href={status.authorizationUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="mt-3 flex min-h-[44px] items-center justify-center rounded-md bg-[#0f766e] px-4 py-3 text-sm font-semibold text-white hover:bg-[#115e59]"
+            >
+              Continue with Google
+            </a>
+          ) : (
+            <button
+              type="button"
+              disabled={
+                status.state === "connecting" || connectMutation.isPending
+              }
+              className="mt-3 min-h-[44px] w-full rounded-md bg-[#0f766e] px-4 py-3 text-sm font-semibold text-white hover:bg-[#115e59] disabled:cursor-not-allowed disabled:opacity-60"
+              onClick={() => connectMutation.mutate()}
+            >
+              {status.state === "connecting" || connectMutation.isPending
+                ? "Preparing Google connection..."
+                : "Connect Google Drive"}
+            </button>
+          )}
+          {status.state === "connecting" && status.message ? (
+            <p className="mt-2 text-xs text-amber-900">{status.message}</p>
+          ) : null}
         </div>
       )}
 
@@ -161,6 +200,12 @@ export function BackupSettings(): JSX.Element | null {
       {backupMutation.isError ? (
         <p role="alert" className="text-sm text-red-700">
           {backupMutation.error.message || "Unable to request a backup."}
+        </p>
+      ) : null}
+      {connectMutation.isError ? (
+        <p role="alert" className="text-sm text-red-700">
+          {connectMutation.error.message ||
+            "Unable to start the Google Drive connection."}
         </p>
       ) : null}
       {downloadError ? (

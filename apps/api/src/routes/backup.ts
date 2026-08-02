@@ -10,6 +10,7 @@ const backupStatusSchema = z.object({
   configured: z.boolean(),
   state: z.enum([
     "not_configured",
+    "connecting",
     "idle",
     "queued",
     "running",
@@ -22,6 +23,7 @@ const backupStatusSchema = z.object({
   lastBackupBytes: z.number().int().nonnegative().nullable(),
   message: z.string().nullable(),
   recoveryKeyAvailable: z.boolean(),
+  authorizationUrl: z.string().url().nullable().default(null),
   updatedAt: z.string(),
 });
 
@@ -38,6 +40,7 @@ function unavailableStatus(): BackupStatus {
     lastBackupBytes: null,
     message: null,
     recoveryKeyAvailable: false,
+    authorizationUrl: null,
     updatedAt: new Date(0).toISOString(),
   };
 }
@@ -123,6 +126,74 @@ export const backupRoutes: FastifyPluginAsync = async (app) => {
     }
 
     return reply.status(202).send(queuedStatus);
+  });
+
+  app.post("/system/backup/connect", async (request, reply) => {
+    if (!request.isAdminUnlocked()) {
+      return reply.status(401).send({ error: "admin_unlock_required" });
+    }
+    if (!env.DAYMARK_UPDATE_DIR) {
+      return reply.status(404).send({ error: "appliance_backup_unavailable" });
+    }
+
+    await mkdir(env.DAYMARK_UPDATE_DIR, { recursive: true });
+    const status = await readStatus(env.DAYMARK_UPDATE_DIR);
+    if (status.configured) {
+      return reply.status(409).send({ error: "backup_already_configured" });
+    }
+    if (status.state === "connecting") {
+      return reply.status(409).send({ error: "backup_connection_in_progress" });
+    }
+
+    const requestedAt = new Date().toISOString();
+    const connectingStatus: BackupStatus = {
+      ...status,
+      available: true,
+      configured: false,
+      state: "connecting",
+      message: "Starting Google Drive connection...",
+      authorizationUrl: null,
+      updatedAt: requestedAt,
+    };
+    const temporaryStatusPath = join(
+      env.DAYMARK_UPDATE_DIR,
+      `.backup-status-${randomUUID()}.json`,
+    );
+    await writeFile(
+      temporaryStatusPath,
+      `${JSON.stringify(connectingStatus)}\n`,
+      { mode: 0o600 },
+    );
+    await rename(
+      temporaryStatusPath,
+      join(env.DAYMARK_UPDATE_DIR, "backup-status.json"),
+    );
+
+    const requestPath = join(
+      env.DAYMARK_UPDATE_DIR,
+      "backup-connect-request.json",
+    );
+    let requestFile;
+    try {
+      requestFile = await open(requestPath, "wx", 0o600);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "EEXIST") {
+        return reply
+          .status(409)
+          .send({ error: "backup_connection_in_progress" });
+      }
+      throw error;
+    }
+    try {
+      await requestFile.writeFile(
+        `${JSON.stringify({ id: randomUUID(), requestedAt })}\n`,
+        "utf8",
+      );
+    } finally {
+      await requestFile.close();
+    }
+
+    return reply.status(202).send(connectingStatus);
   });
 
   app.get("/system/backup/recovery-key", async (request, reply) => {

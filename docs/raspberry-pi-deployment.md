@@ -284,8 +284,19 @@ only permits access to files created by this Daymark backup connection. Thirty
 days are retained in Drive and the two newest encrypted archives are retained
 locally by default.
 
-After installing the Daymark version that contains backup support, connect the
-Drive account once over SSH:
+After installing the Daymark version that contains backup support, unlock
+Daymark **Settings** on the Raspberry Pi and open **Google Drive backup**.
+Select **Connect Google Drive**, wait for **Continue with Google**, and complete
+Google sign-in in the browser tab that opens. Return to Daymark Settings when
+Google confirms the connection. Daymark verifies access and immediately queues
+the first encrypted backup.
+
+The temporary authorization address uses `127.0.0.1`, so this one-time flow must
+be completed in the browser on the Raspberry Pi itself. It does not expose the
+authorization listener to the local network.
+
+If the graphical setup is unavailable, the same connection can be completed
+over SSH as a recovery option:
 
 ```bash
 ssh <admin-user>@daymark.local
@@ -298,7 +309,7 @@ to run on a computer with a browser and then asks for the resulting token.
 After that one-time authorization, the systemd timer runs every night around
 3:15 AM and catches up after downtime.
 
-Unlock Daymark **Settings** and open **Google Drive backup** to:
+After connection, use **Google Drive backup** in Settings to:
 
 - confirm the time and size of the latest successful backup;
 - create a backup immediately; and

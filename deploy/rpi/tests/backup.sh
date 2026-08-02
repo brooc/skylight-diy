@@ -78,10 +78,24 @@ printf '%s\n' \
 printf '%s\n' \
   '#!/usr/bin/env bash' \
   'printf "%s\n" "$*" >> "${RCLONE_CAPTURE}"' \
+  'if [[ "$*" == *"config create"* ]]; then' \
+  '  printf "NOTICE: Open http://127.0.0.1:53682/auth?state=test-state\n" >&2' \
+  '  sleep 2' \
+  '  printf "[daymark-drive]\ntype = drive\nscope = drive.file\n" > "${DAYMARK_BACKUP_CONFIG_DIR}/rclone.conf"' \
+  'fi' \
   > "${TEST_DIR}/bin/rclone"
+printf '%s\n' \
+  '#!/usr/bin/env bash' \
+  'if [[ "${1:-}" == "-o" ]]; then' \
+  '  printf "AGE-SECRET-KEY-TEST\n" > "$2"' \
+  'elif [[ "${1:-}" == "-y" ]]; then' \
+  '  printf "age1testrecipient\n"' \
+  'fi' \
+  > "${TEST_DIR}/bin/age-keygen"
 chmod 0755 \
   "${TEST_DIR}/bin/docker" \
   "${TEST_DIR}/bin/age" \
+  "${TEST_DIR}/bin/age-keygen" \
   "${TEST_DIR}/bin/rclone"
 
 env PATH="${TEST_DIR}/bin:${PATH}" \
@@ -106,5 +120,29 @@ fi
 grep -Fq 'copyto' "${RCLONE_CAPTURE}"
 grep -Fq 'check' "${RCLONE_CAPTURE}"
 grep -Fq -- '--min-age 30d' "${RCLONE_CAPTURE}"
+
+rm -f \
+  "${DAYMARK_BACKUP_CONFIG_DIR}/rclone.conf" \
+  "${DAYMARK_UPDATE_DIR}/backup-request.json"
+printf '{}\n' > "${DAYMARK_UPDATE_DIR}/backup-connect-request.json"
+env PATH="${TEST_DIR}/bin:${PATH}" \
+  bash "$(dirname "${BASH_SOURCE[0]}")/../configure-google-drive-backup.sh" \
+  --web &
+setup_pid=$!
+for _attempt in $(seq 1 30); do
+  if grep -Fq '"authorizationUrl":"http://127.0.0.1:53682/auth?state=test-state"' \
+    "${DAYMARK_UPDATE_DIR}/backup-status.json"; then
+    break
+  fi
+  sleep 0.1
+done
+grep -Fq '"state":"connecting"' \
+  "${DAYMARK_UPDATE_DIR}/backup-status.json"
+grep -Fq '"authorizationUrl":"http://127.0.0.1:53682/auth?state=test-state"' \
+  "${DAYMARK_UPDATE_DIR}/backup-status.json"
+wait "${setup_pid}"
+grep -Fq '"configured":true' \
+  "${DAYMARK_UPDATE_DIR}/backup-status.json"
+test -f "${DAYMARK_UPDATE_DIR}/backup-request.json"
 
 printf 'Raspberry Pi backup regression checks passed.\n'

@@ -15,6 +15,7 @@ const configuredStatus = {
   lastBackupBytes: 1_572_864,
   message: "Encrypted backup uploaded to Google Drive.",
   recoveryKeyAvailable: true,
+  authorizationUrl: null,
   updatedAt: "2026-07-30T10:16:00.000Z",
 } as const;
 
@@ -80,7 +81,58 @@ describe("BackupSettings", () => {
       await screen.findByText("Google Drive is not connected for backups."),
     ).toBeInTheDocument();
     expect(
-      screen.queryByRole("button", { name: "Back up now" }),
-    ).not.toBeInTheDocument();
+      screen.getByRole("button", { name: "Connect Google Drive" }),
+    ).toBeInTheDocument();
+  });
+
+  it("starts setup and opens the Google authorization link when ready", async () => {
+    const notConfigured = {
+      ...configuredStatus,
+      configured: false,
+      state: "not_configured",
+      recoveryKeyAvailable: false,
+    } as const;
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async (_input, init) =>
+        mockJsonResponse(
+          init?.method === "POST"
+            ? { ...notConfigured, state: "connecting" }
+            : notConfigured,
+        ),
+      );
+
+    renderWithProviders(<BackupSettings />, { route: "/settings" });
+    await userEvent
+      .setup()
+      .click(
+        await screen.findByRole("button", { name: "Connect Google Drive" }),
+      );
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "/api/system/backup/connect",
+      expect.objectContaining({ method: "POST" }),
+    );
+  });
+
+  it("shows the authorization link supplied by the Pi", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      mockJsonResponse({
+        ...configuredStatus,
+        configured: false,
+        state: "connecting",
+        recoveryKeyAvailable: false,
+        authorizationUrl: "http://127.0.0.1:53682/auth?state=test",
+      }),
+    );
+
+    renderWithProviders(<BackupSettings />, { route: "/settings" });
+
+    expect(
+      await screen.findByRole("link", { name: "Continue with Google" }),
+    ).toHaveAttribute(
+      "href",
+      "http://127.0.0.1:53682/auth?state=test",
+    );
   });
 });
