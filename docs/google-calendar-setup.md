@@ -75,7 +75,7 @@ Docker Compose reads the repo-root `.env` file and passes the Google OAuth varia
 
 ## Connect In The App
 
-1. Open `http://localhost:5173/settings`.
+1. Open `http://localhost:8080/settings`.
 2. Unlock Settings with the local admin PIN.
 3. Click **Connect Google**.
 4. Complete Google consent.

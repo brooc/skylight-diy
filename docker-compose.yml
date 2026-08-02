@@ -1,14 +1,14 @@
+name: daymark-local
+
 services:
   postgres:
     image: postgres:16
-    container_name: daymark-postgres
     restart: unless-stopped
+    env_file:
+      - ${DAYMARK_ENV_FILE:-.env}
     environment:
       POSTGRES_USER: daymark
-      POSTGRES_PASSWORD: daymark
       POSTGRES_DB: daymark
-    ports:
-      - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -21,32 +21,21 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.dev
-    container_name: daymark-app
     depends_on:
       postgres:
         condition: service_healthy
+    env_file:
+      - ${DAYMARK_ENV_FILE:-.env}
     environment:
       NODE_ENV: development
-      APP_BASE_URL: ${APP_BASE_URL:-http://localhost:${WEB_PORT:-5173}}
-      API_BASE_URL: ${API_BASE_URL:-http://localhost:${API_PORT:-3000}}
-      DATABASE_URL: ${DATABASE_URL:-postgres://daymark:daymark@postgres:5432/daymark}
-      SESSION_COOKIE_NAME: ${SESSION_COOKIE_NAME:-daymark_session}
-      SESSION_SECRET: ${SESSION_SECRET:-local-dev-session-secret}
-      TOKEN_ENCRYPTION_KEY: ${TOKEN_ENCRYPTION_KEY:-MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=}
-      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
-      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
-      GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI:-http://localhost:${API_PORT:-3000}/api/integrations/google/callback}
-      GOOGLE_OAUTH_BROKER_URL: ${GOOGLE_OAUTH_BROKER_URL:-}
-      CALENDAR_CACHE_FRESH_TTL_SECONDS: ${CALENDAR_CACHE_FRESH_TTL_SECONDS:-300}
-      CALENDAR_CACHE_STALE_TTL_SECONDS: ${CALENDAR_CACHE_STALE_TTL_SECONDS:-86400}
       CHOKIDAR_USEPOLLING: "true"
       CHOKIDAR_INTERVAL: "150"
       WATCHPACK_POLLING: "true"
     working_dir: /workspace
-    command: ["pnpm", "dev:docker"]
+    command:
+      ["sh", "-c", "CI=true pnpm install --frozen-lockfile && pnpm dev:docker"]
     ports:
-      - "${API_PORT:-3000}:3000"
-      - "${WEB_PORT:-5173}:5173"
+      - "${DAYMARK_BIND_ADDRESS:-0.0.0.0}:${DAYMARK_HTTP_PORT:-8080}:5173"
     volumes:
       - .:/workspace
       - node_modules:/workspace/node_modules
@@ -54,5 +43,7 @@ services:
 
 volumes:
   postgres_data:
+    name: ${DAYMARK_POSTGRES_VOLUME:-daymark-local-data}
+    external: ${DAYMARK_POSTGRES_EXTERNAL:-false}
   node_modules:
   pnpm_store:

@@ -71,7 +71,7 @@ npm run docker:setup
 npm run docker:dev
 ```
 
-Open `http://localhost:5173` and complete the setup wizard.
+Open `http://localhost:8080` and complete the setup wizard.
 
 **Demo credentials**: Admin PIN is `1234` (from seed data)
 
@@ -89,9 +89,9 @@ pnpm dev        # Starts API and web app
 
 ### What Gets Started
 
-- **Postgres** on port 5432 (in Docker)
-- **API** on `http://localhost:3000`
-- **Web app** on `http://localhost:5173`
+- **Postgres** on the private Docker network
+- **Live API and web app** on `http://localhost:8080`
+- **API routes** under `http://localhost:8080/api`
 - Hot reload for both API and web
 
 ### Useful Commands
