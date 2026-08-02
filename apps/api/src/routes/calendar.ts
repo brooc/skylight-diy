@@ -18,28 +18,28 @@ import {
   writeCalendarCache
 } from "../modules/calendar/cache";
 import { decryptToken, encryptToken } from "../modules/integrations/token-crypto";
-import {
-  getGoogleOauthMode,
-  refreshGoogleAccessToken
-} from "../modules/integrations/google-oauth-provider";
-import {
-  mergeSharedEvents,
-  type SourceCalendarEvent
-} from "../modules/calendar/merge-shared-events";
+import { getGoogleOauthMode, refreshGoogleAccessToken } from "../modules/integrations/google-oauth-provider";
+import { mergeSharedEvents, type SourceCalendarEvent } from "../modules/calendar/merge-shared-events";
 
 const eventsQuerySchema = z
   .object({
     start: z.string().datetime(),
     end: z.string().datetime(),
-    timezone: z.string().min(1).refine((timezone) => {
-      try {
-        new Intl.DateTimeFormat("en-US", { timeZone: timezone });
-        return true;
-      } catch {
-        return false;
-      }
-    }, "Invalid IANA timezone."),
-    refresh: z.enum(["true", "false"]).optional().transform((value) => value === "true")
+    timezone: z
+      .string()
+      .min(1)
+      .refine((timezone) => {
+        try {
+          new Intl.DateTimeFormat("en-US", { timeZone: timezone });
+          return true;
+        } catch {
+          return false;
+        }
+      }, "Invalid IANA timezone."),
+    refresh: z
+      .enum(["true", "false"])
+      .optional()
+      .transform((value) => value === "true")
   })
   .refine((query) => new Date(query.end).getTime() > new Date(query.start).getTime(), {
     message: "End must be after start.",
@@ -51,7 +51,11 @@ const patchSourceBodySchema = z.object({
   allowEventWrites: z.boolean().optional(),
   personId: z.string().uuid().nullable().optional(),
   displayName: z.string().trim().min(1).max(120).optional(),
-  color: z.string().regex(/^#[0-9a-f]{6}$/i).nullable().optional()
+  color: z
+    .string()
+    .regex(/^#[0-9a-f]{6}$/i)
+    .nullable()
+    .optional()
 });
 
 const accountSourcesBodySchema = z.object({
@@ -86,9 +90,7 @@ export function minimumRecurrenceUntil(
 ): string {
   if (frequency !== "weekly" || days.length === 0) return shiftDateKey(dateKey, 1);
   const startDay = new Date(`${dateKey}T00:00:00.000Z`).getUTCDay();
-  const finalOffset = Math.max(
-    ...days.map((day) => (recurrenceWeekdayIndex[day] - startDay + 7) % 7)
-  );
+  const finalOffset = Math.max(...days.map((day) => (recurrenceWeekdayIndex[day] - startDay + 7) % 7));
   return shiftDateKey(dateKey, finalOffset + 1);
 }
 
@@ -111,6 +113,7 @@ const calendarEventBodySchema = z
     description: z.string().trim().max(8_000).optional(),
     location: z.string().trim().max(500).optional(),
     attendees: z.array(z.string().email()).max(50).optional(),
+    reminderMinutesBefore: z.number().int().min(0).max(1_440).nullable().optional(),
     allDay: z.boolean(),
     start: z.string().min(1),
     end: z.string().min(1),
@@ -118,19 +121,29 @@ const calendarEventBodySchema = z
       .object({
         frequency: z.enum(["daily", "weekly", "monthly"]),
         ends: z.enum(["never", "on_date", "after"]),
-        days: z.array(z.enum(["MO", "TU", "WE", "TH", "FR", "SA", "SU"])).min(1).max(7).optional(),
-        until: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+        days: z
+          .array(z.enum(["MO", "TU", "WE", "TH", "FR", "SA", "SU"]))
+          .min(1)
+          .max(7)
+          .optional(),
+        until: z
+          .string()
+          .regex(/^\d{4}-\d{2}-\d{2}$/)
+          .optional(),
         count: z.number().int().min(2).max(365).optional()
       })
       .optional(),
-    timezone: z.string().min(1).refine((timezone) => {
-      try {
-        new Intl.DateTimeFormat("en-US", { timeZone: timezone });
-        return true;
-      } catch {
-        return false;
-      }
-    }, "Invalid IANA timezone.")
+    timezone: z
+      .string()
+      .min(1)
+      .refine((timezone) => {
+        try {
+          new Intl.DateTimeFormat("en-US", { timeZone: timezone });
+          return true;
+        } catch {
+          return false;
+        }
+      }, "Invalid IANA timezone.")
   })
   .superRefine((event, context) => {
     if (event.recurrence?.ends === "on_date" && !event.recurrence.until) {
@@ -163,17 +176,9 @@ const calendarEventBodySchema = z
       }
     }
     const minimumUntil = event.recurrence
-      ? minimumRecurrenceUntil(
-          eventStartDate,
-          event.recurrence.frequency,
-          event.recurrence.days
-        )
+      ? minimumRecurrenceUntil(eventStartDate, event.recurrence.frequency, event.recurrence.days)
       : eventStartDate;
-    if (
-      event.recurrence?.ends === "on_date" &&
-      event.recurrence.until &&
-      event.recurrence.until < minimumUntil
-    ) {
+    if (event.recurrence?.ends === "on_date" && event.recurrence.until && event.recurrence.until < minimumUntil) {
       context.addIssue({
         code: z.ZodIssueCode.custom,
         message: `The recurrence end date must be ${minimumUntil} or later.`,
@@ -216,11 +221,7 @@ const calendarEventBodySchema = z
         path: ["end"]
       });
     }
-    if (
-      start.success &&
-      end.success &&
-      new Date(event.end).getTime() <= new Date(event.start).getTime()
-    ) {
+    if (start.success && end.success && new Date(event.end).getTime() <= new Date(event.start).getTime()) {
       context.addIssue({
         code: z.ZodIssueCode.custom,
         message: "End must be after start.",
@@ -230,11 +231,16 @@ const calendarEventBodySchema = z
   });
 
 const deleteCalendarEventsBodySchema = z.object({
-  targets: z.array(z.object({
-    sourceId: z.string().uuid(),
-    providerEventId: z.string().min(1).max(1024),
-    recurringEventId: z.string().min(1).max(1024).optional()
-  })).min(1).max(25),
+  targets: z
+    .array(
+      z.object({
+        sourceId: z.string().uuid(),
+        providerEventId: z.string().min(1).max(1024),
+        recurringEventId: z.string().min(1).max(1024).optional()
+      })
+    )
+    .min(1)
+    .max(25),
   scope: z.enum(["event", "series"]).default("event")
 });
 
@@ -245,6 +251,7 @@ const editCalendarEventsBodySchema = z
     title: z.string().trim().min(1).max(200),
     location: z.string().trim().max(500).nullable().optional(),
     attendees: z.array(z.string().email()).max(50).optional(),
+    reminderMinutesBefore: z.number().int().min(0).max(1_440).nullable().optional(),
     allDay: z.boolean(),
     start: z.string().min(1),
     end: z.string().min(1),
@@ -252,20 +259,30 @@ const editCalendarEventsBodySchema = z
     recurrencePattern: z
       .object({
         frequency: z.enum(["daily", "weekly", "monthly"]),
-        days: z.array(z.enum(["MO", "TU", "WE", "TH", "FR", "SA", "SU"])).min(1).max(7).optional()
+        days: z
+          .array(z.enum(["MO", "TU", "WE", "TH", "FR", "SA", "SU"]))
+          .min(1)
+          .max(7)
+          .optional()
       })
       .optional(),
     recurrenceEnd: z
       .object({
         mode: z.enum(["keep", "on_date", "after", "never"]),
-        until: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+        until: z
+          .string()
+          .regex(/^\d{4}-\d{2}-\d{2}$/)
+          .optional(),
         count: z.number().int().min(1).max(365).optional()
       })
       .optional(),
     timezone: z.string().min(1)
   })
   .superRefine((event, context) => {
-    if ((event.scope === "following" || event.scope === "series") && !event.targets.every((target) => target.recurringEventId)) {
+    if (
+      (event.scope === "following" || event.scope === "series") &&
+      !event.targets.every((target) => target.recurringEventId)
+    ) {
       context.addIssue({
         code: z.ZodIssueCode.custom,
         message: "Following-event edits require a recurring series.",
@@ -320,14 +337,22 @@ const editCalendarEventsBodySchema = z
     }
     if (event.allDay) {
       if (event.end <= event.start) {
-        context.addIssue({ code: z.ZodIssueCode.custom, message: "End must be after start.", path: ["end"] });
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "End must be after start.",
+          path: ["end"]
+        });
       }
       return;
     }
     const start = z.string().datetime().safeParse(event.start);
     const end = z.string().datetime().safeParse(event.end);
     if (!start.success || !end.success || new Date(event.end).getTime() <= new Date(event.start).getTime()) {
-      context.addIssue({ code: z.ZodIssueCode.custom, message: "End must be after start.", path: ["end"] });
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "End must be after start.",
+        path: ["end"]
+      });
     }
   });
 
@@ -336,6 +361,7 @@ type GoogleCalendarCandidate = {
   displayName: string;
   color: string;
   accessRole: string;
+  defaultReminders: Array<{ method: string; minutes: number }>;
   sortOrder: number;
 };
 
@@ -372,15 +398,47 @@ type GoogleEventItem = {
       uri?: string;
     }>;
   };
-  reminders?: Record<string, unknown>;
+  reminders?: {
+    useDefault?: boolean;
+    overrides?: Array<{ method?: string; minutes?: number }>;
+  };
   transparency?: string;
   visibility?: string;
   colorId?: string;
   guestsCanInviteOthers?: boolean;
   guestsCanModify?: boolean;
   guestsCanSeeOtherGuests?: boolean;
-  extendedProperties?: Record<string, unknown>;
+  extendedProperties?: {
+    private?: Record<string, string>;
+    shared?: Record<string, string>;
+  };
 };
+
+function googleEventReminderMinutesBefore(
+  event: GoogleEventItem,
+  defaultReminders: Array<{ method: string; minutes: number }> = []
+): number[] | undefined {
+  const reminders = event.reminders?.useDefault ? defaultReminders : (event.reminders?.overrides ?? []);
+  const minutesBefore = reminders
+    .filter((reminder) => Number.isInteger(reminder.minutes) && reminder.minutes! >= 0 && reminder.minutes! <= 1_440)
+    .map((reminder) => reminder.minutes!);
+  const uniqueMinutes = Array.from(new Set(minutesBefore)).sort((left, right) => right - left);
+  return uniqueMinutes.length ? uniqueMinutes : undefined;
+}
+
+function withGoogleReminder(
+  eventFields: Record<string, unknown>,
+  reminderMinutesBefore: number | null | undefined
+): Record<string, unknown> {
+  if (reminderMinutesBefore === undefined) return eventFields;
+  return {
+    ...eventFields,
+    reminders: {
+      useDefault: false,
+      overrides: reminderMinutesBefore === null ? [] : [{ method: "popup", minutes: reminderMinutesBefore }]
+    }
+  };
+}
 
 function editableGoogleEvent(event: GoogleEventItem): Record<string, unknown> {
   return {
@@ -397,7 +455,9 @@ function editableGoogleEvent(event: GoogleEventItem): Record<string, unknown> {
     ...(event.colorId ? { colorId: event.colorId } : {}),
     ...(typeof event.guestsCanInviteOthers === "boolean" ? { guestsCanInviteOthers: event.guestsCanInviteOthers } : {}),
     ...(typeof event.guestsCanModify === "boolean" ? { guestsCanModify: event.guestsCanModify } : {}),
-    ...(typeof event.guestsCanSeeOtherGuests === "boolean" ? { guestsCanSeeOtherGuests: event.guestsCanSeeOtherGuests } : {}),
+    ...(typeof event.guestsCanSeeOtherGuests === "boolean"
+      ? { guestsCanSeeOtherGuests: event.guestsCanSeeOtherGuests }
+      : {}),
     ...(event.extendedProperties ? { extendedProperties: event.extendedProperties } : {})
   };
 }
@@ -409,7 +469,13 @@ function replaceRulePart(rule: string, name: "COUNT" | "UNTIL", value: string): 
 
 function changeRuleEnd(
   rule: string,
-  recurrenceEnd: { mode: "keep" | "on_date" | "after" | "never"; until?: string; count?: number } | undefined,
+  recurrenceEnd:
+    | {
+        mode: "keep" | "on_date" | "after" | "never";
+        until?: string;
+        count?: number;
+      }
+    | undefined,
   timezone: string,
   allDay: boolean
 ): string {
@@ -431,13 +497,14 @@ function changeRecurrencePattern(
 ): string {
   if (!pattern) return rule;
   const end = rule.match(/;(COUNT|UNTIL)=[^;]+/)?.[0] ?? "";
-  const days = pattern.frequency === "weekly" && pattern.days?.length
-    ? `;BYDAY=${pattern.days.join(",")}`
-    : "";
+  const days = pattern.frequency === "weekly" && pattern.days?.length ? `;BYDAY=${pattern.days.join(",")}` : "";
   return `RRULE:FREQ=${pattern.frequency.toUpperCase()}${days}${end}`;
 }
 
-function parseGoogleRecurrence(rule: string, timezone: string): {
+function parseGoogleRecurrence(
+  rule: string,
+  timezone: string
+): {
   frequency: "daily" | "weekly" | "monthly";
   days: RecurrenceWeekday[];
   ends: "never" | "on_date" | "after";
@@ -446,8 +513,9 @@ function parseGoogleRecurrence(rule: string, timezone: string): {
 } | null {
   const frequency = rule.match(/(?:^|[:;])FREQ=(DAILY|WEEKLY|MONTHLY)(?:;|$)/)?.[1]?.toLowerCase();
   if (frequency !== "daily" && frequency !== "weekly" && frequency !== "monthly") return null;
-  const days = (rule.match(/(?:^|;)BYDAY=([^;]+)/)?.[1]?.split(",") ?? [])
-    .filter((day): day is RecurrenceWeekday => day in recurrenceWeekdayIndex);
+  const days = (rule.match(/(?:^|;)BYDAY=([^;]+)/)?.[1]?.split(",") ?? []).filter(
+    (day): day is RecurrenceWeekday => day in recurrenceWeekdayIndex
+  );
   const count = Number(rule.match(/(?:^|;)COUNT=(\d+)(?:;|$)/)?.[1]);
   const untilValue = rule.match(/(?:^|;)UNTIL=([^;]+)(?:;|$)/)?.[1];
   let until: string | undefined;
@@ -456,10 +524,7 @@ function parseGoogleRecurrence(rule: string, timezone: string): {
       until = `${untilValue.slice(0, 4)}-${untilValue.slice(4, 6)}-${untilValue.slice(6, 8)}`;
     } else {
       const parsed = new Date(
-        untilValue.replace(
-          /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z$/,
-          "$1-$2-$3T$4:$5:$6Z"
-        )
+        untilValue.replace(/^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z$/, "$1-$2-$3T$4:$5:$6Z")
       );
       if (!Number.isNaN(parsed.getTime())) until = eventDateKey(parsed.toISOString(), timezone);
     }
@@ -479,9 +544,7 @@ function isEditableRecurrenceRule(rule: string): boolean {
     .slice(1)
     .some((part) => !/^(FREQ|BYDAY|COUNT|UNTIL)=/.test(part));
   const byDay = rule.match(/(?:^|;)BYDAY=([^;]+)/)?.[1];
-  const hasUnsupportedDay = byDay
-    ? byDay.split(",").some((day) => !(day in recurrenceWeekdayIndex))
-    : false;
+  const hasUnsupportedDay = byDay ? byDay.split(",").some((day) => !(day in recurrenceWeekdayIndex)) : false;
   return !hasUnsupportedPart && !hasUnsupportedDay;
 }
 
@@ -516,9 +579,7 @@ function dateFromDateKeyInTimeZone(
   });
   let result = target;
   for (let attempt = 0; attempt < 2; attempt += 1) {
-    const parts = new Map(
-      formatter.formatToParts(new Date(result)).map((part) => [part.type, part.value])
-    );
+    const parts = new Map(formatter.formatToParts(new Date(result)).map((part) => [part.type, part.value]));
     const represented = Date.UTC(
       Number(parts.get("year")),
       Number(parts.get("month")) - 1,
@@ -543,14 +604,17 @@ function googleRecurrenceRule(
   if (recurrence.ends === "after") parts.push(`COUNT=${recurrence.count}`);
   if (recurrence.ends === "on_date" && recurrence.until) {
     const until = dateFromDateKeyInTimeZone(recurrence.until, timeZone, 23, 59, 59);
-    parts.push(`UNTIL=${until.toISOString().replace(/[-:]/g, "").replace(/\.000Z$/, "Z")}`);
+    parts.push(
+      `UNTIL=${until
+        .toISOString()
+        .replace(/[-:]/g, "")
+        .replace(/\.000Z$/, "Z")}`
+    );
   }
   return parts.join(";");
 }
 
-type GoogleEventLoadResult =
-  | { ok: true; items: GoogleEventItem[] }
-  | { ok: false; statusCode: number };
+type GoogleEventLoadResult = { ok: true; items: GoogleEventItem[] } | { ok: false; statusCode: number };
 
 type GoogleTokenAccount = {
   id: string;
@@ -562,36 +626,28 @@ type GoogleTokenAccount = {
 
 type GoogleAccessTokenResult =
   | { ok: true; accessToken: string; refreshed: boolean }
-  | { ok: false; error: string; message: string; reauthorizationRequired: boolean };
+  | {
+      ok: false;
+      error: string;
+      message: string;
+      reauthorizationRequired: boolean;
+    };
 
 const GOOGLE_TOKEN_REFRESH_MARGIN_MS = 60_000;
-const GOOGLE_CALENDAR_LEGACY_READ_SCOPE =
-  "https://www.googleapis.com/auth/calendar.readonly";
-const GOOGLE_CALENDAR_LIST_READ_SCOPE =
-  "https://www.googleapis.com/auth/calendar.calendarlist.readonly";
-const GOOGLE_CALENDAR_WRITE_SCOPE =
-  "https://www.googleapis.com/auth/calendar.events";
-const GOOGLE_CALENDAR_FULL_SCOPE =
-  "https://www.googleapis.com/auth/calendar";
+const GOOGLE_CALENDAR_LEGACY_READ_SCOPE = "https://www.googleapis.com/auth/calendar.readonly";
+const GOOGLE_CALENDAR_LIST_READ_SCOPE = "https://www.googleapis.com/auth/calendar.calendarlist.readonly";
+const GOOGLE_CALENDAR_WRITE_SCOPE = "https://www.googleapis.com/auth/calendar.events";
+const GOOGLE_CALENDAR_FULL_SCOPE = "https://www.googleapis.com/auth/calendar";
 
 function hasGoogleCalendarWriteScope(scopes: string[]): boolean {
-  return (
-    scopes.includes(GOOGLE_CALENDAR_WRITE_SCOPE) ||
-    scopes.includes(GOOGLE_CALENDAR_FULL_SCOPE)
-  );
+  return scopes.includes(GOOGLE_CALENDAR_WRITE_SCOPE) || scopes.includes(GOOGLE_CALENDAR_FULL_SCOPE);
 }
 
 function hasGoogleCalendarReadScope(scopes: string[]): boolean {
   const hasFullAccess = scopes.includes(GOOGLE_CALENDAR_FULL_SCOPE);
   const hasLegacyReadAccess = scopes.includes(GOOGLE_CALENDAR_LEGACY_READ_SCOPE);
-  const canListCalendars =
-    hasFullAccess ||
-    hasLegacyReadAccess ||
-    scopes.includes(GOOGLE_CALENDAR_LIST_READ_SCOPE);
-  const canReadEvents =
-    hasFullAccess ||
-    hasLegacyReadAccess ||
-    scopes.includes(GOOGLE_CALENDAR_WRITE_SCOPE);
+  const canListCalendars = hasFullAccess || hasLegacyReadAccess || scopes.includes(GOOGLE_CALENDAR_LIST_READ_SCOPE);
+  const canReadEvents = hasFullAccess || hasLegacyReadAccess || scopes.includes(GOOGLE_CALENDAR_WRITE_SCOPE);
 
   return canListCalendars && canReadEvents;
 }
@@ -675,9 +731,7 @@ async function requireGoogleAccessToken(
       };
     }
 
-    const expiresAt = typeof payload.expires_in === "number"
-      ? new Date(Date.now() + payload.expires_in * 1000)
-      : null;
+    const expiresAt = typeof payload.expires_in === "number" ? new Date(Date.now() + payload.expires_in * 1000) : null;
     const refreshedScopes = payload.scope?.split(/\s+/).filter(Boolean);
     await app.db
       .update(connectedAccounts)
@@ -708,9 +762,7 @@ async function loadGoogleCalendars(accessToken: string): Promise<GoogleCalendarL
     let pageToken: string | undefined;
 
     do {
-      const calendarsUrl = new URL(
-        "https://www.googleapis.com/calendar/v3/users/me/calendarList"
-      );
+      const calendarsUrl = new URL("https://www.googleapis.com/calendar/v3/users/me/calendarList");
       if (pageToken) calendarsUrl.searchParams.set("pageToken", pageToken);
       const response = await fetch(calendarsUrl, {
         headers: { Authorization: `Bearer ${accessToken}` }
@@ -734,6 +786,7 @@ async function loadGoogleCalendars(accessToken: string): Promise<GoogleCalendarL
           summary?: string;
           backgroundColor?: string;
           accessRole?: string;
+          defaultReminders?: Array<{ method?: string; minutes?: number }>;
         }>;
         nextPageToken?: string;
       };
@@ -745,6 +798,13 @@ async function loadGoogleCalendars(accessToken: string): Promise<GoogleCalendarL
           displayName: item.summary,
           color: item.backgroundColor ?? fallbackColors[index % fallbackColors.length]!,
           accessRole: item.accessRole ?? "reader",
+          defaultReminders: (item.defaultReminders ?? []).filter(
+            (reminder): reminder is { method: string; minutes: number } =>
+              typeof reminder.method === "string" &&
+              Number.isInteger(reminder.minutes) &&
+              reminder.minutes! >= 0 &&
+              reminder.minutes! <= 1_440
+          ),
           sortOrder: index
         });
       }
@@ -934,9 +994,7 @@ export const calendarRoutes: FastifyPluginAsync = async (app) => {
       })
       .from(calendarSources)
       .where(eq(calendarSources.connectedAccountId, account.id));
-    const trackedByExternalId = new Map(
-      trackedSources.map((source) => [source.externalCalendarId, source])
-    );
+    const trackedByExternalId = new Map(trackedSources.map((source) => [source.externalCalendarId, source]));
 
     for (const calendar of loaded.calendars) {
       const trackedSource = trackedByExternalId.get(calendar.externalCalendarId);
@@ -945,8 +1003,8 @@ export const calendarRoutes: FastifyPluginAsync = async (app) => {
         .update(calendarSources)
         .set({
           googleAccessRole: calendar.accessRole,
-          ...(!isGoogleCalendarWritable(calendar.accessRole) &&
-          trackedSource.allowEventWrites
+          googleDefaultReminders: calendar.defaultReminders,
+          ...(!isGoogleCalendarWritable(calendar.accessRole) && trackedSource.allowEventWrites
             ? { allowEventWrites: false }
             : {}),
           updatedAt: new Date()
@@ -1045,6 +1103,7 @@ export const calendarRoutes: FastifyPluginAsync = async (app) => {
         color: source.color,
         enabled: true,
         googleAccessRole: source.accessRole,
+        googleDefaultReminders: source.defaultReminders,
         sortOrder: source.sortOrder
       });
     }
@@ -1098,10 +1157,7 @@ export const calendarRoutes: FastifyPluginAsync = async (app) => {
     if (!source) {
       return reply.status(404).send({ error: "source_not_found" });
     }
-    if (
-      parsed.data.allowEventWrites === true &&
-      !isGoogleCalendarWritable(source.googleAccessRole)
-    ) {
+    if (parsed.data.allowEventWrites === true && !isGoogleCalendarWritable(source.googleAccessRole)) {
       return reply.status(409).send({
         error: "google_calendar_not_writable",
         message: "Google has not granted write access to this calendar."
@@ -1179,9 +1235,7 @@ export const calendarRoutes: FastifyPluginAsync = async (app) => {
       return reply.status(404).send({ error: "source_not_found" });
     }
 
-    await app.db
-      .delete(calendarEventCache)
-      .where(eq(calendarEventCache.householdId, household.id));
+    await app.db.delete(calendarEventCache).where(eq(calendarEventCache.householdId, household.id));
 
     return { untracked: true, sourceId: deleted.id };
   });
@@ -1215,10 +1269,7 @@ export const calendarRoutes: FastifyPluginAsync = async (app) => {
         scopes: connectedAccounts.scopes
       })
       .from(calendarSources)
-      .innerJoin(
-        connectedAccounts,
-        eq(calendarSources.connectedAccountId, connectedAccounts.id)
-      )
+      .innerJoin(connectedAccounts, eq(calendarSources.connectedAccountId, connectedAccounts.id))
       .where(
         and(
           eq(calendarSources.id, parsed.data.sourceId),
@@ -1292,9 +1343,7 @@ export const calendarRoutes: FastifyPluginAsync = async (app) => {
     const googleEvent = {
       id: eventId,
       summary: parsed.data.title,
-      ...(parsed.data.description
-        ? { description: parsed.data.description }
-        : {}),
+      ...(parsed.data.description ? { description: parsed.data.description } : {}),
       ...(parsed.data.location ? { location: parsed.data.location } : {}),
       ...(parsed.data.attendees?.length
         ? {
@@ -1302,8 +1351,17 @@ export const calendarRoutes: FastifyPluginAsync = async (app) => {
           }
         : {}),
       ...(parsed.data.recurrence
-        ? { recurrence: [googleRecurrenceRule(parsed.data.recurrence, parsed.data.timezone)] }
+        ? {
+            recurrence: [googleRecurrenceRule(parsed.data.recurrence, parsed.data.timezone)]
+          }
         : {}),
+      reminders: {
+        useDefault: false,
+        overrides:
+          parsed.data.reminderMinutesBefore === undefined || parsed.data.reminderMinutesBefore === null
+            ? []
+            : [{ method: "popup", minutes: parsed.data.reminderMinutesBefore }]
+      },
       start: parsed.data.allDay
         ? { date: parsed.data.start }
         : { dateTime: parsed.data.start, timeZone: parsed.data.timezone },
@@ -1320,17 +1378,14 @@ export const calendarRoutes: FastifyPluginAsync = async (app) => {
     }
     let googleResponse: Response;
     try {
-      googleResponse = await fetch(
-        createEventUrl,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${token.accessToken}`,
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify(googleEvent)
-        }
-      );
+      googleResponse = await fetch(createEventUrl, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token.accessToken}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(googleEvent)
+      });
     } catch {
       return reply.status(502).send({
         error: "google_event_create_request_failed",
@@ -1362,9 +1417,7 @@ export const calendarRoutes: FastifyPluginAsync = async (app) => {
       });
     }
 
-    await app.db
-      .delete(calendarEventCache)
-      .where(eq(calendarEventCache.householdId, household.id));
+    await app.db.delete(calendarEventCache).where(eq(calendarEventCache.householdId, household.id));
 
     let providerEventId = eventId;
     let htmlLink: string | null = null;
@@ -1406,11 +1459,13 @@ export const calendarRoutes: FastifyPluginAsync = async (app) => {
   });
 
   app.get("/calendar/events/recurrence", async (request, reply) => {
-    const query = z.object({
-      sourceId: z.string().uuid(),
-      recurringEventId: z.string().min(1).max(1024),
-      timezone: z.string().min(1)
-    }).safeParse(request.query);
+    const query = z
+      .object({
+        sourceId: z.string().uuid(),
+        recurringEventId: z.string().min(1).max(1024),
+        timezone: z.string().min(1)
+      })
+      .safeParse(request.query);
     if (!query.success) return reply.status(400).send({ error: "invalid_recurrence_query" });
     const [household] = await app.db.select().from(households).limit(1);
     if (!household) return reply.status(404).send({ error: "setup_not_completed" });
@@ -1425,11 +1480,13 @@ export const calendarRoutes: FastifyPluginAsync = async (app) => {
       })
       .from(calendarSources)
       .innerJoin(connectedAccounts, eq(calendarSources.connectedAccountId, connectedAccounts.id))
-      .where(and(
-        eq(calendarSources.id, query.data.sourceId),
-        eq(calendarSources.householdId, household.id),
-        eq(connectedAccounts.provider, "google")
-      ))
+      .where(
+        and(
+          eq(calendarSources.id, query.data.sourceId),
+          eq(calendarSources.householdId, household.id),
+          eq(connectedAccounts.provider, "google")
+        )
+      )
       .limit(1);
     if (!destination) return reply.status(404).send({ error: "calendar_source_not_found" });
     const token = await requireGoogleAccessToken(app, {
@@ -1446,7 +1503,9 @@ export const calendarRoutes: FastifyPluginAsync = async (app) => {
       });
     }
     const url = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(destination.externalCalendarId)}/events/${encodeURIComponent(query.data.recurringEventId)}`;
-    const response = await fetch(url, { headers: { Authorization: `Bearer ${token.accessToken}` } });
+    const response = await fetch(url, {
+      headers: { Authorization: `Bearer ${token.accessToken}` }
+    });
     if (!response.ok) {
       return reply.status(502).send({
         error: "google_recurring_event_load_failed",
@@ -1470,7 +1529,9 @@ export const calendarRoutes: FastifyPluginAsync = async (app) => {
       end: master.end?.dateTime ?? master.end?.date,
       allDay: Boolean(master.start?.date && !master.start?.dateTime),
       ...(unsupportedParts
-        ? { message: "This series uses advanced Google recurrence options that Daymark will preserve but not edit." }
+        ? {
+            message: "This series uses advanced Google recurrence options that Daymark will preserve but not edit."
+          }
         : {})
     };
   });
@@ -1478,16 +1539,18 @@ export const calendarRoutes: FastifyPluginAsync = async (app) => {
   app.patch("/calendar/events", async (request, reply) => {
     const parsed = editCalendarEventsBodySchema.safeParse(request.body);
     if (!parsed.success) {
-      return reply.status(400).send({ error: "invalid_calendar_event_edit", details: parsed.error.flatten() });
+      return reply.status(400).send({
+        error: "invalid_calendar_event_edit",
+        details: parsed.error.flatten()
+      });
     }
     const [household] = await app.db.select().from(households).limit(1);
     if (!household) return reply.status(404).send({ error: "setup_not_completed" });
 
     const seenProviderEvents = new Set<string>();
     const mutationTargets = parsed.data.targets.filter((target) => {
-      const providerIdentity = parsed.data.scope !== "event"
-        ? target.recurringEventId ?? target.providerEventId
-        : target.providerEventId;
+      const providerIdentity =
+        parsed.data.scope !== "event" ? (target.recurringEventId ?? target.providerEventId) : target.providerEventId;
       if (seenProviderEvents.has(providerIdentity)) return false;
       seenProviderEvents.add(providerIdentity);
       return true;
@@ -1510,21 +1573,30 @@ export const calendarRoutes: FastifyPluginAsync = async (app) => {
         })
         .from(calendarSources)
         .innerJoin(connectedAccounts, eq(calendarSources.connectedAccountId, connectedAccounts.id))
-        .where(and(
-          eq(calendarSources.id, target.sourceId),
-          eq(calendarSources.householdId, household.id),
-          eq(connectedAccounts.provider, "google")
-        ))
+        .where(
+          and(
+            eq(calendarSources.id, target.sourceId),
+            eq(calendarSources.householdId, household.id),
+            eq(connectedAccounts.provider, "google")
+          )
+        )
         .limit(1);
       if (!destination) return reply.status(404).send({ error: "calendar_source_not_found" });
-      if (!destination.enabled || !destination.allowEventWrites || !isGoogleCalendarWritable(destination.googleAccessRole)) {
+      if (
+        !destination.enabled ||
+        !destination.allowEventWrites ||
+        !isGoogleCalendarWritable(destination.googleAccessRole)
+      ) {
         return reply.status(403).send({
           error: "calendar_writes_disabled",
           message: `Event editing is disabled for "${destination.displayName}".`
         });
       }
       if (!hasGoogleCalendarWriteScope(destination.scopes)) {
-        return reply.status(409).send({ error: "google_write_authorization_required", message: "Reconnect this Google account and allow event changes." });
+        return reply.status(409).send({
+          error: "google_write_authorization_required",
+          message: "Reconnect this Google account and allow event changes."
+        });
       }
       const token = await requireGoogleAccessToken(app, {
         id: destination.accountId,
@@ -1534,15 +1606,15 @@ export const calendarRoutes: FastifyPluginAsync = async (app) => {
         scopes: destination.scopes
       });
       if (!token.ok) {
-        return reply.status(token.reauthorizationRequired ? 409 : 502).send({ error: token.error, message: token.message });
+        return reply
+          .status(token.reauthorizationRequired ? 409 : 502)
+          .send({ error: token.error, message: token.message });
       }
 
       const eventFields = {
         summary: parsed.data.title,
         location: parsed.data.location ?? "",
-        ...(parsed.data.attendees
-          ? { attendees: parsed.data.attendees.map((email) => ({ email })) }
-          : {}),
+        ...(parsed.data.attendees ? { attendees: parsed.data.attendees.map((email) => ({ email })) } : {}),
         start: parsed.data.allDay
           ? { date: parsed.data.start }
           : { dateTime: parsed.data.start, timeZone: parsed.data.timezone },
@@ -1552,13 +1624,17 @@ export const calendarRoutes: FastifyPluginAsync = async (app) => {
       };
       const eventUrl = (eventId: string) =>
         `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(destination.externalCalendarId)}/events/${encodeURIComponent(eventId)}`;
-      const headers = { Authorization: `Bearer ${token.accessToken}`, "Content-Type": "application/json" };
+      const headers = {
+        Authorization: `Bearer ${token.accessToken}`,
+        "Content-Type": "application/json"
+      };
 
       if (parsed.data.scope === "event") {
+        const occurrenceFields = withGoogleReminder(eventFields, parsed.data.reminderMinutesBefore);
         const response = await fetch(`${eventUrl(target.providerEventId)}?sendUpdates=all`, {
           method: "PATCH",
           headers,
-          body: JSON.stringify(eventFields)
+          body: JSON.stringify(occurrenceFields)
         });
         if (!response.ok) {
           return reply.status(response.status === 403 ? 403 : 502).send({
@@ -1566,20 +1642,32 @@ export const calendarRoutes: FastifyPluginAsync = async (app) => {
             message: "Google Calendar did not update the event. Try again."
           });
         }
-        updated.push({ sourceId: target.sourceId, providerEventId: target.providerEventId });
+        updated.push({
+          sourceId: target.sourceId,
+          providerEventId: target.providerEventId
+        });
         continue;
       }
 
       const masterId = target.recurringEventId!;
-      const masterResponse = await fetch(eventUrl(masterId), { headers: { Authorization: `Bearer ${token.accessToken}` } });
+      const masterResponse = await fetch(eventUrl(masterId), {
+        headers: { Authorization: `Bearer ${token.accessToken}` }
+      });
       if (!masterResponse.ok) {
-        return reply.status(502).send({ error: "google_recurring_event_load_failed", message: "The recurring series could not be loaded." });
+        return reply.status(502).send({
+          error: "google_recurring_event_load_failed",
+          message: "The recurring series could not be loaded."
+        });
       }
       const master = (await masterResponse.json()) as GoogleEventItem;
+      const recurringEventFields = withGoogleReminder(eventFields, parsed.data.reminderMinutesBefore);
       const recurrence = master.recurrence ?? [];
       const ruleIndex = recurrence.findIndex((rule) => rule.startsWith("RRULE:"));
       if (ruleIndex < 0) {
-        return reply.status(409).send({ error: "google_recurrence_rule_missing", message: "This recurring series cannot be split safely." });
+        return reply.status(409).send({
+          error: "google_recurrence_rule_missing",
+          message: "This recurring series cannot be split safely."
+        });
       }
       const originalRule = recurrence[ruleIndex]!;
       if (parsed.data.recurrencePattern && !isEditableRecurrenceRule(originalRule)) {
@@ -1601,7 +1689,10 @@ export const calendarRoutes: FastifyPluginAsync = async (app) => {
         const response = await fetch(`${eventUrl(masterId)}?sendUpdates=all`, {
           method: "PATCH",
           headers,
-          body: JSON.stringify({ ...eventFields, recurrence: updatedRecurrence })
+          body: JSON.stringify({
+            ...recurringEventFields,
+            recurrence: updatedRecurrence
+          })
         });
         if (!response.ok) return reply.status(502).send({ error: "google_event_update_failed" });
         updated.push({ sourceId: target.sourceId, providerEventId: masterId });
@@ -1615,11 +1706,18 @@ export const calendarRoutes: FastifyPluginAsync = async (app) => {
           : parsed.data.originalStart
       );
       instancesUrl.searchParams.set("maxResults", "2500");
-      const instancesResponse = await fetch(instancesUrl, { headers: { Authorization: `Bearer ${token.accessToken}` } });
+      const instancesResponse = await fetch(instancesUrl, {
+        headers: { Authorization: `Bearer ${token.accessToken}` }
+      });
       if (!instancesResponse.ok) {
-        return reply.status(502).send({ error: "google_recurring_instances_load_failed", message: "The recurring occurrences could not be loaded." });
+        return reply.status(502).send({
+          error: "google_recurring_instances_load_failed",
+          message: "The recurring occurrences could not be loaded."
+        });
       }
-      const instances = (await instancesResponse.json()) as { items?: unknown[] };
+      const instances = (await instancesResponse.json()) as {
+        items?: unknown[];
+      };
       const previousCount = instances.items?.length ?? 0;
 
       if (previousCount === 0) {
@@ -1635,7 +1733,7 @@ export const calendarRoutes: FastifyPluginAsync = async (app) => {
           method: "PATCH",
           headers,
           body: JSON.stringify({
-            ...eventFields,
+            ...recurringEventFields,
             ...(updatedRule !== originalRule ? { recurrence: updatedRecurrence } : {})
           })
         });
@@ -1673,7 +1771,11 @@ export const calendarRoutes: FastifyPluginAsync = async (app) => {
         {
           method: "POST",
           headers,
-          body: JSON.stringify({ ...originalBody, ...eventFields, recurrence: newRecurrence })
+          body: JSON.stringify({
+            ...originalBody,
+            ...recurringEventFields,
+            recurrence: newRecurrence
+          })
         }
       );
       if (!insertResponse.ok) {
@@ -1682,10 +1784,16 @@ export const calendarRoutes: FastifyPluginAsync = async (app) => {
           headers,
           body: JSON.stringify({ recurrence })
         }).catch(() => undefined);
-        return reply.status(502).send({ error: "google_recurring_event_split_failed", message: "Google Calendar could not create the updated series." });
+        return reply.status(502).send({
+          error: "google_recurring_event_split_failed",
+          message: "Google Calendar could not create the updated series."
+        });
       }
       const inserted = (await insertResponse.json()) as { id?: string };
-      updated.push({ sourceId: target.sourceId, providerEventId: inserted.id ?? masterId });
+      updated.push({
+        sourceId: target.sourceId,
+        providerEventId: inserted.id ?? masterId
+      });
     }
 
     await app.db.delete(calendarEventCache).where(eq(calendarEventCache.householdId, household.id));
@@ -1707,10 +1815,7 @@ export const calendarRoutes: FastifyPluginAsync = async (app) => {
     }
 
     const uniqueTargets = Array.from(
-      new Map(parsed.data.targets.map((target) => [
-        `${target.sourceId}:${target.providerEventId}`,
-        target
-      ])).values()
+      new Map(parsed.data.targets.map((target) => [`${target.sourceId}:${target.providerEventId}`, target])).values()
     );
     const deleted: Array<{ sourceId: string; providerEventId: string }> = [];
 
@@ -1730,15 +1835,14 @@ export const calendarRoutes: FastifyPluginAsync = async (app) => {
           scopes: connectedAccounts.scopes
         })
         .from(calendarSources)
-        .innerJoin(
-          connectedAccounts,
-          eq(calendarSources.connectedAccountId, connectedAccounts.id)
+        .innerJoin(connectedAccounts, eq(calendarSources.connectedAccountId, connectedAccounts.id))
+        .where(
+          and(
+            eq(calendarSources.id, target.sourceId),
+            eq(calendarSources.householdId, household.id),
+            eq(connectedAccounts.provider, "google")
+          )
         )
-        .where(and(
-          eq(calendarSources.id, target.sourceId),
-          eq(calendarSources.householdId, household.id),
-          eq(connectedAccounts.provider, "google")
-        ))
         .limit(1);
 
       if (!destination) {
@@ -1776,9 +1880,8 @@ export const calendarRoutes: FastifyPluginAsync = async (app) => {
           .send({ error: token.error, message: token.message });
       }
 
-      const providerEventId = parsed.data.scope === "series"
-        ? target.recurringEventId ?? target.providerEventId
-        : target.providerEventId;
+      const providerEventId =
+        parsed.data.scope === "series" ? (target.recurringEventId ?? target.providerEventId) : target.providerEventId;
       const deleteUrl = new URL(
         `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(destination.externalCalendarId)}/events/${encodeURIComponent(providerEventId)}`
       );
@@ -1822,9 +1925,7 @@ export const calendarRoutes: FastifyPluginAsync = async (app) => {
       deleted.push({ sourceId: destination.sourceId, providerEventId });
     }
 
-    await app.db
-      .delete(calendarEventCache)
-      .where(eq(calendarEventCache.householdId, household.id));
+    await app.db.delete(calendarEventCache).where(eq(calendarEventCache.householdId, household.id));
 
     return { deleted: true, scope: parsed.data.scope, events: deleted };
   });
@@ -1869,6 +1970,7 @@ export const calendarRoutes: FastifyPluginAsync = async (app) => {
         allowEventWrites: calendarSources.allowEventWrites,
         personId: calendarSources.personId,
         personName: people.displayName,
+        googleDefaultReminders: calendarSources.googleDefaultReminders,
         encryptedAccessToken: connectedAccounts.encryptedAccessToken,
         encryptedRefreshToken: connectedAccounts.encryptedRefreshToken,
         accessTokenExpiresAt: connectedAccounts.accessTokenExpiresAt,
@@ -1900,7 +2002,8 @@ export const calendarRoutes: FastifyPluginAsync = async (app) => {
         displayName: source.displayName,
         color: source.color,
         personId: source.personId,
-        personName: source.personName
+        personName: source.personName,
+        googleDefaultReminders: source.googleDefaultReminders
       }))
     );
     const cacheKey = buildCalendarCacheKey({
@@ -1923,11 +2026,16 @@ export const calendarRoutes: FastifyPluginAsync = async (app) => {
       };
     }
 
-    const warnings: Array<{ code: string; message: string; sourceId?: string }> = [];
+    const warnings: Array<{
+      code: string;
+      message: string;
+      sourceId?: string;
+    }> = [];
     const fallbackCachePayload = cacheHit.status === "miss" ? null : cacheHit.payload;
     const sourceEvents: SourceCalendarEvent[] = [];
     let successfulProviderFetches = 0;
     const accountTokens = new Map<string, GoogleAccessTokenResult>();
+    const accountCalendars = new Map<string, GoogleCalendarLoadResult>();
 
     const logFetch = async (
       sourceId: string,
@@ -1969,15 +2077,27 @@ export const calendarRoutes: FastifyPluginAsync = async (app) => {
       if (!token.ok) {
         await logFetch(source.id, "error", token.message);
         warnings.push({
-          code: token.reauthorizationRequired
-            ? "SOURCE_REAUTHORIZATION_REQUIRED"
-            : "SOURCE_TOKEN_REFRESH_FAILED",
+          code: token.reauthorizationRequired ? "SOURCE_REAUTHORIZATION_REQUIRED" : "SOURCE_TOKEN_REFRESH_FAILED",
           message: `${token.message} Source: "${source.displayName}".`,
           sourceId: source.id
         });
         continue;
       }
       const accessToken = token.accessToken;
+      let calendarDefaults = source.googleDefaultReminders ?? [];
+      let accountCalendarResult = accountCalendars.get(source.connectedAccountId);
+      if (!accountCalendarResult) {
+        accountCalendarResult = await loadGoogleCalendars(accessToken);
+        accountCalendars.set(source.connectedAccountId, accountCalendarResult);
+      }
+      if (accountCalendarResult.ok) {
+        const currentCalendar = accountCalendarResult.calendars.find(
+          (calendar) => calendar.externalCalendarId === source.externalCalendarId
+        );
+        if (currentCalendar) {
+          calendarDefaults = currentCalendar.defaultReminders;
+        }
+      }
 
       try {
         const providerResult = await loadGoogleEvents({
@@ -1994,11 +2114,7 @@ export const calendarRoutes: FastifyPluginAsync = async (app) => {
               .set({ reauthorizationRequired: true, updatedAt: new Date() })
               .where(eq(connectedAccounts.id, source.connectedAccountId));
           }
-          await logFetch(
-            source.id,
-            "error",
-            `Google Calendar returned ${providerResult.statusCode}.`
-          );
+          await logFetch(source.id, "error", `Google Calendar returned ${providerResult.statusCode}.`);
           warnings.push({
             code: "SOURCE_FETCH_FAILED",
             message: `Failed to fetch events for "${source.displayName}".`,
@@ -2030,18 +2146,15 @@ export const calendarRoutes: FastifyPluginAsync = async (app) => {
             description: item.description,
             location: item.location,
             attendeeEmails: (item.attendees ?? [])
-              .map((attendee) =>
-                typeof attendee.email === "string" ? attendee.email : undefined
-              )
+              .map((attendee) => (typeof attendee.email === "string" ? attendee.email : undefined))
               .filter((email): email is string => Boolean(email)),
             organizerEmail: item.organizer?.email,
             meetingUrl:
               item.hangoutLink ??
               item.conferenceData?.entryPoints?.find(
-                (entryPoint) =>
-                  entryPoint.entryPointType === "video" &&
-                  typeof entryPoint.uri === "string"
+                (entryPoint) => entryPoint.entryPointType === "video" && typeof entryPoint.uri === "string"
               )?.uri,
+            reminderMinutesBefore: googleEventReminderMinutesBefore(item, calendarDefaults),
             start,
             end,
             isAllDay,

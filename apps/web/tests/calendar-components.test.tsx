@@ -161,6 +161,7 @@ describe("calendar components", () => {
           isAllDay: false,
           isRecurring: true,
           attendeeEmails: ["kid@example.com", "outside@example.com"],
+          reminderMinutesBefore: [30, 10],
           providerRefs: [
             {
               sourceId: "846288ca-1398-49be-9a95-0d5cb56a4779",
@@ -222,11 +223,17 @@ describe("calendar components", () => {
     expect(screen.getByLabelText("Other")).toBeDisabled();
     expect(screen.getByText("outside@example.com")).toBeInTheDocument();
     expect(
+      screen.getByRole("option", {
+        name: "Keep Google reminders (30, 10 min)",
+      }),
+    ).toBeInTheDocument();
+    expect(
       screen.getByText(
         "Google Calendar will email participants about these changes.",
       ),
     ).toBeInTheDocument();
     await user.click(screen.getByLabelText("Kiddo"));
+    await user.selectOptions(screen.getByLabelText("Reminder"), "15");
     await waitFor(() =>
       expect(
         screen.getByLabelText("This and following occurrences"),
@@ -254,6 +261,7 @@ describe("calendar components", () => {
       },
       recurrenceEnd: { mode: "on_date", until: "2026-09-30" },
       attendees: ["outside@example.com"],
+      reminderMinutesBefore: 15,
     });
   });
 

@@ -16,6 +16,7 @@ type CachePayload = {
     attendeeEmails?: string[];
     organizerEmail?: string;
     meetingUrl?: string;
+    reminderMinutesBefore?: number[];
     start: string;
     end: string;
     isAllDay: boolean;
@@ -43,7 +44,7 @@ export function buildCalendarCacheKey(input: {
   timezone: string;
   sourceFingerprint: string;
 }): string {
-  return `v2|${input.rangeStart}|${input.rangeEnd}|${input.timezone}|${input.sourceFingerprint}`;
+  return `v3|${input.rangeStart}|${input.rangeEnd}|${input.timezone}|${input.sourceFingerprint}`;
 }
 
 export function buildSourceFingerprint(
@@ -55,6 +56,7 @@ export function buildSourceFingerprint(
     color?: string | null;
     personId?: string | null;
     personName?: string | null;
+    googleDefaultReminders?: Array<{ method: string; minutes: number }> | null;
   }>
 ): string {
   return JSON.stringify(
@@ -66,7 +68,8 @@ export function buildSourceFingerprint(
         displayName: source.displayName ?? null,
         color: source.color ?? null,
         personId: source.personId ?? null,
-        personName: source.personName ?? null
+        personName: source.personName ?? null,
+        googleDefaultReminders: source.googleDefaultReminders ?? null
       }))
       .sort((left, right) => left.id.localeCompare(right.id))
   );
@@ -77,9 +80,7 @@ export async function readCalendarCache(
   householdId: string,
   cacheKey: string
 ): Promise<
-  | { status: "miss" }
-  | { status: "fresh"; payload: CachePayload }
-  | { status: "stale"; payload: CachePayload }
+  { status: "miss" } | { status: "fresh"; payload: CachePayload } | { status: "stale"; payload: CachePayload }
 > {
   const [row] = await db
     .select({

@@ -882,9 +882,8 @@ describe("calendar and google integration routes", () => {
     const fetchSpy = vi
       .spyOn(globalThis, "fetch")
       .mockImplementation(async (input) => {
-        const pageToken = new URL(input.toString()).searchParams.get(
-          "pageToken",
-        );
+        const providerUrl = new URL(input.toString());
+        const pageToken = providerUrl.searchParams.get("pageToken");
         return new Response(
           JSON.stringify(
             pageToken
@@ -1297,9 +1296,25 @@ describe("calendar and google integration routes", () => {
     const fetchSpy = vi
       .spyOn(globalThis, "fetch")
       .mockImplementation(async (input) => {
-        const pageToken = new URL(input.toString()).searchParams.get(
-          "pageToken",
-        );
+        const providerUrl = new URL(input.toString());
+        if (providerUrl.pathname.endsWith("/users/me/calendarList")) {
+          return new Response(
+            JSON.stringify({
+              items: [
+                {
+                  id: "calendar-1",
+                  summary: "Parent",
+                  defaultReminders: [
+                    { method: "email", minutes: 30 },
+                    { method: "popup", minutes: 10 },
+                  ],
+                },
+              ],
+            }),
+            { status: 200, headers: { "Content-Type": "application/json" } },
+          );
+        }
+        const pageToken = providerUrl.searchParams.get("pageToken");
         const providerPayload = pageToken
           ? {
               items: [
@@ -1325,6 +1340,7 @@ describe("calendar and google integration routes", () => {
                   ],
                   organizer: { email: "parent@example.com", self: true },
                   hangoutLink: "https://meet.google.com/abc-defg-hij",
+                  reminders: { useDefault: true },
                   start: { dateTime: "2026-06-02T16:00:00.000Z" },
                   end: { dateTime: "2026-06-02T17:00:00.000Z" },
                 },
@@ -1363,6 +1379,7 @@ describe("calendar and google integration routes", () => {
       attendeeEmails: ["kid@example.com", "outside@example.com"],
       organizerEmail: "parent@example.com",
       meetingUrl: "https://meet.google.com/abc-defg-hij",
+      reminderMinutesBefore: [30, 10],
       isAllDay: false,
       recurringEventId: "series-1",
       providerRefs: [
@@ -1389,7 +1406,7 @@ describe("calendar and google integration routes", () => {
     expect(second.statusCode).toBe(200);
     expect(second.json().cacheStatus).toBe("fresh");
     expect(second.json().events).toHaveLength(2);
-    expect(fetchSpy).toHaveBeenCalledTimes(2);
+    expect(fetchSpy).toHaveBeenCalledTimes(3);
 
     const forced = await app.inject({
       method: "GET",
@@ -1397,11 +1414,11 @@ describe("calendar and google integration routes", () => {
     });
     expect(forced.statusCode).toBe(200);
     expect(forced.json().cacheStatus).toBe("refreshed");
-    expect(fetchSpy).toHaveBeenCalledTimes(4);
-    expect(fetchSpy.mock.calls[0]?.[0].toString()).toContain(
+    expect(fetchSpy).toHaveBeenCalledTimes(6);
+    expect(fetchSpy.mock.calls[1]?.[0].toString()).toContain(
       "timeZone=America%2FLos_Angeles",
     );
-    expect(fetchSpy.mock.calls[1]?.[0].toString()).toContain(
+    expect(fetchSpy.mock.calls[2]?.[0].toString()).toContain(
       "pageToken=event-page-2",
     );
 
@@ -1453,11 +1470,12 @@ describe("calendar and google integration routes", () => {
       })
       .returning();
 
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(JSON.stringify({ items: [] }), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      }),
+    vi.spyOn(globalThis, "fetch").mockImplementation(
+      async () =>
+        new Response(JSON.stringify({ items: [] }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
     );
 
     const response = await app.inject({
@@ -1518,6 +1536,7 @@ describe("calendar and google integration routes", () => {
         },
       ]);
       let refreshCalls = 0;
+      let calendarListCalls = 0;
       let eventCalls = 0;
       vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
         const url = input.toString();
@@ -1527,6 +1546,21 @@ describe("calendar and google integration routes", () => {
             JSON.stringify({
               access_token: "refreshed-access-token",
               expires_in: 3600,
+            }),
+            {
+              status: 200,
+              headers: { "Content-Type": "application/json" },
+            },
+          );
+        }
+        if (url.includes("/users/me/calendarList")) {
+          calendarListCalls += 1;
+          return new Response(
+            JSON.stringify({
+              items: [
+                { id: "family", summary: "Family" },
+                { id: "school", summary: "School" },
+              ],
             }),
             {
               status: 200,
@@ -1551,6 +1585,7 @@ describe("calendar and google integration routes", () => {
         degraded: false,
       });
       expect(refreshCalls).toBe(1);
+      expect(calendarListCalls).toBe(1);
       expect(eventCalls).toBe(2);
 
       const [updatedAccount] = await app.db
@@ -1757,6 +1792,7 @@ describe("calendar and google integration routes", () => {
       description: "Bring insurance card",
       location: "Campbell",
       attendees: ["kid@example.com"],
+      reminderMinutesBefore: 10,
       recurrence: {
         frequency: "weekly",
         ends: "after",
@@ -1812,6 +1848,10 @@ describe("calendar and google integration routes", () => {
       description: "Bring insurance card",
       location: "Campbell",
       attendees: [{ email: "kid@example.com" }],
+      reminders: {
+        useDefault: false,
+        overrides: [{ method: "popup", minutes: 10 }],
+      },
       recurrence: ["RRULE:FREQ=WEEKLY;BYDAY=MO,TU,WE;COUNT=6"],
       start: {
         dateTime: "2026-07-21T17:00:00.000Z",
@@ -1981,7 +2021,11 @@ describe("calendar and google integration routes", () => {
     const occurrence = await app.inject({
       method: "PATCH",
       url: "/api/calendar/events",
-      payload: { ...basePayload, scope: "event" },
+      payload: {
+        ...basePayload,
+        scope: "event",
+        reminderMinutesBefore: 15,
+      },
     });
     expect(occurrence.statusCode).toBe(200);
     expect(JSON.parse(String(fetchSpy.mock.calls[0]?.[1]?.body))).toMatchObject(
@@ -1989,6 +2033,10 @@ describe("calendar and google integration routes", () => {
         summary: "Evening Gym",
         location: "Community center",
         attendees: [{ email: "kid@example.com" }],
+        reminders: {
+          useDefault: false,
+          overrides: [{ method: "popup", minutes: 15 }],
+        },
       },
     );
 

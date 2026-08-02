@@ -91,11 +91,13 @@ describe("shell and settings", () => {
   it("wraps route outlet content in the app component", () => {
     render(
       <MemoryRouter initialEntries={["/"]}>
-        <Routes>
-          <Route path="/" element={<App />}>
-            <Route index element={<div>nested route</div>} />
-          </Route>
-        </Routes>
+        <QueryClientProvider client={createTestQueryClient()}>
+          <Routes>
+            <Route path="/" element={<App />}>
+              <Route index element={<div>nested route</div>} />
+            </Route>
+          </Routes>
+        </QueryClientProvider>
       </MemoryRouter>,
     );
 

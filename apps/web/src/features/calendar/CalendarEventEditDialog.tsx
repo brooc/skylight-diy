@@ -68,6 +68,7 @@ export type EditableCalendarEvent = {
   location?: string;
   attendeeEmails?: string[];
   organizerEmail?: string;
+  reminderMinutesBefore?: number[];
   isRecurring: boolean;
   providerRefs: ProviderRef[];
 };
@@ -164,7 +165,7 @@ export function CalendarEventEditDialog({
       ? /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(targetSource.externalCalendarId)
         ? targetSource.externalCalendarId
         : targetSource.externalCalendarId === "primary"
-          ? targetAccount?.email ?? undefined
+          ? (targetAccount?.email ?? undefined)
           : undefined
       : undefined);
   const originalAttendeeEmails = event.attendeeEmails ?? [];
@@ -201,6 +202,7 @@ export function CalendarEventEditDialog({
   );
   const [allDay, setAllDay] = useState(event.isAllDay);
   const [location, setLocation] = useState(event.location ?? "");
+  const [reminderMinutesBefore, setReminderMinutesBefore] = useState("keep");
   const [selectedParticipantIds, setSelectedParticipantIds] = useState(
     participants
       .filter(
@@ -260,11 +262,9 @@ export function CalendarEventEditDialog({
               : [weekdayForDate(initialDates.startDate)],
           );
         }
-        setSeriesUntil(
-          result.until ?? shiftDateKey(initialDates.startDate, 7),
-        );
+        setSeriesUntil(result.until ?? shiftDateKey(initialDates.startDate, 7));
         setSeriesCount(result.count ?? 10);
-        setScheduleError(result.editable ? null : result.message ?? null);
+        setScheduleError(result.editable ? null : (result.message ?? null));
       })
       .catch((loadError) => {
         if (!cancelled) setScheduleError(messageFor(loadError));
@@ -275,7 +275,12 @@ export function CalendarEventEditDialog({
     return () => {
       cancelled = true;
     };
-  }, [initialDates.startDate, recurringTarget?.recurringEventId, recurringTarget?.sourceId, timezone]);
+  }, [
+    initialDates.startDate,
+    recurringTarget?.recurringEventId,
+    recurringTarget?.sourceId,
+    timezone,
+  ]);
 
   const changeStartDate = (nextDate: string): void => {
     const offset = dayDifference(date, nextDate);
@@ -343,6 +348,14 @@ export function CalendarEventEditDialog({
           title: title.trim(),
           location: location.trim() || null,
           attendees: attendeeEmailsForUpdate,
+          ...(reminderMinutesBefore === "keep"
+            ? {}
+            : {
+                reminderMinutesBefore:
+                  reminderMinutesBefore === "none"
+                    ? null
+                    : Number(reminderMinutesBefore),
+              }),
           allDay,
           start,
           end,
@@ -480,7 +493,9 @@ export function CalendarEventEditDialog({
                   <input
                     type="date"
                     required
-                    min={scope === "following" ? initialDates.startDate : undefined}
+                    min={
+                      scope === "following" ? initialDates.startDate : undefined
+                    }
                     value={date}
                     onChange={(change) => changeStartDate(change.target.value)}
                     className="min-h-[44px] min-w-0 rounded-xl border border-slate-300 px-3 text-base"
@@ -550,6 +565,36 @@ export function CalendarEventEditDialog({
                   </label>
                 </div>
               ) : null}
+
+              <label className="grid gap-1">
+                <span className="text-sm font-semibold text-slate-700">
+                  Reminder
+                </span>
+                <select
+                  aria-label="Reminder"
+                  value={reminderMinutesBefore}
+                  onChange={(change) =>
+                    setReminderMinutesBefore(change.target.value)
+                  }
+                  className="min-h-[44px] rounded-xl border border-slate-300 bg-white px-3 text-base"
+                >
+                  <option value="keep">
+                    {event.reminderMinutesBefore?.length
+                      ? `Keep Google reminders (${event.reminderMinutesBefore.join(", ")} min)`
+                      : "Keep no reminder"}
+                  </option>
+                  <option value="none">No reminder</option>
+                  <option value="0">At start time</option>
+                  <option value="5">5 minutes before</option>
+                  <option value="10">10 minutes before</option>
+                  <option value="15">15 minutes before</option>
+                  <option value="30">30 minutes before</option>
+                  <option value="60">1 hour before</option>
+                </select>
+                <span className="text-xs text-slate-500">
+                  Saved to Google Calendar. Any reminder on a shared copy can trigger Daymark.
+                </span>
+              </label>
 
               {canEditSeries && scope !== "event" && schedule?.editable ? (
                 <section className="grid gap-3 rounded-2xl border border-slate-200 p-3">
@@ -646,7 +691,9 @@ export function CalendarEventEditDialog({
                         required
                         min={date}
                         value={seriesUntil}
-                        onChange={(change) => setSeriesUntil(change.target.value)}
+                        onChange={(change) =>
+                          setSeriesUntil(change.target.value)
+                        }
                         className="min-h-[44px] rounded-xl border border-slate-300 px-3 text-base"
                       />
                     </label>

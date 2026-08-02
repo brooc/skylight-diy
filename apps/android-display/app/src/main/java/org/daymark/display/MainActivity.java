@@ -17,6 +17,7 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.provider.Settings;
+import android.speech.tts.TextToSpeech;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
@@ -24,6 +25,7 @@ import android.view.WindowInsets;
 import android.view.WindowInsetsController;
 import android.view.WindowManager;
 import android.webkit.CookieManager;
+import android.webkit.JavascriptInterface;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceError;
 import android.webkit.WebResourceRequest;
@@ -38,6 +40,7 @@ import android.widget.ProgressBar;
 import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
+import java.util.Locale;
 
 public final class MainActivity extends Activity {
     private static final String PREFERENCES = "daymark-display";
@@ -57,6 +60,8 @@ public final class MainActivity extends Activity {
     private long firstBackPressAt;
     private ConnectivityManager connectivityManager;
     private ConnectivityManager.NetworkCallback networkCallback;
+    private TextToSpeech textToSpeech;
+    private boolean textToSpeechReady;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -65,6 +70,7 @@ public final class MainActivity extends Activity {
         preferences = getSharedPreferences(PREFERENCES, MODE_PRIVATE);
         serverUrl = preferences.getString(SERVER_URL, null);
         enterImmersiveMode();
+        initializeTextToSpeech();
         watchNetwork();
         if (serverUrl == null) {
             showConnectionSetup();
@@ -102,6 +108,10 @@ public final class MainActivity extends Activity {
             }
         }
         if (webView != null) webView.destroy();
+        if (textToSpeech != null) {
+            textToSpeech.stop();
+            textToSpeech.shutdown();
+        }
         super.onDestroy();
     }
 
@@ -219,6 +229,7 @@ public final class MainActivity extends Activity {
         settings.setMediaPlaybackRequiresUserGesture(false);
         settings.setSupportMultipleWindows(false);
         settings.setUserAgentString(settings.getUserAgentString() + " DaymarkDisplay/1.0");
+        webView.addJavascriptInterface(new DaymarkDisplayBridge(), "DaymarkDisplay");
         CookieManager.getInstance().setAcceptCookie(true);
         CookieManager.getInstance().setAcceptThirdPartyCookies(webView, true);
         webView.setBackgroundColor(Color.rgb(247, 247, 245));
@@ -266,6 +277,34 @@ public final class MainActivity extends Activity {
                 showBrowserIfDaymark(loadingWebView.getUrl());
             }
         }, 2_500L);
+    }
+
+    private void initializeTextToSpeech() {
+        textToSpeech = new TextToSpeech(this, status -> {
+            if (status != TextToSpeech.SUCCESS || textToSpeech == null) return;
+            int result = textToSpeech.setLanguage(Locale.getDefault());
+            textToSpeechReady = result != TextToSpeech.LANG_MISSING_DATA
+                && result != TextToSpeech.LANG_NOT_SUPPORTED;
+        });
+    }
+
+    private final class DaymarkDisplayBridge {
+        @JavascriptInterface
+        public void speak(String message) {
+            if (message == null || message.isBlank()) return;
+            String safeMessage = message.length() > 500
+                ? message.substring(0, 500)
+                : message;
+            handler.post(() -> {
+                if (!textToSpeechReady || textToSpeech == null) return;
+                textToSpeech.speak(
+                    safeMessage,
+                    TextToSpeech.QUEUE_FLUSH,
+                    null,
+                    "daymark-calendar-reminder"
+                );
+            });
+        }
     }
 
     private void reloadDaymark() {

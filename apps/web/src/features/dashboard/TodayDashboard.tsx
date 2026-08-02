@@ -83,6 +83,7 @@ type CalendarResponse = {
     attendeeEmails?: string[];
     organizerEmail?: string;
     meetingUrl?: string;
+    reminderMinutesBefore?: number[];
     sourceName?: string;
     sourceNames?: string[];
     color?: string;
@@ -134,6 +135,7 @@ type EventDetail = {
   attendeeEmails?: string[];
   organizerEmail?: string;
   meetingUrl?: string;
+  reminderMinutesBefore?: number[];
 };
 
 type RenderEvent = EventDetail & {
@@ -491,6 +493,7 @@ export function TodayDashboard(): JSX.Element {
         attendeeEmails: event.attendeeEmails,
         organizerEmail: event.organizerEmail,
         meetingUrl: event.meetingUrl,
+        reminderMinutesBefore: event.reminderMinutesBefore,
       };
     })
     .filter((event) => event.dayIndex >= 0);
@@ -554,6 +557,7 @@ export function TodayDashboard(): JSX.Element {
         attendeeEmails: event.attendeeEmails,
         organizerEmail: event.organizerEmail,
         meetingUrl: event.meetingUrl,
+        reminderMinutesBefore: event.reminderMinutesBefore,
       };
     })
     .filter((event) => eventMatchesFilter(event.sourceNames));
@@ -597,22 +601,20 @@ export function TodayDashboard(): JSX.Element {
       writableSourceIds.has(reference.sourceId),
     ) ?? [];
   const organizerSourceId = selectedEvent?.organizerEmail
-    ? (calendarSourcesQuery.data?.sources ?? []).find(
-        (source) => {
-          const organizerEmail =
-            selectedEvent.organizerEmail?.toLocaleLowerCase();
-          if (source.externalCalendarId.toLocaleLowerCase() === organizerEmail) {
-            return true;
-          }
-          const account = calendarAccountsQuery.data?.accounts.find(
-            (candidate) => candidate.id === source.connectedAccountId,
-          );
-          return (
-            source.externalCalendarId === "primary" &&
-            account?.email?.toLocaleLowerCase() === organizerEmail
-          );
-        },
-      )?.id
+    ? (calendarSourcesQuery.data?.sources ?? []).find((source) => {
+        const organizerEmail =
+          selectedEvent.organizerEmail?.toLocaleLowerCase();
+        if (source.externalCalendarId.toLocaleLowerCase() === organizerEmail) {
+          return true;
+        }
+        const account = calendarAccountsQuery.data?.accounts.find(
+          (candidate) => candidate.id === source.connectedAccountId,
+        );
+        return (
+          source.externalCalendarId === "primary" &&
+          account?.email?.toLocaleLowerCase() === organizerEmail
+        );
+      })?.id
     : undefined;
   const editableSelectedEventRefs = organizerSourceId
     ? writableSelectedEventRefs.filter(

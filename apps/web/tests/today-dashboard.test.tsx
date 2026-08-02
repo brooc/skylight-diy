@@ -680,6 +680,10 @@ describe("TodayDashboard", () => {
     expect(within(dialog).getByLabelText("End time")).toHaveValue("11:30");
     await user.clear(within(dialog).getByLabelText("End time"));
     await user.type(within(dialog).getByLabelText("End time"), "11:15");
+    await user.selectOptions(
+      within(dialog).getByLabelText("Reminder"),
+      "10",
+    );
     expect(within(dialog).getByLabelText(/Location/)).not.toBeVisible();
     await user.click(within(dialog).getByText("More options"));
     expect(within(dialog).getByLabelText(/Location/)).toBeVisible();
@@ -744,6 +748,10 @@ describe("TodayDashboard", () => {
       summary: "Dentist",
       location: "Campbell",
       attendees: [{ email: "kid@example.com" }],
+      reminders: {
+        useDefault: false,
+        overrides: [{ method: "popup", minutes: 10 }],
+      },
       recurrence: ["RRULE:FREQ=WEEKLY;BYDAY=MO,TU,WE;COUNT=6"],
       start: { timeZone: "America/Los_Angeles" },
       end: { timeZone: "America/Los_Angeles" },

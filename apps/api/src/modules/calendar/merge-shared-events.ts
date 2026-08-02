@@ -11,6 +11,7 @@ export type SourceCalendarEvent = {
   attendeeEmails?: string[];
   organizerEmail?: string;
   meetingUrl?: string;
+  reminderMinutesBefore?: number[];
   start: string;
   end: string;
   isAllDay: boolean;
@@ -44,11 +45,13 @@ export function mergeSharedEvents(events: SourceCalendarEvent[]): MergedCalendar
         sourceNames: [event.sourceName],
         colors: event.color ? [event.color] : [],
         shared: false,
-        providerRefs: [{
-          sourceId: event.sourceId,
-          providerEventId: event.providerEventId,
-          recurringEventId: event.recurringEventId
-        }]
+        providerRefs: [
+          {
+            sourceId: event.sourceId,
+            providerEventId: event.providerEventId,
+            recurringEventId: event.recurringEventId
+          }
+        ]
       });
       continue;
     }
@@ -56,9 +59,11 @@ export function mergeSharedEvents(events: SourceCalendarEvent[]): MergedCalendar
     if (!existing.sourceIds.includes(event.sourceId)) existing.sourceIds.push(event.sourceId);
     if (!existing.sourceNames.includes(event.sourceName)) existing.sourceNames.push(event.sourceName);
     if (event.color && !existing.colors.includes(event.color)) existing.colors.push(event.color);
-    if (!existing.providerRefs.some((reference) =>
-      reference.sourceId === event.sourceId && reference.providerEventId === event.providerEventId
-    )) {
+    if (
+      !existing.providerRefs.some(
+        (reference) => reference.sourceId === event.sourceId && reference.providerEventId === event.providerEventId
+      )
+    ) {
       existing.providerRefs.push({
         sourceId: event.sourceId,
         providerEventId: event.providerEventId,
@@ -70,13 +75,13 @@ export function mergeSharedEvents(events: SourceCalendarEvent[]): MergedCalendar
     existing.description ||= event.description;
     existing.location ||= event.location;
     existing.attendeeEmails = Array.from(
-      new Set([
-        ...(existing.attendeeEmails ?? []),
-        ...(event.attendeeEmails ?? [])
-      ])
+      new Set([...(existing.attendeeEmails ?? []), ...(event.attendeeEmails ?? [])])
     );
     existing.organizerEmail ||= event.organizerEmail;
     existing.meetingUrl ||= event.meetingUrl;
+    existing.reminderMinutesBefore = Array.from(
+      new Set([...(existing.reminderMinutesBefore ?? []), ...(event.reminderMinutesBefore ?? [])])
+    ).sort((left, right) => right - left);
   }
 
   return Array.from(merged.values()).sort(

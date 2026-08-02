@@ -10,21 +10,39 @@ describe("calendar cache fingerprint", () => {
     displayName: "Family",
     color: "#8ec5b8",
     personId: "person-1",
-    personName: "Parent"
+    personName: "Parent",
   };
 
   it("is stable across source ordering", () => {
     const other = {
       ...source,
       id: "source-2",
-      externalCalendarId: "school@example.com"
+      externalCalendarId: "school@example.com",
     };
-    expect(buildSourceFingerprint([source, other])).toBe(buildSourceFingerprint([other, source]));
+    expect(buildSourceFingerprint([source, other])).toBe(
+      buildSourceFingerprint([other, source]),
+    );
   });
 
-  it.each(["displayName", "color", "personId", "personName"] as const)("changes when %s changes", (field) => {
+  it.each(["displayName", "color", "personId", "personName"] as const)(
+    "changes when %s changes",
+    (field) => {
+      expect(buildSourceFingerprint([source])).not.toBe(
+        buildSourceFingerprint([
+          { ...source, [field]: `${source[field]}-changed` },
+        ]),
+      );
+    },
+  );
+
+  it("changes when Google calendar defaults change", () => {
     expect(buildSourceFingerprint([source])).not.toBe(
-      buildSourceFingerprint([{ ...source, [field]: `${source[field]}-changed` }])
+      buildSourceFingerprint([
+        {
+          ...source,
+          googleDefaultReminders: [{ method: "popup", minutes: 10 }],
+        },
+      ]),
     );
   });
 });
@@ -42,7 +60,8 @@ describe("shared calendar events", () => {
     isAllDay: false,
     attendeeEmails: ["kid@example.com"],
     meetingUrl: "https://meet.google.com/abc-defg-hij",
-    color: "#f3cfd0"
+    reminderMinutesBefore: [30],
+    color: "#f3cfd0",
   };
 
   it("merges the same occurrence across calendars and preserves participant colors", () => {
@@ -55,8 +74,9 @@ describe("shared calendar events", () => {
         sourceId: "source-2",
         sourceName: "Kiddo",
         attendeeEmails: ["parent@example.com", "kid@example.com"],
-        color: "#bee8ea"
-      }
+        reminderMinutesBefore: [10],
+        color: "#bee8ea",
+      },
     ]);
 
     expect(events).toHaveLength(1);
@@ -66,10 +86,11 @@ describe("shared calendar events", () => {
       colors: ["#f3cfd0", "#bee8ea"],
       attendeeEmails: ["kid@example.com", "parent@example.com"],
       meetingUrl: "https://meet.google.com/abc-defg-hij",
+      reminderMinutesBefore: [30, 10],
       providerRefs: [
         { sourceId: "source-1", providerEventId: "event-1" },
-        { sourceId: "source-2", providerEventId: "event-2" }
-      ]
+        { sourceId: "source-2", providerEventId: "event-2" },
+      ],
     });
   });
 
@@ -77,8 +98,13 @@ describe("shared calendar events", () => {
     expect(
       mergeSharedEvents([
         base,
-        { ...base, id: "source-2:event-2", providerEventId: "event-2", iCalUID: "different@example.com" }
-      ])
+        {
+          ...base,
+          id: "source-2:event-2",
+          providerEventId: "event-2",
+          iCalUID: "different@example.com",
+        },
+      ]),
     ).toHaveLength(2);
   });
 });

@@ -12,11 +12,12 @@ import {
   uuid
 } from "drizzle-orm/pg-core";
 
-const id = () => uuid("id").primaryKey().default(sql`gen_random_uuid()`);
-const createdAt = () =>
-  timestamp("created_at", { withTimezone: true }).notNull().defaultNow();
-const updatedAt = () =>
-  timestamp("updated_at", { withTimezone: true }).notNull().defaultNow();
+const id = () =>
+  uuid("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`);
+const createdAt = () => timestamp("created_at", { withTimezone: true }).notNull().defaultNow();
+const updatedAt = () => timestamp("updated_at", { withTimezone: true }).notNull().defaultNow();
 
 export const households = pgTable("households", {
   id: id(),
@@ -81,15 +82,10 @@ export const choreCompletions = pgTable(
     }),
     completedForDate: date("completed_for_date").notNull(),
     pointsAwarded: integer("points_awarded").notNull(),
-    completedAt: timestamp("completed_at", { withTimezone: true })
-      .notNull()
-      .defaultNow()
+    completedAt: timestamp("completed_at", { withTimezone: true }).notNull().defaultNow()
   },
   (table) => ({
-    uniqueByDate: uniqueIndex("chore_completions_unique_by_chore_date").on(
-      table.choreId,
-      table.completedForDate
-    )
+    uniqueByDate: uniqueIndex("chore_completions_unique_by_chore_date").on(table.choreId, table.completedForDate)
   })
 );
 
@@ -103,9 +99,7 @@ export const rewardRedemptions = pgTable("reward_redemptions", {
     .references(() => people.id, { onDelete: "cascade" }),
   title: text("title").notNull(),
   pointsSpent: integer("points_spent").notNull(),
-  redeemedAt: timestamp("redeemed_at", { withTimezone: true })
-    .notNull()
-    .defaultNow()
+  redeemedAt: timestamp("redeemed_at", { withTimezone: true }).notNull().defaultNow()
 });
 
 export const meals = pgTable("meals", {
@@ -176,9 +170,7 @@ export const connectedAccounts = pgTable(
     accessTokenExpiresAt: timestamp("access_token_expires_at", {
       withTimezone: true
     }),
-    reauthorizationRequired: boolean("reauthorization_required")
-      .notNull()
-      .default(false),
+    reauthorizationRequired: boolean("reauthorization_required").notNull().default(false),
     scopes: text("scopes")
       .array()
       .notNull()
@@ -215,14 +207,16 @@ export const calendarSources = pgTable(
     enabled: boolean("enabled").notNull().default(true),
     allowEventWrites: boolean("allow_event_writes").notNull().default(false),
     googleAccessRole: text("google_access_role"),
+    googleDefaultReminders: jsonb("google_default_reminders").$type<Array<{ method: string; minutes: number }>>(),
     sortOrder: integer("sort_order").notNull().default(0),
     createdAt: createdAt(),
     updatedAt: updatedAt()
   },
   (table) => ({
-    uniqueExternalCalendar: uniqueIndex(
-      "calendar_sources_unique_connected_external_calendar"
-    ).on(table.connectedAccountId, table.externalCalendarId)
+    uniqueExternalCalendar: uniqueIndex("calendar_sources_unique_connected_external_calendar").on(
+      table.connectedAccountId,
+      table.externalCalendarId
+    )
   })
 );
 
@@ -231,10 +225,7 @@ export const calendarFetchLogs = pgTable("calendar_fetch_logs", {
   householdId: uuid("household_id")
     .notNull()
     .references(() => households.id, { onDelete: "cascade" }),
-  calendarSourceId: uuid("calendar_source_id").references(
-    () => calendarSources.id,
-    { onDelete: "set null" }
-  ),
+  calendarSourceId: uuid("calendar_source_id").references(() => calendarSources.id, { onDelete: "set null" }),
   rangeStart: timestamp("range_start", { withTimezone: true }).notNull(),
   rangeEnd: timestamp("range_end", { withTimezone: true }).notNull(),
   status: text("status").notNull(),
@@ -249,19 +240,17 @@ export const calendarEventWriteLogs = pgTable(
     householdId: uuid("household_id")
       .notNull()
       .references(() => households.id, { onDelete: "cascade" }),
-    calendarSourceId: uuid("calendar_source_id").references(
-      () => calendarSources.id,
-      { onDelete: "set null" }
-    ),
+    calendarSourceId: uuid("calendar_source_id").references(() => calendarSources.id, { onDelete: "set null" }),
     requestId: uuid("request_id").notNull(),
     providerEventId: text("provider_event_id").notNull(),
     title: text("title").notNull(),
     createdAt: createdAt()
   },
   (table) => ({
-    uniqueRequest: uniqueIndex(
-      "calendar_event_write_logs_unique_household_request"
-    ).on(table.householdId, table.requestId)
+    uniqueRequest: uniqueIndex("calendar_event_write_logs_unique_household_request").on(
+      table.householdId,
+      table.requestId
+    )
   })
 );
 
@@ -285,9 +274,6 @@ export const calendarEventCache = pgTable(
     updatedAt: updatedAt()
   },
   (table) => ({
-    uniqueCacheKey: uniqueIndex("calendar_event_cache_unique_household_cache_key").on(
-      table.householdId,
-      table.cacheKey
-    )
+    uniqueCacheKey: uniqueIndex("calendar_event_cache_unique_household_cache_key").on(table.householdId, table.cacheKey)
   })
 );
